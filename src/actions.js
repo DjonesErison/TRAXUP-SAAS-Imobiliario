@@ -4,6 +4,7 @@
 const ACT = {
   closeModal: () => closeModal(),
   go: el => { S.view = el.dataset.v; S.sel = {}; document.body.classList.remove('navOpen'); render(); window.scrollTo(0, 0); },
+  tema: () => { const t = document.body.classList.contains('dark') ? 'light' : 'dark'; aplicarTema(t); try { localStorage.setItem('traxup_tema', t); } catch (e) { } render(); },
   toggleNav: () => document.body.classList.toggle('navOpen'),
   sair: () => sair(),
   copyTxt: el => copiar(el.dataset.t),

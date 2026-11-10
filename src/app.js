@@ -3,6 +3,7 @@
 
 const S = { user: null, filial: '*', view: 'painel', f: {}, sel: {}, busy: false };
 const ICON = {
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zm0 0v14m6-12v14', layers: 'm12 3 9 5-9 5-9-5 9-5zm-9 9 9 5 9-5M3 16l9 5 9-5',
   users: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8', file: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zm0 0v6h6M8 13h8M8 17h6',
   wallet: 'M3 7h18v12H3zM3 7l3-4h12l3 4M16 13h2', alert: 'M12 3 2 20h20L12 3zm0 6v5m0 3v.5', barcode: 'M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14', bank: 'M3 10h18M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18M12 3l9 5H3l9-5z',
@@ -52,6 +53,8 @@ const cliNome = id => Store.get('clientes', id)?.nome || '—';
 const cfg = () => Store.get('config', 'geral') || { id: 'geral' };
 
 /* ---------- inicialização e login ---------- */
+function aplicarTema(t) { document.body.classList.toggle('dark', t === 'dark'); }
+(function temaInicial() { let t = null; try { t = localStorage.getItem('traxup_tema'); } catch (e) { } if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; aplicarTema(t); })();
 async function boot() {
   $('#app').innerHTML = `<div class="login"><div class="loginArt"><img src="${LOGO_IMG}" alt="TRAXUP"></div><div class="loginPanel"><div class="loginCard"><h1>Carregando…</h1><p class="sub">Conectando ao armazenamento de dados.</p></div></div></div>`;
   await Store.init();
@@ -91,7 +94,7 @@ function render() {
   $('#app').innerHTML = `<div class="shell"><aside><div class="brand">${LOGO_MARK}<div><div class="brandText">TRAX<b>UP</b></div><div class="brandSub">IMOBILIÁRIO</div></div></div><div class="brandLine"></div><nav>${nav}</nav><div class="asideFoot">Tecnologia que impulsiona negócios<br>${esc(Store.label())}</div></aside>
   <main><div class="topbar"><button class="menuToggle ghost" data-act="toggleNav">${ic('menu')}</button><div class="title"><div class="eyebrow">TRAXUP / ${esc(TITULOS[S.view] || '')}</div><h1>${esc(TITULOS[S.view] || '')}</h1></div>
   <div class="filialPick">Empresa ${fs.length > 1 ? `<select id="filialSel">${opt('*', 'Todas as empresas', S.filial)}${fs.map(f => opt(f.id, f.nome, S.filial)).join('')}</select>` : `<b style="padding:6px 8px;color:var(--text)">${esc(fs[0]?.nome || '—')}</b>`}</div>
-  <div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
+  <button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
   <div class="content" id="content"></div></main></div>`;
   renderView();
 }
@@ -201,7 +204,7 @@ function graficoLotes(lotes, vendasPer = []) {
   const R = 70, C = 2 * Math.PI * R; let acc = 0;
   const arcos = tot ? itens.filter(x => x.n).map(x => { const len = x.n / tot * C; const a = `<circle r="${R}" cx="100" cy="100" fill="none" stroke="${x.cor}" stroke-width="26" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-acc}" transform="rotate(-90 100 100)"><title>${x.nome}: ${x.n}</title></circle>`; acc += len; return a; }).join('') : '';
   const pct = tot ? Math.round(itens[0].n / tot * 100) : 0; const pct1 = n => tot ? (n / tot * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0,0';
-  return `<div class="card chartCard"><div class="cardHead"><div><h2>Situação dos lotes</h2><p>Posição atual · ${tot} lotes cadastrados${P.ativo ? ` · <b>${vendasPer.length}</b> vendido(s) em ${esc(P.label)}` : ''}</p></div></div><div class="cardBody"><div class="donutWrap"><svg viewBox="0 0 200 200" class="donut"><circle r="${R}" cx="100" cy="100" fill="none" stroke="#EDF1F8" stroke-width="26"/>${arcos}<text x="100" y="100" text-anchor="middle" class="dPct">${pct}%</text><text x="100" y="124" text-anchor="middle" class="dLbl">vendidos</text></svg></div>
+  return `<div class="card chartCard"><div class="cardHead"><div><h2>Situação dos lotes</h2><p>Posição atual · ${tot} lotes cadastrados${P.ativo ? ` · <b>${vendasPer.length}</b> vendido(s) em ${esc(P.label)}` : ''}</p></div></div><div class="cardBody"><div class="donutWrap"><svg viewBox="0 0 200 200" class="donut"><circle r="${R}" cx="100" cy="100" fill="none" stroke="var(--soft)" stroke-width="26"/>${arcos}<text x="100" y="100" text-anchor="middle" class="dPct">${pct}%</text><text x="100" y="124" text-anchor="middle" class="dLbl">vendidos</text></svg></div>
   <div class="list" style="margin-top:12px">${itens.map(x => `<div class="listRow"><span><i class="pill" style="background:${x.cor};border-radius:3px;width:12px;height:12px;margin-right:8px;vertical-align:-1px"></i>${x.nome}</span><span><b>${x.n}</b> <span class="muted">(${pct1(x.n)}%)</span></span></div>`).join('')}</div></div></div>`;
 }
 
