@@ -89,8 +89,18 @@ const ACT = {
   editUser: el => formUser(Store.get('usuarios', el.dataset.id)),
   editFilial: el => formFilial(Store.get('filiais', el.dataset.id)),
   editEmp: el => formEmp(Store.get('empreendimentos', el.dataset.id)),
-  recMes: el => { S.f.recMes = +el.dataset.m; if (!S.f.recAno) S.f.recAno = hoje().slice(0, 4); renderView(); },
+  recMes: el => { const same = +S.f.pMes === +el.dataset.m && String(S.f.pAno) === el.dataset.a; S.f.pMes = same ? '' : el.dataset.m; S.f.pAno = el.dataset.a; renderView(); },
+  limparPeriodo: () => { S.f.pAno = ''; S.f.pMes = ''; renderView(); },
   recDetalhes: el => { Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim }); S.view = 'financeiro'; render(); },
+  delEmp: el => {
+    const e = Store.get('empreendimentos', el.dataset.id); if (!e) return; const ls = Store.list('lotes').filter(l => l.empId === e.id);
+    const vendidos = ls.filter(l => Store.list('vendas').some(v => v.loteId === l.id)); const outros = Store.list('empreendimentos').filter(x => x.id !== e.id && x.filialId === e.filialId);
+    if (!ls.length) return confirmar(`Excluir o empreendimento <b>${esc(e.nome)}</b>? Ele não tem lotes.`, async () => { await Store.del('empreendimentos', e.id); if (Store.get('plantas', e.id)) await Store.del('plantas', e.id); await audit('Excluiu empreendimento ' + e.nome); closeModal(); toast('Empreendimento excluído.'); render(); }, 'Excluir');
+    modal(`${mHead('Excluir empreendimento', e.nome)}<form class="modalBody" data-form="delEmp" data-id="${e.id}"><div class="notice warn">Este empreendimento tem <b>${ls.length} lote(s)</b>${vendidos.length ? `, sendo <b>${vendidos.length} com venda</b>` : ''}. Escolha o que fazer com eles:</div>
+    <div style="display:grid;gap:10px">${outros.length ? `<label class="check"><input type="radio" name="acao" value="mover" checked> Mover os lotes para outro empreendimento da mesma empresa</label><label style="margin-left:26px">${sel('destino', outros.map(x => [x.id, x.nome]), outros[0].id)}</label>` : ''}
+    ${vendidos.length ? `<p class="hint">Lotes com venda não podem ser apagados${outros.length ? '; mova-os para outro empreendimento' : '. Cadastre outro empreendimento nesta empresa para movê-los'}.</p>` : `<label class="check"><input type="radio" name="acao" value="apagar" ${outros.length ? '' : 'checked'}> Apagar também os ${ls.length} lote(s) (nenhum tem venda)</label>`}</div>
+    <div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="danger" ${!outros.length && vendidos.length ? 'disabled' : ''}>Excluir empreendimento</button></div></form>`, 'narrow');
+  },
   verFilial: el => { S.filial = el.dataset.id; S.emp = ''; render(); },
   verEmp: el => { S.emp = el.dataset.id; renderView(); },
   delFilial: el => confirmar('Excluir esta filial? Ela não tem lotes, clientes nem vendas.', async () => { const id = el.dataset.id; await Store.del('filiais', id); for (const u of Store.list('usuarios').filter(u => (u.filiais || []).includes(id))) { u.filiais = u.filiais.filter(x => x !== id); await Store.put('usuarios', u); } if (S.filial === id) S.filial = '*'; await audit('Excluiu filial vazia'); closeModal(); toast('Filial excluída.'); render(); }, 'Excluir'),
@@ -184,6 +194,14 @@ const FORMS = {
     const fl = Store.get('filiais', f.dataset.id) || {}; if (v.bb_convenio && !/^\d{7}$/.test(v.bb_convenio)) throw Error('O convênio deve ter 7 dígitos.');
     Object.assign(fl, { nome: v.nome, razao: v.razao, cnpj: v.cnpj, telefone: v.telefone, cidade: v.cidade, uf: v.uf.toUpperCase(), endereco: v.endereco, multa: parseFloat(String(v.multa).replace(',', '.')) || 0, jurosMes: parseFloat(String(v.jurosMes).replace(',', '.')) || 0, bb: { agencia: v.bb_agencia, conta: v.bb_conta, convenio: v.bb_convenio, carteira: v.bb_carteira, variacao: v.bb_variacao, beneficiario: v.bb_beneficiario, cnpj: v.bb_cnpj } });
     await Store.put('filiais', fl); await audit('Filial salva: ' + fl.nome); closeModal(); toast('Filial salva.'); render();
+  },
+  async delEmp(v, f) {
+    const e = Store.get('empreendimentos', f.dataset.id); const ls = Store.list('lotes').filter(l => l.empId === e.id);
+    if (v.acao === 'mover') { const d = Store.get('empreendimentos', v.destino); for (const l of ls) { l.empId = d.id; l.filialId = d.filialId; delete l.x; delete l.y; await Store.put('lotes', l); } }
+    else if (v.acao === 'apagar') { if (ls.some(l => Store.list('vendas').some(x => x.loteId === l.id))) throw Error('Há lotes com venda. Mova-os para outro empreendimento.'); for (const l of ls) await Store.del('lotes', l.id); }
+    else throw Error('Escolha o que fazer com os lotes.');
+    await Store.del('empreendimentos', e.id); if (Store.get('plantas', e.id)) await Store.del('plantas', e.id);
+    await audit(`Excluiu empreendimento ${e.nome} (${ls.length} lotes ${v.acao === 'mover' ? 'movidos' : 'apagados'})`); closeModal(); toast('Empreendimento excluído.'); S.emp = ''; render();
   },
   async emp(v, f) { const e = Store.get('empreendimentos', f.dataset.id) || {}; Object.assign(e, v); await Store.put('empreendimentos', e); for (const l of Store.list('lotes').filter(l => l.empId === e.id && l.filialId !== e.filialId)) { l.filialId = e.filialId; await Store.put('lotes', l); } closeModal(); toast('Empreendimento salvo.'); renderView(); },
   async minhaSenha(v, f) {
