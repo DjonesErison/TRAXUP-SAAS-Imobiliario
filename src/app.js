@@ -8,7 +8,7 @@ const ICON = {
   wallet: 'M3 7h18v12H3zM3 7l3-4h12l3 4M16 13h2', alert: 'M12 3 2 20h20L12 3zm0 6v5m0 3v.5', barcode: 'M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14', bank: 'M3 10h18M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18M12 3l9 5H3l9-5z',
   hand: 'M7 11 4 14l4 4 3-3m-4-4 4-4 6 6-4 4m-6-6 6 6', send: 'M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z', doc: 'M6 3h9l5 5v13H6zM14 3v6h6M9 13h7M9 17h7M9 9h2', user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   building: 'M4 21V5l8-3 8 3v16M9 21v-4h6v4M8 8h2m4 0h2M8 12h2m4 0h2', gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14.4 3h-4l-.4 2.4a7 7 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.6l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3l.4 2.4h4l.4-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.9.1-1.3z',
-  plus: 'M12 5v14M5 12h14', x: 'M18 6 6 18M6 6l12 12', search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm10 2-4.3-4.3', logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9', menu: 'M3 6h18M3 12h18M3 18h18', down: 'M12 3v12m-5-5 5 5 5-5M5 21h14', upload: 'M12 21V9m-5 5 5-5 5 5M5 3h14', copy: 'M9 9h11v11H9zM5 15H4V4h11v1', check: 'M20 6 9 17l-5-5'
+  plus: 'M12 5v14M5 12h14', x: 'M18 6 6 18M6 6l12 12', search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm10 2-4.3-4.3', logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9', menu: 'M3 6h18M3 12h18M3 18h18', down: 'M12 3v12m-5-5 5 5 5-5M5 21h14', upload: 'M12 21V9m-5 5 5-5 5 5M5 3h14', copy: 'M9 9h11v11H9zM5 15H4V4h11v1', check: 'M20 6 9 17l-5-5', chev: 'm9 6 6 6-6 6'
 };
 const ic = (n, cls = 'icon') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${ICON[n] || ''}"/></svg>`;
 const LOGO_MARK = `<svg viewBox="0 0 48 48"><rect x="6" y="24" width="8" height="16" rx="2" fill="#2F6BF0"/><rect x="18" y="17" width="8" height="23" rx="2" fill="#2F6BF0"/><rect x="30" y="10" width="8" height="30" rx="2" fill="#2F6BF0"/><path d="M4 36 L16 27 L22 31 L36 17" stroke="#FF9F1C" stroke-width="4.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M30 14 L41 11 L38 22 Z" fill="#FFB938"/></svg>`;
@@ -119,7 +119,8 @@ VIEWS.painel = () => {
   const devedores = vendas.map(v => ({ v, val: soma(vencidasVenda(v), saldoParcela) })).filter(x => x.val > 0).sort((a, b) => b.val - a.val).slice(0, 6);
   const prox = ps.filter(x => saldoParcela(x.p) > 0 && x.p.venc >= ref && x.p.venc <= addDias(ref, 7)).sort((a, b) => a.p.venc.localeCompare(b.p.venc)).slice(0, 8);
   const tl = Math.max(1, lotes.length);
-  return `<div class="kpis">
+  const fsBar = filiaisUsuario(); const barra = fsBar.length > 1 ? `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fsBar].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>` : '';
+  return `${barra}<div class="kpis">
    <div class="kpi bl"><span>Valor vendido</span><strong>${brlShort(vendido)}</strong><small>${vendas.length} vendas ativas</small></div>
    <div class="kpi bl"><span>Recebido</span><strong class="green">${brlShort(recebido)}</strong><small>Soma das baixas registradas</small></div>
    <div class="kpi bl"><span>A receber</span><strong>${brlShort(aReceber)}</strong><small>Saldo das parcelas em aberto</small></div>
