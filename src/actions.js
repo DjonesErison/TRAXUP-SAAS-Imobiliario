@@ -91,7 +91,7 @@ const ACT = {
   editEmp: el => formEmp(Store.get('empreendimentos', el.dataset.id)),
   recMes: el => { const same = +S.f.pMes === +el.dataset.m && String(S.f.pAno) === el.dataset.a; S.f.pMes = same ? '' : el.dataset.m; S.f.pAno = el.dataset.a; renderView(); },
   limparPeriodo: () => { S.f.pAno = ''; S.f.pMes = ''; renderView(); },
-  recDetalhes: el => { Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim }); S.view = 'financeiro'; render(); },
+  recDetalhes: el => { if (el.dataset.prev) Object.assign(S.f, { pst: 'Em aberto', pini: el.dataset.ini, pfim: el.dataset.fim, ppini: '', ppfim: '' }); else Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim, pini: '', pfim: '' }); S.view = 'financeiro'; render(); },
   delEmp: el => {
     const e = Store.get('empreendimentos', el.dataset.id); if (!e) return; const ls = Store.list('lotes').filter(l => l.empId === e.id);
     const vendidos = ls.filter(l => Store.list('vendas').some(v => v.loteId === l.id)); const outros = Store.list('empreendimentos').filter(x => x.id !== e.id && x.filialId === e.filialId);

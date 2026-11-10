@@ -158,6 +158,8 @@ tfoot td{font-weight:700;background:#F7F9FD}
 .empSub button.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:inset 0 -2px 0 var(--orange)}
 .empSub button.on .icon{color:var(--orange-2)}
 /* gráficos do painel */
+.previsao .vBar i{background:linear-gradient(180deg,#FFD27A,var(--orange-2))}.previsao .vBar.on i{background:linear-gradient(180deg,var(--blue-2),var(--blue));box-shadow:0 4px 14px rgba(18,70,178,.35)}.previsao .vLabels .on{color:var(--blue)}
+
 .vchart{display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
 .vAxis{display:flex;flex-direction:column;justify-content:space-between;font-size:11.5px;color:var(--muted);text-align:right;margin:-7px 0;font-variant-numeric:tabular-nums}
 .vPlot{position:relative;border-bottom:1px solid var(--line)}
@@ -724,12 +726,17 @@ const VIEWS = {};
 /* ---------- período do painel ---------- */
 let P = { ativo: false, per: () => true, label: 'todo o período' };
 function periodoPainel() {
+  if (S.f.pAno && !anosDisponiveis().some(([y]) => String(y) === String(S.f.pAno))) S.f.pAno = '';
   const a = S.f.pAno ? String(S.f.pAno) : '', m = S.f.pMes ? +S.f.pMes : 0;
   const per = d => !!d && (!a || String(d).slice(0, 4) === a) && (!m || +String(d).slice(5, 7) === m);
   const label = a && m ? `${MESES[m - 1]} de ${a}` : a ? `ano de ${a}` : m ? `${MESES[m - 1]} (todos os anos)` : 'todo o período';
   return { ativo: !!(a || m), per: a || m ? per : () => true, ano: a, mes: m, label };
 }
-function anosDisponiveis() { const s = new Set([+hoje().slice(0, 4)]); for (const v of L('vendas')) { if (v.data) s.add(+v.data.slice(0, 4)); for (const p of v.parcelas || []) { s.add(+p.venc.slice(0, 4)); for (const q of p.pagamentos || []) if (q.data) s.add(+q.data.slice(0, 4)); } } return [...s].filter(Boolean).sort((x, y) => y - x); }
+function anosDisponiveis() {
+  const atual = +hoje().slice(0, 4); const futuros = new Set();
+  for (const v of L('vendas')) for (const p of v.parcelas || []) { const y = +p.venc.slice(0, 4); if (y > atual && y <= atual + 5 && saldoParcela(p) > 0) futuros.add(y); }
+  return [...[...futuros].sort((a, b) => b - a).map(y => [y, y + ' (previsão)']), ...[0, 1, 2, 3, 4].map(k => [atual - k, String(atual - k)])];
+}
 
 VIEWS.painel = () => {
   P = periodoPainel();
@@ -751,7 +758,7 @@ VIEWS.painel = () => {
   const graf = graficoRecebimentos(ps), rosca = graficoLotes(lotes, vendasPer);
   const fsBar = filiaisUsuario().filter(f => f.id === S.filial || Store.list('lotes').some(l => l.filialId === f.id) || Store.list('vendas').some(v => v.filialId === f.id)); const barra = fsBar.length > 1 ? `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fsBar].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>` : '';
   const nomeFil = nomeFilial(S.filial); const barraEmp = empsFil.length > 1 ? `<div class="empSub"><span class="empSubLbl">${ic('building')}Empreendimento de ${esc(nomeFil)}:</span>${[{ id: '', nome: 'Todos os empreendimentos' }, ...empsFil].map(e => `<button class="${(S.emp || '') === e.id ? 'on' : ''}" data-act="verEmp" data-id="${e.id}">${esc(e.nome)}${(S.emp || '') === e.id ? ic('check') : ''}</button>`).join('')}</div>` : '';
-  const barraPer = `<div class="perBar"><span class="empSubLbl">${ic('grid')}Período:</span><label>Ano<select id="pAno">${opt('', 'Todos os anos', P.ano)}${anosDisponiveis().map(a => opt(a, a, P.ano)).join('')}</select></label><label>Mês<select id="pMes">${opt('', 'Todos os meses', P.mes || '')}${MESES.map((n, i) => opt(i + 1, n[0].toUpperCase() + n.slice(1), P.mes || '')).join('')}</select></label>${P.ativo ? `<span class="badge orange">${esc(P.label)}</span><button class="sm ghost" data-act="limparPeriodo">${ic('x')}Limpar período</button>` : `<span class="muted" style="font-size:13px">Mostrando todo o período</span>`}</div>`;
+  const barraPer = `<div class="perBar"><span class="empSubLbl">${ic('grid')}Período:</span><label>Ano<select id="pAno">${opt('', 'Todos os anos', P.ano)}${anosDisponiveis().map(([a, t]) => opt(a, t, P.ano)).join('')}</select></label><label>Mês<select id="pMes">${opt('', 'Todos os meses', P.mes || '')}${MESES.map((n, i) => opt(i + 1, n[0].toUpperCase() + n.slice(1), P.mes || '')).join('')}</select></label>${P.ativo ? `<span class="badge orange">${esc(P.label)}</span><button class="sm ghost" data-act="limparPeriodo">${ic('x')}Limpar período</button>` : `<span class="muted" style="font-size:13px">Mostrando todo o período</span>`}</div>`;
   const sub = (geral, comPer) => P.ativo ? comPer : geral;
   return `${barra}${barraEmp}${barraPer}${S.emp ? `<div class="notice info" style="margin-bottom:16px">Mostrando somente o empreendimento <b>${esc(Store.get('empreendimentos', S.emp)?.nome)}</b> de ${esc(nomeFil)}.</div>` : ''}<div class="kpis">
    <div class="kpi bl"><span>Valor vendido</span><strong>${brl(soma(vendasPer, v => v.valor))}</strong><small>${sub(`${vendasPer.length} vendas ativas`, `${vendasPer.length} vendas em ${esc(P.label)}`)}</small></div>
@@ -773,18 +780,23 @@ const MES_CURTO = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set'
 const intBR = n => Math.round(n).toLocaleString('pt-BR');
 function escalaBonita(max) { if (max <= 0) return { top: 100, step: 25 }; const raw = max / 4; const mag = Math.pow(10, Math.floor(Math.log10(raw))); const step = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map(m => m * mag).find(st => st >= raw); return { top: step * 4, step }; }
 function graficoRecebimentos(ps) {
-  const pags = ps.flatMap(x => (x.p.pagamentos || []).map(q => ({ q, tipo: x.p.tipo })));
   const anoAtual = +hoje().slice(0, 4), mesAtual = +hoje().slice(5, 7);
-  const ano = P.ano ? +P.ano : anoAtual;
-  const porMes = Array.from({ length: 12 }, (_, i) => { const pref = `${ano}-${String(i + 1).padStart(2, '0')}`; const it = pags.filter(x => String(x.q.data || '').startsWith(pref)); const t = tp => soma(it.filter(x => x.tipo === tp), x => x.q.valor); return { total: soma(it, x => x.q.valor), Entrada: t('Entrada'), Mensal: t('Mensal'), Intercalada: t('Intercalada'), Avulsa: t('Avulsa'), n: it.length }; });
-  const mes = P.mes || (ano === anoAtual ? mesAtual : (12 - [...porMes].reverse().findIndex(m => m.total > 0)) || 12) || 12;
+  const ano = P.ano ? +P.ano : anoAtual; const futuro = ano > anoAtual;
+  const pags = ps.flatMap(x => (x.p.pagamentos || []).map(q => ({ data: q.data, valor: q.valor, tipo: x.p.tipo })));
+  const prev = ps.filter(x => saldoParcela(x.p) > 0).map(x => ({ data: x.p.venc, valor: saldoParcela(x.p), tipo: x.p.tipo }));
+  const fonte = futuro ? prev : pags;
+  const porMes = Array.from({ length: 12 }, (_, i) => { const pref = `${ano}-${String(i + 1).padStart(2, '0')}`; const it = fonte.filter(x => String(x.data || '').startsWith(pref)); const t = tp => soma(it.filter(x => x.tipo === tp), x => x.valor); return { total: soma(it, x => x.valor), Entrada: t('Entrada'), Mensal: t('Mensal'), Intercalada: t('Intercalada'), Avulsa: t('Avulsa'), n: it.length }; });
+  let mes = +P.mes || 0;
+  if (!mes) { if (ano === anoAtual) mes = mesAtual; else { const ult = porMes.map((m, i) => m.total > 0 ? i + 1 : 0).filter(Boolean); mes = futuro ? (ult[0] || 1) : (ult[ult.length - 1] || 12); } }
+  mes = Math.min(12, Math.max(1, mes));
   const { top, step } = escalaBonita(Math.max(...porMes.map(m => m.total)) / 100);
   const H = 230; const ticks = [4, 3, 2, 1, 0].map(k => k * step);
-  const sel = porMes[Math.min(12, mes) - 1]; const totalAno = soma(porMes, m => m.total);
+  const sel = porMes[mes - 1]; const totalAno = soma(porMes, m => m.total);
   const ini = `${ano}-${String(mes).padStart(2, '0')}-01`, fim = addDias(addMeses(ini, 1), -1);
-  return `<div class="card chartCard"><div class="cardHead"><div><h2>Recebimentos por mês</h2><p>Total recebido em ${ano}: <b>${brl(totalAno)}</b>${P.ano ? '' : ' · escolha outro ano no Período'}</p></div><button class="sm" data-act="recDetalhes" data-ini="${ini}" data-fim="${fim}">Ver detalhes</button></div>
+  const nomeMes = MESES[mes - 1][0].toUpperCase() + MESES[mes - 1].slice(1);
+  return `<div class="card chartCard ${futuro ? 'previsao' : ''}"><div class="cardHead"><div><h2>${futuro ? 'Previsão de recebimento por mês' : 'Recebimentos por mês'}</h2><p>${futuro ? `A receber em ${ano}` : `Total recebido em ${ano}`}: <b>${brl(totalAno)}</b>${P.ano ? '' : ' · escolha outro ano no Período'}</p></div><button class="sm" data-act="recDetalhes" data-ini="${ini}" data-fim="${fim}" data-prev="${futuro ? 1 : ''}">Ver detalhes</button></div>
   <div class="cardBody"><div class="vchart"><div class="vAxis">${ticks.map(t => `<span>${intBR(t)}</span>`).join('')}</div><div class="vPlot" style="height:${H}px">${ticks.map((t, i) => `<i class="vGrid" style="top:${i / 4 * 100}%"></i>`).join('')}<div class="vBars">${porMes.map((m, i) => `<button class="vBar ${i + 1 === mes ? 'on' : ''} ${ano === anoAtual && i + 1 === mesAtual ? 'now' : ''}" data-act="recMes" data-m="${i + 1}" data-a="${ano}" title="${MES_CURTO[i]}/${ano}: ${brl(m.total)} — clique para filtrar o painel por este mês"><i style="height:${m.total / 100 / top * 100}%"></i></button>`).join('')}</div></div><div></div><div class="vLabels">${MES_CURTO.map((n, i) => `<span class="${i + 1 === mes ? 'on' : ''}">${n}</span>`).join('')}</div></div>
-  <div class="mesBox"><h3>${MESES[mes - 1][0].toUpperCase() + MESES[mes - 1].slice(1)} de ${ano}</h3><div class="mesGrid"><div><span>Total recebido</span><b>${brl(sel.total)}</b></div><div><span>Entrada</span><b>${brl(sel.Entrada)}</b></div><div><span>Mensal</span><b>${brl(sel.Mensal)}</b></div><div><span>Intercalada</span><b>${brl(sel.Intercalada)}</b></div>${sel.Avulsa ? `<div><span>Avulsa</span><b>${brl(sel.Avulsa)}</b></div>` : ''}</div><small class="muted">${sel.n} pagamento(s) registrados no mês · clique numa barra para filtrar o painel pelo mês</small></div></div></div>`;
+  <div class="mesBox"><h3>${nomeMes} de ${ano}${futuro ? ' · previsão' : ''}</h3><div class="mesGrid"><div><span>${futuro ? 'Total a receber' : 'Total recebido'}</span><b>${brl(sel.total)}</b></div><div><span>Entrada</span><b>${brl(sel.Entrada)}</b></div><div><span>Mensal</span><b>${brl(sel.Mensal)}</b></div><div><span>Intercalada</span><b>${brl(sel.Intercalada)}</b></div>${sel.Avulsa ? `<div><span>Avulsa</span><b>${brl(sel.Avulsa)}</b></div>` : ''}</div><small class="muted">${sel.n} ${futuro ? 'parcela(s) a vencer' : 'pagamento(s) registrados'} no mês · clique numa barra para filtrar o painel pelo mês</small></div></div></div>`;
 }
 function empresasNoEscopo() { return filiaisUsuario().filter(f => S.filial === '*' || f.id === S.filial); }
 function resultadosPorEmpresa(vendas, lotes) {
@@ -1410,7 +1422,7 @@ const ACT = {
   editEmp: el => formEmp(Store.get('empreendimentos', el.dataset.id)),
   recMes: el => { const same = +S.f.pMes === +el.dataset.m && String(S.f.pAno) === el.dataset.a; S.f.pMes = same ? '' : el.dataset.m; S.f.pAno = el.dataset.a; renderView(); },
   limparPeriodo: () => { S.f.pAno = ''; S.f.pMes = ''; renderView(); },
-  recDetalhes: el => { Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim }); S.view = 'financeiro'; render(); },
+  recDetalhes: el => { if (el.dataset.prev) Object.assign(S.f, { pst: 'Em aberto', pini: el.dataset.ini, pfim: el.dataset.fim, ppini: '', ppfim: '' }); else Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim, pini: '', pfim: '' }); S.view = 'financeiro'; render(); },
   delEmp: el => {
     const e = Store.get('empreendimentos', el.dataset.id); if (!e) return; const ls = Store.list('lotes').filter(l => l.empId === e.id);
     const vendidos = ls.filter(l => Store.list('vendas').some(v => v.loteId === l.id)); const outros = Store.list('empreendimentos').filter(x => x.id !== e.id && x.filialId === e.filialId);
