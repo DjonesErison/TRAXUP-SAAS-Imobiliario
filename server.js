@@ -41,11 +41,13 @@ function backupDiario() { const dir = path.join(DATA_DIR, 'backups'); fs.mkdirSy
 setInterval(backupDiario, 3600e3).unref(); backupDiario();
 
 /* ---------- sessões ---------- */
-const sessions = new Map();
+const SESS_FILE = path.join(DATA_DIR, 'sessions.json');
+const sessions = new Map(); try { for (const [t, v] of Object.entries(JSON.parse(fs.readFileSync(SESS_FILE, 'utf8')))) if (v.exp > Date.now()) sessions.set(t, v); } catch { }
+let sessTimer = null; const saveSessions = () => { clearTimeout(sessTimer); sessTimer = setTimeout(() => { try { fs.writeFileSync(SESS_FILE, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 }); } catch { } }, 2000); };
 const pbkdf2 = (senha, salt) => crypto.pbkdf2Sync(String(senha), Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex');
 const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
-function novaSessao(userId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { userId, exp: Date.now() + SESSION_HOURS * 3600e3 }); return t; }
-function usuarioDa(req) { const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t); if (!s || s.exp < Date.now()) { sessions.delete(t); return null; } const u = db.usuarios[s.userId]; if (!u || u.ativo === false) return null; s.exp = Date.now() + SESSION_HOURS * 3600e3; return u; }
+function novaSessao(userId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { userId, exp: Date.now() + SESSION_HOURS * 3600e3 }); saveSessions(); return t; }
+function usuarioDa(req) { const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t); if (!s || s.exp < Date.now()) { sessions.delete(t); return null; } const u = db.usuarios[s.userId]; if (!u || u.ativo === false) return null; if (s.exp - Date.now() < (SESSION_HOURS - 1) * 3600e3) { s.exp = Date.now() + SESSION_HOURS * 3600e3; saveSessions(); } return u; }
 const tentativas = new Map();
 function limitarLogin(ip) { const now = Date.now(); const a = (tentativas.get(ip) || []).filter(t => now - t < 15 * 60e3); a.push(now); tentativas.set(ip, a); return a.length > 10; }
 const semSegredo = u => { const { salt, hash, ...rest } = u; return rest; };
@@ -144,7 +146,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { token: novaSessao(u.id), userId: u.id });
     }
     const user = usuarioDa(req); if (!user) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
-    if (p === '/api/logout') { sessions.delete((req.headers.authorization || '').replace(/^Bearer\s+/i, '')); return send(res, 200, { ok: true }); }
+    if (p === '/api/logout') { sessions.delete((req.headers.authorization || '').replace(/^Bearer\s+/i, '')); saveSessions(); return send(res, 200, { ok: true }); }
     if (p === '/api/data' && req.method === 'GET') { const out = {}; for (const c of COLS) out[c] = Object.values(db[c]).map(o => c === 'usuarios' ? semSegredo(o) : o); return send(res, 200, out, { 'Cache-Control': 'no-store' }); }
     const m = p.match(/^\/api\/data\/([a-z]+)\/([A-Za-z0-9_.:@+~-]{1,120})$/);
     if (m) {
@@ -166,4 +168,4 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { console.error(new Date().toISOString(), p, e.message); return send(res, e.status || 500, { error: e.status ? e.message : 'Erro interno no servidor.' }); }
 });
 server.listen(PORT, HOST, () => console.log(`TRAXUP Imobiliário em http://${HOST}:${PORT}  ·  dados em ${DATA_DIR}  ·  BB ${BB.ambiente}${BB.clientId ? '' : ' (sem credenciais)'}`));
-process.on('SIGTERM', () => { clearTimeout(saveTimer); fs.writeFileSync(DB_FILE, JSON.stringify(db)); process.exit(0); });
+process.on('SIGTERM', () => { clearTimeout(saveTimer); fs.writeFileSync(DB_FILE, JSON.stringify(db)); try { fs.writeFileSync(SESS_FILE, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 }); } catch { } process.exit(0); });

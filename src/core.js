@@ -142,6 +142,7 @@ function situacaoVenda(v, ref = hoje()) {
 const comissaoTotal = v => v.comissaoExcluida ? 0 : (v.comissaoValor ?? Math.round(v.valor * (v.comissaoPct ?? 4) / 100));
 const comissaoPaga = v => soma(v.comissoesPagas || [], x => x.valor);
 const comissaoSaldo = v => Math.max(0, comissaoTotal(v) - comissaoPaga(v));
+const comissaoAPagar = v => v.comissaoSuspensa ? 0 : comissaoSaldo(v);
 function serieParcelas(tipo, total, qtd, primeiro, intervalo = 1) {
   const out = []; if (!total || !qtd || !primeiro) return out; const reg = Math.floor(total / qtd), ult = total - reg * (qtd - 1);
   for (let i = 0; i < qtd; i++) out.push({ id: uid(), tipo, ref: `${i + 1}/${qtd}`, venc: addMeses(primeiro, i * intervalo), valor: i === qtd - 1 ? ult : reg, juros: 0, multa: 0, pagamentos: [] });
