@@ -1,0 +1,13 @@
+{
+  "name": "traxup-saas-imobiliario",
+  "version": "1.0.0",
+  "description": "TRAXUP Imobiliário — gestão de loteamentos multifilial: lotes, mapa, vendas, parcelas, boletos Banco do Brasil, conciliação bancária, Discord e contratos.",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node server.js",
+    "dev": "node scripts/build.mjs && node server.js"
+  }
+}
