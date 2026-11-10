@@ -8,7 +8,6 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 const fmtNum = c => (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const brl = c => 'R$ ' + fmtNum(c || 0);
-const brlShort = c => { const v = (c || 0) / 100; return 'R$ ' + (Math.abs(v) >= 1e6 ? (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi' : Math.abs(v) >= 1e3 ? (v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })); };
 const toCents = v => { v = String(v ?? '').trim().replace(/[R$\s]/g, ''); if (!v) return 0; if (v.includes(',')) v = v.replace(/\./g, '').replace(',', '.'); const n = Math.round(parseFloat(v) * 100); return Number.isFinite(n) ? n : 0; };
 const centsIn = c => ((c || 0) / 100).toFixed(2).replace('.', ',');
 const hoje = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Recife', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
