@@ -106,16 +106,20 @@ const VIEWS = {};
 
 /* ---------- Painel ---------- */
 VIEWS.painel = () => {
-  const vendas = L('vendas').filter(vendaAtiva), lotes = L('lotes'), ref = hoje(); const ps = vendas.flatMap(v => (v.parcelas || []).map(p => ({ v, p })));
+  const empsFil = S.filial === '*' ? [] : L('empreendimentos').filter(e => e.filialId === S.filial).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  if (S.emp && !empsFil.some(e => e.id === S.emp)) S.emp = '';
+  const noEmp = l => !S.emp || l.empId === S.emp;
+  const vendas = L('vendas').filter(vendaAtiva).filter(v => noEmp(loteDe(v))), lotes = L('lotes').filter(noEmp), ref = hoje(); const ps = vendas.flatMap(v => (v.parcelas || []).map(p => ({ v, p })));
   const vendido = soma(vendas, v => v.valor), recebido = soma(ps, x => pagoParcela(x.p)), aReceber = soma(ps, x => saldoParcela(x.p));
   const vencidoInad = soma(vendas.filter(v => situacaoVenda(v) === 'Inadimplente'), v => soma(vencidasVenda(v), saldoParcela)), vencidoAtraso = soma(vendas.filter(v => situacaoVenda(v) === 'Em atraso'), v => soma(vencidasVenda(v), saldoParcela));
-  const comPag = soma(vendas, comissaoAPagar); const bolAbertos = L('boletos').filter(b => ['Emitido', 'Registrado'].includes(b.status));
+  const comPag = soma(vendas, comissaoAPagar); const vIds = new Set(vendas.map(v => v.id)); const bolAbertos = L('boletos').filter(b => vIds.has(b.vendaId) && ['Emitido', 'Registrado'].includes(b.status));
   const cnt = s => lotes.filter(l => l.status === s).length;
   const devedores = vendas.map(v => ({ v, val: soma(vencidasVenda(v), saldoParcela) })).filter(x => x.val > 0).sort((a, b) => b.val - a.val).slice(0, 6);
   const prox = ps.filter(x => saldoParcela(x.p) > 0 && x.p.venc >= ref && x.p.venc <= addDias(ref, 7)).sort((a, b) => a.p.venc.localeCompare(b.p.venc)).slice(0, 8);
   const graf = graficoRecebimentos(ps), rosca = graficoLotes(lotes);
-  const fsBar = filiaisUsuario(); const barra = fsBar.length > 1 ? `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fsBar].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>` : '';
-  return `${barra}<div class="kpis">
+  const fsBar = filiaisUsuario().filter(f => f.id === S.filial || Store.list('lotes').some(l => l.filialId === f.id) || Store.list('vendas').some(v => v.filialId === f.id)); const barra = fsBar.length > 1 ? `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fsBar].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>` : '';
+  const nomeFil = nomeFilial(S.filial); const barraEmp = empsFil.length > 1 ? `<div class="empSub"><span class="empSubLbl">${ic('building')}Empreendimento de ${esc(nomeFil)}:</span>${[{ id: '', nome: 'Todos os empreendimentos' }, ...empsFil].map(e => `<button class="${(S.emp || '') === e.id ? 'on' : ''}" data-act="verEmp" data-id="${e.id}">${esc(e.nome)}${(S.emp || '') === e.id ? ic('check') : ''}</button>`).join('')}</div>` : '';
+  return `${barra}${barraEmp}${S.emp ? `<div class="notice info" style="margin-bottom:16px">Mostrando somente o empreendimento <b>${esc(Store.get('empreendimentos', S.emp)?.nome)}</b> de ${esc(nomeFil)}.</div>` : ''}<div class="kpis">
    <div class="kpi bl"><span>Valor vendido</span><strong>${brl(vendido)}</strong><small>${vendas.length} vendas ativas</small></div>
    <div class="kpi bl"><span>Recebido</span><strong class="green">${brl(recebido)}</strong><small>Soma das baixas registradas</small></div>
    <div class="kpi bl"><span>A receber</span><strong>${brl(aReceber)}</strong><small>Saldo das parcelas em aberto</small></div>

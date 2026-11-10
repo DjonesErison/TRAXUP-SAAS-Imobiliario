@@ -91,7 +91,8 @@ const ACT = {
   editEmp: el => formEmp(Store.get('empreendimentos', el.dataset.id)),
   recMes: el => { S.f.recMes = +el.dataset.m; if (!S.f.recAno) S.f.recAno = hoje().slice(0, 4); renderView(); },
   recDetalhes: el => { Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim }); S.view = 'financeiro'; render(); },
-  verFilial: el => { S.filial = el.dataset.id; render(); },
+  verFilial: el => { S.filial = el.dataset.id; S.emp = ''; render(); },
+  verEmp: el => { S.emp = el.dataset.id; renderView(); },
   delFilial: el => confirmar('Excluir esta filial? Ela não tem lotes, clientes nem vendas.', async () => { const id = el.dataset.id; await Store.del('filiais', id); for (const u of Store.list('usuarios').filter(u => (u.filiais || []).includes(id))) { u.filiais = u.filiais.filter(x => x !== id); await Store.put('usuarios', u); } if (S.filial === id) S.filial = '*'; await audit('Excluiu filial vazia'); closeModal(); toast('Filial excluída.'); render(); }, 'Excluir'),
   backup: async () => { const dump = {}; for (const c of COLS) dump[c] = Store.data[c]; await salvarArquivo(`traxup_imobiliario_backup_${hoje()}.json`, JSON.stringify(dump, null, 1), 'application/json'); await audit('Exportou backup'); },
   removerDemo: () => { const d = dadosDemo(); confirmar(`Remover os dados de demonstração? Serão excluídos <b>${d.vendas.length} vendas</b>, <b>${d.lotes.length} lotes</b>, <b>${d.clientes.length} clientes</b>, ${d.emps.length} empreendimento(s) e ${d.boletos.length} boleto(s) de exemplo. Os dados importados do Vico não são afetados.`, async () => { for (const [c, arr] of [['boletos', d.boletos], ['vendas', d.vendas], ['lotes', d.lotes], ['clientes', d.clientes], ['plantas', d.plantas], ['empreendimentos', d.emps]]) for (const o of arr) await Store.del(c, o.id); await audit('Removeu dados de demonstração'); toast('Dados de demonstração removidos.'); render(); }, 'Remover'); },
@@ -201,7 +202,7 @@ document.addEventListener('submit', async e => {
   const btns = $$('button', f); btns.forEach(b => b.disabled = true);
   try { await fn(fd(f), f); } catch (err) { console.error(err); toast(err.message || String(err), true); } finally { btns.forEach(b => { if (b.isConnected) b.disabled = false; }); }
 });
-document.addEventListener('change', e => { if (e.target.id === 'filialSel') { S.filial = e.target.value; S.sel = {}; S.f.ext = null; S.f.mod = null; render(); } });
+document.addEventListener('change', e => { if (e.target.id === 'filialSel') { S.filial = e.target.value; S.emp = ''; S.sel = {}; S.f.ext = null; S.f.mod = null; render(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#overlay')) closeModal(); });
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (S.user && TITULOS[h] && h !== S.view && pode(S.user, h)) { S.view = h; render(); } });
 boot();
