@@ -89,6 +89,8 @@ const ACT = {
   editUser: el => formUser(Store.get('usuarios', el.dataset.id)),
   editFilial: el => formFilial(Store.get('filiais', el.dataset.id)),
   editEmp: el => formEmp(Store.get('empreendimentos', el.dataset.id)),
+  recMes: el => { S.f.recMes = +el.dataset.m; if (!S.f.recAno) S.f.recAno = hoje().slice(0, 4); renderView(); },
+  recDetalhes: el => { Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim }); S.view = 'financeiro'; render(); },
   verFilial: el => { S.filial = el.dataset.id; render(); },
   delFilial: el => confirmar('Excluir esta filial? Ela não tem lotes, clientes nem vendas.', async () => { const id = el.dataset.id; await Store.del('filiais', id); for (const u of Store.list('usuarios').filter(u => (u.filiais || []).includes(id))) { u.filiais = u.filiais.filter(x => x !== id); await Store.put('usuarios', u); } if (S.filial === id) S.filial = '*'; await audit('Excluiu filial vazia'); closeModal(); toast('Filial excluída.'); render(); }, 'Excluir'),
   backup: async () => { const dump = {}; for (const c of COLS) dump[c] = Store.data[c]; await salvarArquivo(`traxup_imobiliario_backup_${hoje()}.json`, JSON.stringify(dump, null, 1), 'application/json'); await audit('Exportou backup'); },
