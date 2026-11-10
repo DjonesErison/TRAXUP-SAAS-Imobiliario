@@ -55,7 +55,9 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now $SERVICE >/dev/null
+sed -i -E 's/^([A-Z0-9_]+=[^"#]*[^"# ])[[:space:]]+#.*$/\1/' "$APP_DIR/.env"
+systemctl reset-failed $SERVICE 2>/dev/null || true
+systemctl enable $SERVICE >/dev/null
 systemctl restart $SERVICE
 OK=0; for i in $(seq 1 15); do if curl -fsS "http://127.0.0.1:$PORT/api/status" >/dev/null 2>&1; then OK=1; break; fi; sleep 1; done
 if [ "$OK" = 1 ]; then echo "serviço respondendo em 127.0.0.1:$PORT"; else

@@ -15,7 +15,7 @@ const crypto = require('node:crypto');
 
 /* ---------- configuração (.env) ---------- */
 const ROOT = __dirname;
-(function loadEnv() { const f = path.join(ROOT, '.env'); if (!fs.existsSync(f)) return; for (const line of fs.readFileSync(f, 'utf8').split(/\r?\n/)) { const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); } })();
+(function loadEnv() { const f = path.join(ROOT, '.env'); if (!fs.existsSync(f)) return; for (const line of fs.readFileSync(f, 'utf8').split(/\r?\n/)) { const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (!m || m[1] in process.env) continue; let v = m[2].trim(); if (/^["']/.test(v)) v = v.replace(/^(["'])(.*?)\1.*$/, '$2'); else v = v.replace(/\s+#.*$/, '').trim(); process.env[m[1]] = v; } })();
 const PORT = +process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = path.resolve(ROOT, process.env.DATA_DIR || 'data');
