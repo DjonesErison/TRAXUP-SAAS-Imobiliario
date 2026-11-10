@@ -481,8 +481,26 @@ function formEmp(e) {
 /* ---------- Configurações ---------- */
 VIEWS.config = () => `<div class="two"><div class="card"><div class="cardHead"><h2>Minha conta</h2></div><form class="cardBody" data-form="minhaSenha"><div class="formGrid" style="grid-template-columns:1fr 1fr"><label>Senha atual<input type="password" name="atual" required autocomplete="current-password"></label><label>Nova senha<input type="password" name="nova" minlength="6" required autocomplete="new-password"></label></div><div class="formActions"><button class="primary">Alterar senha</button></div></form></div>
   <div class="card"><div class="cardHead"><h2>Armazenamento</h2></div><div class="cardBody"><p class="hint">Modo atual: <b>${esc(Store.label())}</b>.</p>${Store.mode === 'local' ? '<div class="notice warn" style="margin-top:10px">Os dados estão só neste navegador. Para uso real, implante o servidor TRAXUP no VPS (veja o README do repositório).</div>' : ''}${Store.mode === 'db' ? '<div class="notice info" style="margin-top:10px">Os dados ficam na base do artefato, compartilhada com quem tiver acesso a ele. Para o Discord e o registro de boletos no BB, rode o servidor TRAXUP.</div>' : ''}</div></div></div>
-  ${S.user.perfil === 'Administrador' ? `<div class="card"><div class="cardHead"><div><h2>Backup e dados</h2><p>Exporte tudo em JSON para guardar ou migrar para o servidor TRAXUP.</p></div></div><div class="cardBody" style="display:flex;gap:10px;flex-wrap:wrap"><button data-act="backup">${ic('down')}Exportar backup (JSON)</button><label style="min-width:0"><span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--text);font-size:14px;font-weight:500">${ic('upload')}Restaurar backup</span><input type="file" id="restoreFile" accept=".json" hidden></label><button data-act="demo">Carregar dados de demonstração</button></div></div>` : ''}`;
-AFTER.config = () => { $('#restoreFile')?.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; try { const j = JSON.parse(await f.text()); confirmar('Restaurar o backup vai <b>adicionar e sobrescrever</b> registros com o mesmo código. Continuar?', async () => { let n = 0; for (const c of COLS) for (const o of Object.values(j[c] || {})) { if (c === 'usuarios' && Store.mode === 'server' && !o.hash) continue; await Store.put(c, o); n++; } toast(n + ' registros restaurados.'); await audit('Restaurou backup'); render(); }, 'Restaurar'); } catch (err) { toast('Arquivo de backup inválido.', true); } }); };
+  ${S.user.perfil === 'Administrador' ? `<div class="card"><div class="cardHead"><div><h2>Backup e dados</h2><p>Exporte tudo em JSON para guardar ou migrar para o servidor TRAXUP.</p></div></div><div class="cardBody" style="display:flex;gap:10px;flex-wrap:wrap"><button data-act="backup">${ic('down')}Exportar backup (JSON)</button><label style="min-width:0"><span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--text);font-size:14px;font-weight:500">${ic('upload')}Restaurar backup / importar do Vico (.json ou .sql)</span><input type="file" id="restoreFile" accept=".json,.sql,.txt,application/json,application/sql,text/plain" hidden></label><button data-act="demo">Carregar dados de demonstração</button></div></div>` : ''}`;
+AFTER.config = () => { $('#restoreFile')?.addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { await restaurarArquivo(f); } catch (err) { toast(err.message || 'Arquivo de backup inválido.', true); } }); };
+async function restaurarArquivo(f) {
+  const txt = await f.text(); let dados, titulo;
+  if (/\.sql$/i.test(f.name) || /^\s*--\s*Vico/i.test(txt.slice(0, 200)) || /INSERT INTO records/.test(txt.slice(0, 5000))) {
+    const r = converterVico(txt, [], f.name); dados = r.dados; const x = r.resumo;
+    titulo = `Backup do <b>Vico</b> reconhecido: ${x.filiais} empresas (viram filiais), ${x.lotes} lotes, ${x.vendas} vendas, ${x.clientes} clientes, ${x.parcelas.toLocaleString('pt-BR')} parcelas, ${x.pagamentos} pagamentos e ${x.comissoes} comissões pagas.<br><br>Importar agora? Registros já importados antes são atualizados, sem duplicar.`;
+  } else {
+    let j; try { j = JSON.parse(txt); } catch (e) { throw Error('Arquivo inválido. Use o backup do TRAXUP (.json) ou do Vico (.sql).'); }
+    dados = {}; for (const c of COLS) dados[c] = j[c] || {}; const n = COLS.reduce((t, c) => t + Object.keys(dados[c]).length, 0);
+    if (!n) throw Error('O arquivo não tem registros do TRAXUP.');
+    titulo = `Restaurar <b>${n}</b> registros deste backup? Registros com o mesmo código são substituídos.`;
+  }
+  confirmar(titulo, async () => {
+    const itens = COLS.flatMap(c => Object.values(dados[c] || {}).filter(o => !(c === 'usuarios' && Store.mode === 'server' && !o.hash)).map(o => [c, o]));
+    modal(`${mHead('Importação', 'Gravando registros…')}<div class="modalBody"><div class="meter"><i id="impBar" style="width:0%"></i></div><p class="hint" id="impTxt" style="margin-top:10px">0 de ${itens.length}</p></div>`, 'narrow');
+    let n = 0; for (const [c, o] of itens) { await Store.put(c, o); n++; if (n % 10 === 0 || n === itens.length) { const b = $('#impBar'), t = $('#impTxt'); if (b) b.style.width = (n / itens.length * 100) + '%'; if (t) t.textContent = `${n} de ${itens.length}`; } }
+    closeModal(); await audit(`Importou backup ${f.name} (${n} registros)`); toast(n + ' registros importados.'); S.filial = '*'; render();
+  }, 'Importar');
+}
 
 /* ---------- dados de demonstração ---------- */
 async function carregarDemo(filialId) {

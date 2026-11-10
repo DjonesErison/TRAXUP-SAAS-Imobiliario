@@ -476,6 +476,92 @@ function renderModelo(texto, ctx, { html = true } = {}) {
   });
 }
 </script>
+<script>/* Conversão do backup do sistema Vico (Vico_Banco_Completo_*.sql) para o formato TRAXUP. Usado pelo navegador e por scripts/import-vico.mjs. */
+function converterVico(sql, custos = [], nomeArquivo = 'backup.sql') {
+  const ITBI_AVALIACAO = 17000000;
+/* ---------- leitura do .sql ---------- */
+const tables = { records: [], clients: [], advances: [] };
+for (const line of String(sql).split(/\r?\n/)) {
+  const m = line.match(/^INSERT INTO (\w+) \([^)]*\) VALUES \('((?:[^']|'')*)','((?:[^']|'')*)',(\d+)\);?\s*$/);
+  if (!m || !tables[m[1]]) continue;
+  tables[m[1]].push({ id: m[2].replace(/''/g, "'"), ...JSON.parse(m[3].replace(/''/g, "'")) });
+}
+
+/* ---------- utilidades ---------- */
+const sid = s => { let h1 = 0x811c9dc5, h2 = 0x01000193; for (const ch of String(s)) { const c = ch.codePointAt(0); h1 = Math.imul(h1 ^ c, 16777619) >>> 0; h2 = Math.imul(h2 ^ c, 2246822519) >>> 0; } return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0'); };
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+const lotKey = s => String(s).toUpperCase().replace(/QUADRA|LOTE/g, '').replace(/[^A-Z0-9]/g, '').replace(/^([A-Z]+)0+(\d)/, '$1$2');
+const splitLot = s => { const m = String(s).trim().match(/^([A-Za-z]+)\s*-*\s*(\d+\w*)$/); return m ? { quadra: m[1].toUpperCase(), numero: m[2] } : { quadra: '-', numero: String(s).trim() }; };
+const now = new Date().toISOString();
+
+const out = {}; for (const c of ['filiais', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'logs']) out[c] = {};
+const put = (c, o) => { out[c][o.id] = o; return o; };
+
+/* ---------- filiais (uma por empresa) e empreendimento ---------- */
+const empresas = [...new Set(tables.records.map(r => r.company))].sort();
+const filialDe = {}, empDe = {};
+for (const e of empresas) {
+  const f = put('filiais', { id: 'vico-fil-' + sid(e), nome: e, razao: e, cnpj: '', cidade: 'Petrolina', uf: 'PE', multa: 2, jurosMes: 1, bb: { carteira: '17', variacao: '35' }, origem: 'Vico', atualizadoEm: now });
+  const emp = put('empreendimentos', { id: 'vico-emp-' + sid(e), filialId: f.id, nome: 'Vico Home Resort — ' + e, cidade: 'Petrolina', origem: 'Vico', atualizadoEm: now });
+  filialDe[e] = f.id; empDe[e] = emp.id;
+}
+
+/* ---------- clientes ---------- */
+const F = { name: 'nome', cpf: 'cpf', rg: 'rg', nationality: 'nacionalidade', civilStatus: 'estadoCivil', profession: 'profissao', spouseName: 'conjuge', phone: 'telefone', whatsapp: 'whatsapp', email: 'email', street: 'logradouro', number: 'numero', complement: 'complemento', neighborhood: 'bairro', city: 'cidade', state: 'uf', zip: 'cep' };
+const clientePorContrato = {}, clientePorNome = {};
+for (const c of tables.clients) {
+  const f = c.fields || {}; const o = { id: 'vico-cli-' + sid(c.id), origem: 'Vico', vicoId: c.id, atualizadoEm: now };
+  for (const [a, b] of Object.entries(F)) if (f[a]) o[b] = String(f[a]).trim();
+  const obs = [f.notes, f.address && !f.street ? 'Endereço: ' + f.address : '', f.additionalBuyers ? 'Comprador adicional: ' + f.additionalBuyers : ''].filter(Boolean).join('\n');
+  if (obs) o.obs = obs;
+  o.vinculosVico = (c.links || []).map(l => ({ empresa: l.company, lote: l.lot, papel: l.role, contrato: l.contractId, anterior: l.previousOwner }));
+  const first = (c.links || [])[0]; o.filialId = filialDe[first?.company] || filialDe[empresas[0]];
+  if (!o.nome) continue; put('clientes', o);
+  for (const l of c.links || []) { const k = l.company + '|' + lotKey(l.lot); if (/principal/i.test(l.role) || !clientePorContrato[k]) clientePorContrato[k] = clientePorContrato[k] && !/principal/i.test(l.role) ? clientePorContrato[k] : o.id; }
+  (clientePorNome[norm(o.nome)] ||= []).push(o.id);
+}
+
+/* ---------- lotes, vendas, parcelas ---------- */
+let nParc = 0, nPag = 0, nCom = 0, criados = 0;
+const antecip = {}; for (const a of tables.advances) (antecip[a.company + '|' + norm(a.client)] ||= []).push(a);
+for (const r of tables.records) {
+  const { quadra, numero } = splitLot(r.lot); const k = r.company + '|' + lotKey(r.lot);
+  const ref = custos.find(x => x.company === r.company && lotKey(x.lot) === lotKey(r.lot));
+  const custoOrig = ref?.cost ?? r.cost; const custo = custoOrig === undefined ? undefined : custoOrig - ITBI_AVALIACAO;
+  const lote = put('lotes', { id: 'vico-lot-' + sid(r.id), filialId: filialDe[r.company], empId: empDe[r.company], quadra, numero, preco: r.price || ref?.price || 0, ...(custo !== undefined ? { custo } : {}), status: r.status === 'Vendido' ? 'Vendido' : r.status === 'Reservado' ? 'Reservado' : 'Disponível', obs: `Importado do Vico (${r.company} ${r.lot})`, origem: 'Vico', vicoId: r.id, atualizadoEm: now });
+  if (r.status !== 'Vendido' && !(r.parcels || []).length) continue;
+
+  let clienteId = clientePorContrato[k] || (clientePorNome[norm(r.client)] || [])[0];
+  if (!clienteId && r.client) { const c = put('clientes', { id: 'vico-cli-' + sid('nome:' + r.client), filialId: filialDe[r.company], nome: r.client.trim(), origem: 'Vico', obs: 'Criado na importação: o Vico só tinha o nome no lote.', atualizadoEm: now }); clienteId = c.id; (clientePorNome[norm(r.client)] ||= []).push(c.id); criados++; }
+
+  const parcelas = (r.parcels || []).map(p => {
+    const juros = p.interest || 0, multa = p.fine || 0; nParc++; nPag += (p.payments || []).length;
+    return { id: p.id, tipo: p.type, ref: p.reference || '', venc: p.due, valor: p.amount - juros - multa, juros, multa, pagamentos: (p.payments || []).map(q => ({ valor: q.amount, data: q.date, obs: q.note || '', origem: 'Vico', forma: '' })) };
+  });
+  const primeiro = parcelas.map(p => p.venc).filter(Boolean).sort()[0] || '';
+  const entrada = parcelas.filter(p => p.tipo === 'Entrada').map(p => p.venc).sort()[0];
+  const historico = (r.corrections || []).slice(-200).map(c => ({ data: c.date, usuario: 'Vico', acao: `${c.field}: ${String(c.before ?? '').slice(0, 120)} → ${String(c.after ?? '').slice(0, 120)}${c.reason ? ' (' + c.reason + ')' : ''}` }));
+  historico.push({ data: now, usuario: 'Importação', acao: `Importado do Vico: ${parcelas.length} parcelas, ${parcelas.reduce((s, p) => s + p.pagamentos.length, 0)} pagamentos` });
+  const comissoesPagas = (r.commissions || []).map(q => ({ valor: q.amount, data: q.date, obs: (q.note || '') + (q.relatedClient ? ' · ' + q.relatedClient : '') })); nCom += comissoesPagas.length;
+  const relacionadas = (r.commissions || []).filter(q => q.relatedClient && q.relatedClient !== r.client).reduce((t, q) => t + q.amount, 0);
+  const comBase = r.commissionExcluded ? 0 : (r.commissionAmount ?? Math.round(r.price * 0.04));
+  const adv = antecip[r.company + '|' + norm(r.client)] || [];
+  put('vendas', {
+    id: 'vico-vd-' + sid(r.id), filialId: filialDe[r.company], numero: `${r.company.toUpperCase()}-${r.lot}`, loteId: lote.id, clienteId, data: entrada || primeiro, valor: r.price,
+    corretor: 'Metro Quadrado', comissaoPct: 4, ...(r.commissionAmount !== undefined || relacionadas ? { comissaoValor: comBase + relacionadas } : {}), ...(r.commissionExcluded ? { comissaoExcluida: true } : {}), ...(r.commissionSuspended ? { comissaoSuspensa: true } : {}), ...(r.commissionSchedule ? { comissaoParcelamento: r.commissionSchedule } : {}),
+    comissoesPagas, indice: 'IPCA', reajuste: 'IPCA + 7% a.a., conforme a vigência de cada período contratual', status: 'Ativo',
+    classificacao: r.debtClassification === 'Inadimplente' ? 'Inadimplente' : r.debtClassification === 'Em atraso' ? 'Em atraso' : 'Automático',
+    ...(r.saleTotals ? { totaisContrato: r.saleTotals } : {}), ...(adv.length ? { antecipacoes: adv.map(a => ({ tipo: a.type, ref: a.reference, venc: a.due, pagoEm: a.paidDate, valor: a.total })) } : {}),
+    parcelas, historico, origem: 'Vico', vicoId: r.id, atualizadoEm: now
+  });
+}
+put('logs', { id: 'importacao-vico', itens: [{ data: now, usuario: 'Importação', acao: `Backup Vico ${nomeArquivo}: ${tables.records.length} lotes, ${Object.keys(out.vendas).length} vendas, ${nParc} parcelas, ${nPag} pagamentos, ${nCom} comissões` }], atualizadoEm: now });
+
+  if (!tables.records.length) throw Error('Arquivo não parece um backup do Vico (nenhum registro de lote encontrado).');
+  return { dados: out, resumo: { lotes: Object.keys(out.lotes).length, vendas: Object.keys(out.vendas).length, clientes: Object.keys(out.clientes).length, parcelas: nParc, pagamentos: nPag, comissoes: nCom, antecipacoes: tables.advances.length, filiais: empresas.length } };
+}
+if (typeof module !== 'undefined') module.exports = { converterVico };
+</script>
 <script>/* TRAXUP Imobiliário — interface */
 'use strict';
 
@@ -959,8 +1045,26 @@ function formEmp(e) {
 /* ---------- Configurações ---------- */
 VIEWS.config = () => `<div class="two"><div class="card"><div class="cardHead"><h2>Minha conta</h2></div><form class="cardBody" data-form="minhaSenha"><div class="formGrid" style="grid-template-columns:1fr 1fr"><label>Senha atual<input type="password" name="atual" required autocomplete="current-password"></label><label>Nova senha<input type="password" name="nova" minlength="6" required autocomplete="new-password"></label></div><div class="formActions"><button class="primary">Alterar senha</button></div></form></div>
   <div class="card"><div class="cardHead"><h2>Armazenamento</h2></div><div class="cardBody"><p class="hint">Modo atual: <b>${esc(Store.label())}</b>.</p>${Store.mode === 'local' ? '<div class="notice warn" style="margin-top:10px">Os dados estão só neste navegador. Para uso real, implante o servidor TRAXUP no VPS (veja o README do repositório).</div>' : ''}${Store.mode === 'db' ? '<div class="notice info" style="margin-top:10px">Os dados ficam na base do artefato, compartilhada com quem tiver acesso a ele. Para o Discord e o registro de boletos no BB, rode o servidor TRAXUP.</div>' : ''}</div></div></div>
-  ${S.user.perfil === 'Administrador' ? `<div class="card"><div class="cardHead"><div><h2>Backup e dados</h2><p>Exporte tudo em JSON para guardar ou migrar para o servidor TRAXUP.</p></div></div><div class="cardBody" style="display:flex;gap:10px;flex-wrap:wrap"><button data-act="backup">${ic('down')}Exportar backup (JSON)</button><label style="min-width:0"><span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--text);font-size:14px;font-weight:500">${ic('upload')}Restaurar backup</span><input type="file" id="restoreFile" accept=".json" hidden></label><button data-act="demo">Carregar dados de demonstração</button></div></div>` : ''}`;
-AFTER.config = () => { $('#restoreFile')?.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; try { const j = JSON.parse(await f.text()); confirmar('Restaurar o backup vai <b>adicionar e sobrescrever</b> registros com o mesmo código. Continuar?', async () => { let n = 0; for (const c of COLS) for (const o of Object.values(j[c] || {})) { if (c === 'usuarios' && Store.mode === 'server' && !o.hash) continue; await Store.put(c, o); n++; } toast(n + ' registros restaurados.'); await audit('Restaurou backup'); render(); }, 'Restaurar'); } catch (err) { toast('Arquivo de backup inválido.', true); } }); };
+  ${S.user.perfil === 'Administrador' ? `<div class="card"><div class="cardHead"><div><h2>Backup e dados</h2><p>Exporte tudo em JSON para guardar ou migrar para o servidor TRAXUP.</p></div></div><div class="cardBody" style="display:flex;gap:10px;flex-wrap:wrap"><button data-act="backup">${ic('down')}Exportar backup (JSON)</button><label style="min-width:0"><span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--text);font-size:14px;font-weight:500">${ic('upload')}Restaurar backup / importar do Vico (.json ou .sql)</span><input type="file" id="restoreFile" accept=".json,.sql,.txt,application/json,application/sql,text/plain" hidden></label><button data-act="demo">Carregar dados de demonstração</button></div></div>` : ''}`;
+AFTER.config = () => { $('#restoreFile')?.addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { await restaurarArquivo(f); } catch (err) { toast(err.message || 'Arquivo de backup inválido.', true); } }); };
+async function restaurarArquivo(f) {
+  const txt = await f.text(); let dados, titulo;
+  if (/\.sql$/i.test(f.name) || /^\s*--\s*Vico/i.test(txt.slice(0, 200)) || /INSERT INTO records/.test(txt.slice(0, 5000))) {
+    const r = converterVico(txt, [], f.name); dados = r.dados; const x = r.resumo;
+    titulo = `Backup do <b>Vico</b> reconhecido: ${x.filiais} empresas (viram filiais), ${x.lotes} lotes, ${x.vendas} vendas, ${x.clientes} clientes, ${x.parcelas.toLocaleString('pt-BR')} parcelas, ${x.pagamentos} pagamentos e ${x.comissoes} comissões pagas.<br><br>Importar agora? Registros já importados antes são atualizados, sem duplicar.`;
+  } else {
+    let j; try { j = JSON.parse(txt); } catch (e) { throw Error('Arquivo inválido. Use o backup do TRAXUP (.json) ou do Vico (.sql).'); }
+    dados = {}; for (const c of COLS) dados[c] = j[c] || {}; const n = COLS.reduce((t, c) => t + Object.keys(dados[c]).length, 0);
+    if (!n) throw Error('O arquivo não tem registros do TRAXUP.');
+    titulo = `Restaurar <b>${n}</b> registros deste backup? Registros com o mesmo código são substituídos.`;
+  }
+  confirmar(titulo, async () => {
+    const itens = COLS.flatMap(c => Object.values(dados[c] || {}).filter(o => !(c === 'usuarios' && Store.mode === 'server' && !o.hash)).map(o => [c, o]));
+    modal(`${mHead('Importação', 'Gravando registros…')}<div class="modalBody"><div class="meter"><i id="impBar" style="width:0%"></i></div><p class="hint" id="impTxt" style="margin-top:10px">0 de ${itens.length}</p></div>`, 'narrow');
+    let n = 0; for (const [c, o] of itens) { await Store.put(c, o); n++; if (n % 10 === 0 || n === itens.length) { const b = $('#impBar'), t = $('#impTxt'); if (b) b.style.width = (n / itens.length * 100) + '%'; if (t) t.textContent = `${n} de ${itens.length}`; } }
+    closeModal(); await audit(`Importou backup ${f.name} (${n} registros)`); toast(n + ' registros importados.'); S.filial = '*'; render();
+  }, 'Importar');
+}
 
 /* ---------- dados de demonstração ---------- */
 async function carregarDemo(filialId) {

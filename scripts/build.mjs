@@ -13,6 +13,7 @@ const html = `<!DOCTYPE html>
 <body><div id="app"></div>
 <script>const LOGO_IMG=${JSON.stringify(logo)};</script>
 <script>${r('src/core.js')}</script>
+<script>${r('src/vico.js')}</script>
 <script>${r('src/app.js')}</script>
 <script>${r('src/actions.js')}</script>
 </body></html>`;
