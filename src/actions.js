@@ -142,7 +142,7 @@ const FORMS = {
     closeModal(); toast(`${n} lote(s) criado(s).`); S.f.mapaEmp = emp.id; renderView();
   },
   async cliente(v, f) {
-    const c = Store.get('clientes', f.dataset.id) || { filialId: filialPadrao() }; Object.assign(c, v); c.nome = c.nome.trim();
+    const c = Store.get('clientes', f.dataset.id) || { filialId: filialPadrao() }; Object.assign(c, v); c.nome = c.nome.trim(); if (!c.conjugeDeId) delete c.conjugeDeId; if (c.conjugeDeId === c.id) throw Error('Um cadastro não pode ser cônjuge de si mesmo.');
     const dupe = c.cpf && Store.list('clientes').find(x => x.id !== c.id && onlyDigits(x.cpf) && onlyDigits(x.cpf) === onlyDigits(c.cpf)); if (dupe) throw Error('CPF/CNPJ já cadastrado para ' + dupe.nome + '.');
     const s = await Store.put('clientes', c); closeModal(); toast('Cliente salvo.'); const after = formCliente.after; formCliente.after = null; if (after) after(s); else renderView();
   },
