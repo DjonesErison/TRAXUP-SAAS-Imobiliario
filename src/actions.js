@@ -85,6 +85,7 @@ const ACT = {
   previewContrato: () => { const ta = $('#modTexto'); const m = Store.get('modelos', S.f.mod); if (ta && ta.value !== m.conteudo) m.conteudo = ta.value; previewContrato(S.f.modVenda, S.f.mod); },
   gerarContrato: el => { const ms = L('modelos').filter(m => m.tipo === 'contrato'); if (!ms.length) { toast('Crie ou importe um modelo de contrato primeiro.', true); S.view = 'modelos'; return render(); } const v = Store.get('vendas', el.dataset.id); const m = ms.find(x => x.filialId === v.filialId) || ms[0]; if (ms.length === 1) return previewContrato(v.id, m.id); modal(`${mHead(v.numero, 'Escolha o modelo')}<form class="modalBody" data-form="escolheModelo" data-v="${v.id}"><label>Modelo${sel('mid', ms.map(x => [x.id, x.nome]), m.id)}</label><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Gerar</button></div></form>`, 'narrow'); },
   copyContrato: el => { const v = Store.get('vendas', el.dataset.v), m = Store.get('modelos', el.dataset.m); copiar(renderModelo(m.conteudo, contextoVenda(v), { html: false })); },
+  limparPainelParc: () => { Object.assign(S.f, { pini: '', pfim: '', ppini: '', ppfim: '' }); renderView(); },
   pstSet: el => { S.f.pst = el.dataset.st; renderView(); },
   baixarContrato: async el => { const v = Store.get('vendas', el.dataset.v), m = Store.get('modelos', el.dataset.m); await salvarArquivo(`Contrato_${v.numero}_${norm(cliNome(v.clienteId)).replace(/\W+/g, '_')}.doc`, '\ufeff' + docContrato(v, m).doc, 'application/msword'); Object.assign(v, { contratoGeradoEm: new Date().toISOString(), contratoGeradoPor: S.user.nome, contratoModelo: m.nome }); hist(v, 'Contrato gerado com o modelo ' + m.nome); await Store.put('vendas', v); if (S.view === 'contratos') renderView(); },
 
@@ -97,7 +98,14 @@ const ACT = {
   fcExp: () => { S.f.fExp = !S.f.fExp; renderView(); },
   p12: el => { S.f.p12 = +el.dataset.i; renderView(); },
   limparPeriodo: () => { S.f.pAno = ''; S.f.pMes = ''; renderView(); },
-  recDetalhes: el => { if (el.dataset.prev) Object.assign(S.f, { pst: 'Em aberto', pini: el.dataset.ini, pfim: el.dataset.fim, ppini: '', ppfim: '' }); else Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim, pini: '', pfim: '' }); S.view = 'financeiro'; render(); },
+  recDetalhes: el => {
+    const { ini = '', fim = '' } = el.dataset; const prev = !!el.dataset.prev; const ult = d => new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
+    const mesCheio = ini && fim && ini.slice(0, 7) === fim.slice(0, 7) && ini.slice(8) === '01' && +fim.slice(8) === ult(fim);
+    const anoCheio = ini && fim && ini.slice(0, 4) === fim.slice(0, 4) && ini.slice(5) === '01-01' && fim.slice(5) === '12-31';
+    Object.assign(S.f, { pst: prev ? 'Em aberto' : 'Recebidas', pini: '', pfim: '', ppini: '', ppfim: '', pmes: '', pano: '' });
+    if (mesCheio) Object.assign(S.f, { pmes: ini.slice(5, 7), pano: ini.slice(0, 4) }); else if (anoCheio) S.f.pano = ini.slice(0, 4); else Object.assign(S.f, prev ? { pini: ini, pfim: fim } : { ppini: ini, ppfim: fim });
+    S.view = 'financeiro'; render();
+  },
   delEmp: el => {
     const e = Store.get('empreendimentos', el.dataset.id); if (!e) return; const ls = Store.list('lotes').filter(l => l.empId === e.id);
     const vendidos = ls.filter(l => Store.list('vendas').some(v => v.loteId === l.id)); const outros = Store.list('empreendimentos').filter(x => x.id !== e.id && x.filialId === e.filialId);
