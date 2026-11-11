@@ -116,10 +116,10 @@ async function hashSenha(senha, saltHex) {
 }
 const PERFIS = {
   'Administrador': ['*'],
-  'Gerente': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
-  'Financeiro': ['painel', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
-  'Comercial': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'modelos', 'discord', 'config'],
-  'Corretor': ['mapa', 'lotes', 'clientes', 'config']
+  'Gerente': ['mercado', 'painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
+  'Financeiro': ['mercado', 'painel', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
+  'Comercial': ['mercado', 'painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'modelos', 'discord', 'config'],
+  'Corretor': ['mercado', 'mapa', 'lotes', 'clientes', 'config']
 };
 const pode = (u, mod) => !!u && (PERFIS[u.perfil] || []).some(m => m === '*' || m === mod);
 

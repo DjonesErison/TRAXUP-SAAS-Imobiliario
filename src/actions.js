@@ -98,6 +98,7 @@ const ACT = {
   esqueciSenha: async el => { if (!Store.serverStatus) { try { const r = await fetch('/api/status', { cache: 'no-store' }); if (r.ok) Store.serverStatus = await r.json(); } catch (e) { } } if (!emailAtivo()) return toast(el.dataset.msg || 'Fale com o administrador para redefinir a sua senha.'); telaEsqueci(el.dataset.modo || 'equipe'); },
   voltarLogin: () => telaLogin(),
   verSenha: el => { const i = el.parentElement.querySelector('input'); const ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; el.classList.toggle('on', ver); el.title = ver ? 'Ocultar senha' : 'Mostrar senha'; i.focus(); },
+  mercadoAtualizar: () => carregarMercado(S.user?.perfil === 'Administrador'),
   pstSet: el => { S.f.pst = el.dataset.st; renderView(); },
   baixarContrato: async el => { const v = Store.get('vendas', el.dataset.v), m = Store.get('modelos', el.dataset.m); await salvarArquivo(`Contrato_${v.numero}_${norm(cliNome(v.clienteId)).replace(/\W+/g, '_')}.doc`, '\ufeff' + docContrato(v, m).doc, 'application/msword'); Object.assign(v, { contratoGeradoEm: new Date().toISOString(), contratoGeradoPor: S.user.nome, contratoModelo: m.nome, contratoModeloId: m.id }); hist(v, 'Contrato gerado com o modelo ' + m.nome); await Store.put('vendas', v); if (S.view === 'contratos') renderView(); },
 

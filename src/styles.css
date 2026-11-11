@@ -452,3 +452,16 @@ body.dark .sinoItem.nova{background:rgba(80,130,255,.1)}
 .lgOkIc{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;background:rgba(60,123,255,.16);color:#7FB0FF}.lgOkIc svg{width:28px;height:28px}.lgOkIc.ok{background:rgba(22,163,74,.18);color:#4FD69C}
 .lgDica{background:#0B1222;border:1px solid #26324A;border-radius:10px;padding:12px 14px;color:#9AA8C3;font-size:13.5px;line-height:1.5}.lgDica b{color:#D5DDEB}
 body.dark .lg .loginCard,.lg .loginCard{background:transparent!important;box-shadow:none!important;border:0!important}
+
+/* ---------- Mercado e índices ---------- */
+#mercadoCard{margin-bottom:18px}.mAcoes{display:flex;align-items:center;gap:10px}
+.mQuotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.mQ{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--bg);min-width:0}
+.mQh{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-weight:600}.mQh b{margin-left:auto;font-size:12.5px}.mQh b.up{color:var(--ok)}.mQh b.down{color:var(--bad)}
+.mQi{min-width:26px;height:26px;padding:0 5px;border-radius:8px;display:grid;place-items:center;background:rgba(47,107,240,.12);color:var(--blue);font-weight:800;font-size:11.5px}
+.mQ strong{display:block;font-family:var(--title);font-size:19px;margin:8px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mQ small{color:var(--muted);font-size:11.5px}
+.mSpark{width:100%;height:30px;display:block}.mIdx .mSpark{width:110px;height:26px}
+.mIdxHead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px}.mIdxHead h3{margin:0;font-size:15px}.mIdxHead small{color:var(--muted)}
+.mIdx td{vertical-align:middle}.mDesc{color:var(--muted);font-size:12.5px;max-width:340px}.mAc{background:rgba(255,159,28,.14);color:#B35F00;padding:3px 8px;border-radius:7px;font-weight:700}
+body.dark .mAc{color:#FFB84D}.mVazio{padding:20px;text-align:center;color:var(--muted)}
+.mResumo{margin-bottom:0;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}.mI .mQi{background:rgba(255,159,28,.16);color:#C46A00}

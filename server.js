@@ -205,6 +205,58 @@ function rotaPortalAdmin(req, res, p, user) {
   return send(res, 404, { error: 'Rota não encontrada.' });
 }
 
+
+/* ---------- Mercado: câmbio, bolsa e índices de reajuste (fontes públicas, com cache) ---------- */
+const INDICES = [
+  { id: 'ipca', nome: 'IPCA', desc: 'Inflação oficial (IBGE). O mais usado no reajuste de contratos e parcelas.', sgs: 433, sgs12: 13522 },
+  { id: 'igpm', nome: 'IGP-M', desc: 'Índice da FGV muito usado em aluguéis e contratos imobiliários.', sgs: 189 },
+  { id: 'incc', nome: 'INCC', desc: 'Custo da construção civil (FGV). Usado em imóveis na planta.', sgs: 192 },
+  { id: 'inpc', nome: 'INPC', desc: 'Inflação para famílias de menor renda (IBGE).', sgs: 188 },
+  { id: 'igpdi', nome: 'IGP-DI', desc: 'Índice geral de preços da FGV, disponibilidade interna.', sgs: 190 },
+  { id: 'selic', nome: 'Selic', desc: 'Taxa básica de juros definida pelo Copom (% ao ano).', sgs: 432, taxa: 'aa' },
+  { id: 'cdi', nome: 'CDI', desc: 'Taxa entre bancos, referência para investimentos (% ao ano).', sgs: 4389, taxa: 'aa' },
+  { id: 'tr', nome: 'TR', desc: 'Taxa Referencial, usada na poupança e em financiamentos.', sgs: 226, taxa: 'dia' },
+  { id: 'poup', nome: 'Poupança', desc: 'Rendimento mensal da caderneta de poupança.', sgs: 195, taxa: 'mes' }
+];
+const cacheMercado = { cot: null, cotEm: 0, ind: null, indEm: 0 };
+const numBR = v => +String(v).replace(',', '.');
+async function sgs(cod, n) { const r = await httpsJSON(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${cod}/dados/ultimos/${n}?formato=json`, { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } }); if (r.status !== 200 || !Array.isArray(r.json)) throw Error('BCB ' + r.status); return r.json.map(x => ({ data: x.data.split('/').reverse().join('-'), valor: numBR(x.valor) })); }
+async function buscarIndices() {
+  const out = await Promise.all(INDICES.map(async ix => {
+    try {
+      if (ix.taxa) { const a = await sgs(ix.sgs, 1); return { ...ix, ref: a[0]?.data, valor: a[0]?.valor }; }
+      const a = await sgs(ix.sgs, 12); const ult = a[a.length - 1];
+      let ac12 = a.length === 12 ? (a.reduce((f, x) => f * (1 + x.valor / 100), 1) - 1) * 100 : null;
+      if (ix.sgs12) { try { const b = await sgs(ix.sgs12, 1); ac12 = b[0]?.valor ?? ac12; } catch { } }
+      const ano = String(ult.data).slice(0, 4); const noAno = a.filter(x => x.data.startsWith(ano)); const acAno = (noAno.reduce((f, x) => f * (1 + x.valor / 100), 1) - 1) * 100;
+      return { ...ix, ref: ult.data, valor: ult.valor, ac12: ac12 == null ? null : +ac12.toFixed(2), acAno: +acAno.toFixed(2), serie: a.map(x => x.valor) };
+    } catch (e) { return { ...ix, erro: true }; }
+  }));
+  return out;
+}
+async function buscarCotacoes() {
+  const res = { moedas: [], bolsa: [] };
+  try {
+    const r = await httpsJSON('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,GBP-BRL,BTC-BRL', { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } });
+    if (r.status === 200 && r.json) for (const [k, n] of [['USDBRL', 'Dólar'], ['EURBRL', 'Euro'], ['GBPBRL', 'Libra'], ['BTCBRL', 'Bitcoin']]) { const x = r.json[k]; if (x) res.moedas.push({ id: k, nome: n, compra: numBR(x.bid), venda: numBR(x.ask), varPct: numBR(x.pctChange), max: numBR(x.high), min: numBR(x.low), em: new Date(+x.timestamp * 1000).toISOString() }); }
+  } catch { }
+  for (const [sym, nome] of [['^BVSP', 'Ibovespa'], ['^GSPC', 'S&P 500'], ['IFIX.SA', 'IFIX (fundos imobiliários)']]) {
+    try {
+      const r = await httpsJSON(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1mo&interval=1d`, { headers: { 'User-Agent': 'Mozilla/5.0 (TRAXUP-Imobiliario)' } });
+      const m = r.json?.chart?.result?.[0]; if (!m) continue; const fech = (m.indicators?.quote?.[0]?.close || []).filter(v => v != null);
+      const atual = m.meta.regularMarketPrice ?? fech[fech.length - 1], ant = m.meta.chartPreviousClose ?? m.meta.previousClose ?? fech[fech.length - 2];
+      res.bolsa.push({ id: sym, nome, pontos: atual, varPct: ant ? +(((atual / ant) - 1) * 100).toFixed(2) : null, serie: fech.slice(-22), em: new Date((m.meta.regularMarketTime || Date.now() / 1000) * 1000).toISOString() });
+    } catch { }
+  }
+  return res;
+}
+async function dadosMercado(forcar = false) {
+  const agora = Date.now();
+  if (forcar || !cacheMercado.cot || agora - cacheMercado.cotEm > 10 * 60e3) { const c = await buscarCotacoes(); if (c.moedas.length || c.bolsa.length || !cacheMercado.cot) { cacheMercado.cot = c; cacheMercado.cotEm = agora; } }
+  if (forcar || !cacheMercado.ind || agora - cacheMercado.indEm > 6 * 3600e3) { const i = await buscarIndices(); if (i.some(x => !x.erro) || !cacheMercado.ind) { cacheMercado.ind = i; cacheMercado.indEm = agora; } }
+  return { ...cacheMercado.cot, indices: cacheMercado.ind, atualizadoEm: new Date(cacheMercado.cotEm).toISOString(), indicesEm: new Date(cacheMercado.indEm).toISOString() };
+}
+
 /* ---------- E-mail (SMTP sem dependências) — usado na redefinição de senha ---------- */
 const SMTP = { host: process.env.SMTP_HOST || '', port: +(process.env.SMTP_PORT || 465), user: process.env.SMTP_USER || '', pass: process.env.SMTP_PASS || '', from: process.env.SMTP_FROM || process.env.SMTP_USER || '', nome: process.env.SMTP_NOME || 'TRAXUP Imobiliário' };
 const smtpOk = () => !!(SMTP.host && SMTP.user && SMTP.pass && SMTP.from);
@@ -322,6 +374,7 @@ const server = http.createServer(async (req, res) => {
     if (p.startsWith('/api/portal/')) return await rotaPortal(req, res, p, ip);
     const user = usuarioDa(req); if (!user) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
     if (p === '/api/notificacoes' && req.method === 'GET') return send(res, 200, { notificacoes: Object.values(db.notificacoes).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 60), solicitacoes: Object.values(db.solicitacoes).filter(x => x.status === 'Pendente') }, { 'Cache-Control': 'no-store' });
+    if (p === '/api/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(url.searchParams.get('forcar') === '1' && user.perfil === 'Administrador'), { 'Cache-Control': 'no-store' });
     if (p === '/api/email/teste' && req.method === 'POST') { if (user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores.' }); const { para } = await readJSON(req, 1e4); await enviarEmail({ para: String(para || user.email || '').trim(), assunto: 'Teste de envio — TRAXUP Imobiliário', html: '<p style="font-family:Arial">Tudo certo! O envio de e-mails do <b>TRAXUP Imobiliário</b> está funcionando.</p>', texto: 'Tudo certo! O envio de e-mails do TRAXUP Imobiliário está funcionando.' }); return send(res, 200, { ok: true }); }
     if (p.startsWith('/api/portal-admin/')) return await rotaPortalAdmin(req, res, p, user);
     if (p === '/api/logout') { sessions.delete((req.headers.authorization || '').replace(/^Bearer\s+/i, '')); saveSessions(); return send(res, 200, { ok: true }); }

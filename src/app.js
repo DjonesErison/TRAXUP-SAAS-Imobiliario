@@ -3,7 +3,7 @@
 
 const S = { user: null, filial: '*', view: 'painel', f: {}, sel: {}, busy: false };
 const ICON = {
-  mail: 'M3 5h18v14H3zM3 6l9 7 9-7', lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', eye: 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', arrow: 'M5 12h14M13 6l6 6-6 6', bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0', key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  trend: 'M3 17l6-6 4 4 8-8M15 7h6v6', refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6', mail: 'M3 5h18v14H3zM3 6l9 7 9-7', lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', eye: 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', arrow: 'M5 12h14M13 6l6 6-6 6', bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0', key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zm0 0v14m6-12v14', layers: 'm12 3 9 5-9 5-9-5 9-5zm-9 9 9 5 9-5M3 16l9 5 9-5',
   users: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8', file: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zm0 0v6h6M8 13h8M8 17h6',
   wallet: 'M3 7h18v12H3zM3 7l3-4h12l3 4M16 13h2', alert: 'M12 3 2 20h20L12 3zm0 6v5m0 3v.5', barcode: 'M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14', bank: 'M3 10h18M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18M12 3l9 5H3l9-5z',
@@ -16,7 +16,7 @@ const LOGO_MARK = `<img class="logoMark" src="${LOGO_ICON}" alt="">`;
 const LOGO_MARCA = (sub = 'IMOBILIÁRIO', h = false) => `<div class="brand3d"><img src="${h ? LOGO_H : LOGO_WORD}" alt="TRAXUP"><span>${sub}</span></div>`;
 
 const MENU = [
-  ['Gestão', [['painel', 'Painel', 'grid'], ['mapa', 'Mapa de lotes', 'map'], ['lotes', 'Lotes', 'layers'], ['clientes', 'Clientes', 'users'], ['vendas', 'Vendas', 'file'], ['contratos', 'Contratos', 'doc'], ['custos', 'Custo, venda e lucro', 'wallet']]],
+  ['Gestão', [['painel', 'Painel', 'grid'], ['mercado', 'Mercado e índices', 'trend'], ['mapa', 'Mapa de lotes', 'map'], ['lotes', 'Lotes', 'layers'], ['clientes', 'Clientes', 'users'], ['vendas', 'Vendas', 'file'], ['contratos', 'Contratos', 'doc'], ['custos', 'Custo, venda e lucro', 'wallet']]],
   ['Financeiro', [['financeiro', 'Contas a Receber', 'wallet'], ['inadimplencia', 'Inadimplência', 'alert'], ['boletos', 'Boletos Banco do Brasil', 'barcode'], ['conciliacao', 'Conciliação bancária', 'bank'], ['comissoes', 'Comissões', 'hand']]],
   ['Comunicação', [['discord', 'Mensagens Discord', 'send'], ['modelos', 'Modelos de contrato', 'doc']]],
   ['Administração', [['usuarios', 'Usuários', 'user'], ['filiais', 'Filiais e empreendimentos', 'building'], ['config', 'Configurações', 'gear']]]
@@ -150,7 +150,7 @@ function renderView() {
 const AFTER = {};
 
 /* ---------- exportação Excel / PDF de qualquer tela ---------- */
-const VIEWS_SEM_EXPORT = new Set(['discord', 'modelos', 'config']);
+const VIEWS_SEM_EXPORT = new Set(['discord', 'modelos', 'config', 'mercado']);
 function tabelaParaDados(tb) {
   const ths = $$('thead th', tb); const skip = new Set(ths.map((th, i) => (!th.textContent.trim() || /^a[cç][oõ]es$/i.test(th.textContent.trim())) ? i : -1).filter(i => i >= 0));
   const cell = td => { const c = td.cloneNode(true); c.querySelectorAll('button,select,input,svg').forEach(x => x.remove()); return c.innerText.replace(/\s*\n+\s*/g, ' · ').replace(/\s+/g, ' ').trim(); };
@@ -238,6 +238,7 @@ VIEWS.painel = () => {
    <div class="kpi"><span>Comissões a pagar</span><strong>${brl(comPag)}</strong><small>${sub('Saldo dos corretores', 'Das vendas em ' + esc(P.label))}</small></div>
    <div class="kpi"><span>Boletos em aberto</span><strong>${bolAbertos.length}</strong><small>${brl(soma(bolAbertos, b => b.valor))}${P.ativo ? ' · vencimento no período' : ''}</small></div>
    <div class="kpi"><span>Inadimplência</span><strong class="${nInad ? 'red' : ''}">${nInad}</strong><small>contratos com 3+ parcelas vencidas${P.ativo ? ' (no período)' : ''}</small></div></div>
+  ${cardMercadoResumo()}
   <div class="two">${graf}${rosca}</div>
   ${proximos12(ps)}
   ${receitaProjetada(todas)}
@@ -250,6 +251,43 @@ VIEWS.painel = () => {
 const MES_CURTO = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const intBR = n => Math.round(n).toLocaleString('pt-BR');
 function escalaBonita(max) { if (max <= 0) return { top: 100, step: 25 }; const raw = max / 4; const mag = Math.pow(10, Math.floor(Math.log10(raw))); const step = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map(m => m * mag).find(st => st >= raw); return { top: step * 4, step }; }
+/* ---------- Mercado e índices ---------- */
+const MERC = { dados: null, carregando: false, erro: '', aba: 'indices' };
+const pct = (v, casas = 2) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas }) + '%';
+const num = (v, casas = 2) => v == null || isNaN(v) ? '—' : v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+const mesAno = iso => { if (!iso) return ''; const [a, m] = iso.split('-'); return ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][+m - 1] + '/' + a; };
+function spark(serie, cor) { const v = (serie || []).filter(x => x != null); if (v.length < 2) return ''; const mn = Math.min(...v), mx = Math.max(...v), r = mx - mn || 1; const pts = v.map((y, i) => `${(i / (v.length - 1) * 100).toFixed(1)},${(30 - (y - mn) / r * 26 - 2).toFixed(1)}`).join(' '); return `<svg class="mSpark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${cor}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`; }
+async function carregarMercado(forcar = false) {
+  if (Store.mode !== 'server' || MERC.carregando) return; MERC.carregando = true; MERC.erro = '';
+  try { const r = await fetch('api/mercado' + (forcar ? '?forcar=1' : ''), { headers: Store.authH(), cache: 'no-store' }); if (!r.ok) throw Error(); MERC.dados = await r.json(); MERC.carregadoEm = Date.now(); }
+  catch (e) { MERC.erro = 'Não foi possível buscar as cotações agora.'; }
+  MERC.carregando = false; const box = $('#mercadoCard'); if (box) box.outerHTML = box.dataset.resumo ? cardMercadoResumo() : cardMercado();
+}
+function cardMercadoResumo() {
+  if (Store.mode !== 'server') return '';
+  if (!MERC.dados && !MERC.carregando && !MERC.erro) setTimeout(() => carregarMercado(), 0);
+  else if (MERC.dados && Date.now() - (MERC.carregadoEm || 0) > 10 * 60e3 && !MERC.carregando) setTimeout(() => carregarMercado(), 0);
+  const d = MERC.dados; const ix = id => (d?.indices || []).find(x => x.id === id && !x.erro);
+  const mini = [['ipca', '12 meses'], ['igpm', '12 meses'], ['incc', '12 meses'], ['selic', 'ao ano']].map(([id, rot]) => { const x = ix(id); return x ? `<div class="mQ mI"><div class="mQh"><span class="mQi">%</span><span>${esc(x.nome)}</span><b>${x.taxa ? '' : pct(x.valor)}</b></div><strong>${x.taxa === 'aa' ? num(x.valor) + '%' : pct(x.ac12)}</strong><small>${rot} · ${x.taxa ? dataBR(x.ref) : mesAno(x.ref)}</small></div>` : ''; }).join('');
+  return `<div class="card" id="mercadoCard" data-resumo="1"><div class="cardHead"><div><h2>Mercado e índices</h2><p>Câmbio, bolsa e índices de reajuste${d ? ` · cotações de ${new Date(d.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}</p></div><button class="sm" data-act="go" data-v="mercado">${ic('trend')}Ver todos os índices</button></div><div class="cardBody">${!d ? `<div class="mVazio">${MERC.erro ? esc(MERC.erro) : 'Buscando cotações e índices…'}</div>` : `<div class="mQuotes mResumo">${quotesHTML(d)}${mini}</div>`}</div></div>`;
+}
+function quotesHTML(d) {
+  return [...(d.moedas || []).map(m => ({ nome: m.nome, val: m.id === 'BTCBRL' ? brl(Math.round(m.venda * 100)) : 'R$ ' + num(m.venda, 4), var: m.varPct, sub: `Compra ${m.id === 'BTCBRL' ? num(m.compra, 0) : num(m.compra, 4)} · máx ${num(m.max, m.id === 'BTCBRL' ? 0 : 4)}`, ic: m.id === 'BTCBRL' ? '₿' : m.id === 'EURBRL' ? '€' : m.id === 'GBPBRL' ? '£' : 'US$' })), ...(d.bolsa || []).map(b => ({ nome: b.nome, val: num(b.pontos, b.id === '^GSPC' ? 2 : 0) + ' pts', var: b.varPct, sub: 'Último mês', ic: '📈', serie: b.serie }))].map(q => `<div class="mQ"><div class="mQh"><span class="mQi">${q.ic}</span><span>${esc(q.nome)}</span><b class="${q.var > 0 ? 'up' : q.var < 0 ? 'down' : ''}">${pct(q.var)}</b></div><strong>${q.val}</strong>${q.serie ? spark(q.serie, q.var >= 0 ? '#16A34A' : '#E5484D') : `<small>${esc(q.sub)}</small>`}</div>`).join('');
+}
+VIEWS.mercado = () => `${cardMercado()}<p class="hint" style="margin-top:4px">Cotações: AwesomeAPI e Yahoo Finance, atualizadas a cada 10 minutos. Índices: Banco Central do Brasil (SGS), atualizados a cada 6 horas. Valores informativos; para reajustes oficiais, confira a publicação do IBGE/FGV do mês.</p>`;
+function cardMercado() {
+  if (Store.mode !== 'server') return '';
+  if (!MERC.dados && !MERC.carregando && !MERC.erro) setTimeout(() => carregarMercado(), 0);
+  else if (MERC.dados && Date.now() - (MERC.carregadoEm || 0) > 10 * 60e3 && !MERC.carregando) setTimeout(() => carregarMercado(), 0);
+  const d = MERC.dados;
+  const corpo = !d ? `<div class="mVazio">${MERC.erro ? esc(MERC.erro) : 'Buscando cotações e índices…'}</div>` : `
+  <div class="mQuotes">${quotesHTML(d) || '<div class="mVazio">Cotações indisponíveis no momento.</div>'}</div>
+  <div class="mIdxHead"><h3>Índices de reajuste e juros</h3><small>Fonte: Banco Central do Brasil (SGS)</small></div>
+  <div class="tableWrap"><table class="mIdx"><thead><tr><th>Índice</th><th>Referência</th><th class="num">Último</th><th class="num">No ano</th><th class="num">12 meses</th><th>Tendência</th><th>Para que serve</th></tr></thead><tbody>${(d.indices || []).map(x => x.erro ? `<tr><td><b>${esc(x.nome)}</b></td><td colspan="6" class="muted">indisponível no momento</td></tr>` : `<tr><td><b>${esc(x.nome)}</b></td><td>${x.taxa === 'dia' || x.taxa === 'aa' ? dataBR(x.ref) : mesAno(x.ref)}</td><td class="num"><b>${x.taxa === 'aa' ? num(x.valor) + '% a.a.' : x.taxa === 'dia' || x.taxa === 'mes' ? num(x.valor, 4) + '%' : pct(x.valor)}</b></td><td class="num">${x.acAno == null ? '—' : pct(x.acAno)}</td><td class="num">${x.ac12 == null ? '—' : `<span class="mAc">${pct(x.ac12)}</span>`}</td><td>${x.serie ? spark(x.serie, '#2F6BF0') : ''}</td><td class="mDesc">${esc(x.desc)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="card" id="mercadoCard"><div class="cardHead"><div><h2>Mercado e índices</h2><p>Câmbio, bolsa e os índices usados para corrigir parcelas e boletos</p></div><div class="mAcoes">${d ? `<small class="muted">Cotações de ${new Date(d.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>` : ''}<button class="sm" data-act="mercadoAtualizar" ${MERC.carregando ? 'disabled' : ''}>${ic('refresh')}${MERC.carregando ? 'Atualizando…' : 'Atualizar'}</button></div></div><div class="cardBody">${corpo}</div></div>`;
+}
+setInterval(() => { if (!document.hidden && $('#mercadoCard')) carregarMercado(); }, 10 * 60e3);
+
 function graficoRecebimentos(ps) {
   const anoAtual = +hoje().slice(0, 4), mesAtual = +hoje().slice(5, 7);
   const ano = P.ano ? +P.ano : anoAtual; const futuro = ano > anoAtual;
