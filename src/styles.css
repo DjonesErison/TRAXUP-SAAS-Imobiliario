@@ -152,6 +152,21 @@ tfoot td{font-weight:700;background:var(--surface-2)}
 .empSub button{border-radius:99px;padding:7px 14px;font-weight:600;border-color:var(--line);color:var(--navy)}
 .empSub button.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:inset 0 -2px 0 var(--orange)}
 .empSub button.on .icon{color:var(--orange-2)}
+/* ranking de vencidos */
+.rankList{display:grid;gap:6px}
+.rankRow{display:grid;grid-template-columns:44px minmax(180px,1.4fr) 140px minmax(120px,1.6fr) 150px;align-items:center;gap:16px;width:100%;text-align:left;padding:14px 16px;border:1px solid transparent;border-bottom-color:var(--soft);border-radius:12px;background:transparent;font-weight:400;white-space:normal}
+.rankRow:hover{background:var(--hover)}
+.rankRow.top{background:var(--blue-3);border-color:#C8D7FA}
+body.dark .rankRow{background:transparent;border-color:transparent;border-bottom-color:var(--soft)}body.dark .rankRow.top{background:#16295A;border-color:#2A4690}body.dark .rankRow:hover{background:var(--hover)}
+.rankN{font-family:var(--title);font-weight:800;font-size:22px;color:var(--blue-2);text-align:center}
+.rankNome b{display:block;font-size:15px;text-transform:uppercase;letter-spacing:.2px}.rankNome small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px}
+.rankSit{justify-self:start;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:700;text-align:center;min-width:120px}
+.rankSit.bad{background:var(--bad-3);color:var(--bad)}.rankSit.warn{background:var(--orange-3);color:#B86A00}
+body.dark .rankSit.bad{color:#FF8A94}body.dark .rankSit.warn{color:#FFB84D}
+.rankBar{height:10px;border-radius:9px;background:var(--soft);overflow:hidden}.rankBar i{display:block;height:100%;border-radius:9px}
+.rankBar i.bad{background:linear-gradient(90deg,#E5566B,var(--bad))}.rankBar i.warn{background:linear-gradient(90deg,var(--orange-2),var(--orange))}
+.rankVal{font-family:var(--title);font-weight:800;font-size:17px;text-align:right;white-space:nowrap}
+@media (max-width:900px){.rankRow{grid-template-columns:32px 1fr auto;gap:8px 12px}.rankSit{grid-column:2;min-width:0;padding:4px 10px}.rankBar{grid-column:2/4}.rankVal{grid-column:3;grid-row:1}}
 /* gráficos do painel */
 .bigNum{font-family:var(--title);font-weight:800;font-size:30px;letter-spacing:-.5px;margin-top:4px}
 .previsao .vLabels span{font-size:11.5px;white-space:nowrap}
