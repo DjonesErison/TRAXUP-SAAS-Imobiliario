@@ -27,7 +27,7 @@ const BB = {
 };
 BB.oauth = BB.ambiente === 'producao' ? 'https://oauth.bb.com.br/oauth/token' : 'https://oauth.sandbox.bb.com.br/oauth/token';
 BB.api = BB.ambiente === 'producao' ? 'https://api.bb.com.br/cobrancas/v2' : 'https://api.hm.bb.com.br/cobrancas/v2';
-const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs'];
+const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes'];
 const ADMIN_ONLY = new Set(['usuarios', 'filiais']);
 
 /* ---------- base de dados em arquivo JSON (gravação atômica) ---------- */
@@ -35,6 +35,7 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 let db = {}; try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch { db = {}; }
 for (const c of COLS) db[c] ||= {};
+db.portal ||= {}; // acessos do painel do cliente (fica só no servidor, nunca vai para /api/data)
 let saveTimer = null;
 function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { const tmp = DB_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(db)); fs.renameSync(tmp, DB_FILE); }, 150); }
 const BK_DIR = path.join(DATA_DIR, 'backups');
@@ -49,7 +50,7 @@ let sessTimer = null; const saveSessions = () => { clearTimeout(sessTimer); sess
 const pbkdf2 = (senha, salt) => crypto.pbkdf2Sync(String(senha), Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex');
 const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 function novaSessao(userId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { userId, exp: Date.now() + SESSION_HOURS * 3600e3 }); saveSessions(); return t; }
-function usuarioDa(req) { const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t); if (!s || s.exp < Date.now()) { sessions.delete(t); return null; } const u = db.usuarios[s.userId]; if (!u || u.ativo === false) return null; if (s.exp - Date.now() < (SESSION_HOURS - 1) * 3600e3) { s.exp = Date.now() + SESSION_HOURS * 3600e3; saveSessions(); } return u; }
+function usuarioDa(req) { const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t); if (!s || s.exp < Date.now()) { sessions.delete(t); return null; } if (s.tipo === 'cliente') return null; const u = db.usuarios[s.userId]; if (!u || u.ativo === false) return null; if (s.exp - Date.now() < (SESSION_HOURS - 1) * 3600e3) { s.exp = Date.now() + SESSION_HOURS * 3600e3; saveSessions(); } return u; }
 const tentativas = new Map();
 function limitarLogin(ip) { const now = Date.now(); const a = (tentativas.get(ip) || []).filter(t => now - t < 15 * 60e3); a.push(now); tentativas.set(ip, a); return a.length > 10; }
 const semSegredo = u => { const { salt, hash, ...rest } = u; return rest; };
@@ -123,6 +124,76 @@ async function baixarBoleto(id) {
 }
 
 /* ---------- rotas ---------- */
+
+/* ---------- Painel do cliente (somente leitura) ---------- */
+const PORTAL_STAFF = new Set(['Administrador', 'Gerente', 'Financeiro']);
+function novaSessaoCliente(clienteId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { tipo: 'cliente', clienteId, exp: Date.now() + 4 * 3600e3 }); saveSessions(); return t; }
+function clienteDa(req) {
+  const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t);
+  if (!s || s.tipo !== 'cliente' || s.exp < Date.now()) return null;
+  const a = db.portal[s.clienteId], c = db.clientes[s.clienteId]; if (!a || a.ativo === false || !c) return null; return { c, a, t };
+}
+const semChaves = (o, re) => { const r = { ...o }; for (const k of Object.keys(r)) if (re.test(k)) delete r[k]; return r; };
+function dadosPortal(cid) {
+  const cli = db.clientes[cid];
+  const vendas = Object.values(db.vendas).filter(v => v.clienteId === cid && v.status !== 'Distratado').map(v => semChaves(v, /^comiss|custo|historico|^obs|^contratoGeradoPor/i));
+  const vids = new Set(vendas.map(v => v.id));
+  const lotes = [...new Set(vendas.map(v => v.loteId))].map(id => db.lotes[id]).filter(Boolean).map(l => semChaves(l, /custo|^obs|reserva/i));
+  const emps = [...new Set(lotes.map(l => l.empId))].map(id => db.empreendimentos[id]).filter(Boolean).map(e => semChaves(e, /custo|^obs/i));
+  const filiais = [...new Set(vendas.map(v => v.filialId))].map(id => db.filiais[id]).filter(Boolean).map(f => ({ id: f.id, nome: f.nome, cnpj: f.cnpj, cidade: f.cidade, telefone: f.telefone, email: f.email, bb: f.bb, multa: f.multa, jurosMes: f.jurosMes }));
+  const boletos = Object.values(db.boletos).filter(b => vids.has(b.vendaId) && b.status !== 'Cancelado' && (b.status === 'Registrado' || b.portal === true));
+  const modelos = {}; for (const v of vendas) { if (!v.contratoGeradoEm) continue; const m = db.modelos[v.contratoModeloId] || Object.values(db.modelos).find(x => x.nome === v.contratoModelo); if (m) modelos[m.id] = { id: m.id, nome: m.nome, tipo: m.tipo, conteudo: m.conteudo }; }
+  const solicitacoes = Object.values(db.solicitacoes).filter(x => x.clienteId === cid);
+  return { clientes: [semChaves(cli, /^obs|classific/i)], vendas, lotes, empreendimentos: emps, filiais, boletos, modelos: Object.values(modelos), solicitacoes, acesso: { email: db.portal[cid].email, ultimoAcesso: db.portal[cid].ultimoAcesso } };
+}
+async function rotaPortal(req, res, p, ip) {
+  if (p === '/api/portal/login' && req.method === 'POST') {
+    if (limitarLogin('portal:' + ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
+    const { email, senha } = await readJSON(req, 1e4); const e = String(email || '').trim().toLowerCase();
+    const cid = Object.keys(db.portal).find(k => db.portal[k].email === e); const a = cid && db.portal[cid];
+    if (!a || a.ativo === false || !db.clientes[cid] || !safeEq(pbkdf2(String(senha || ''), a.salt), a.hash)) return send(res, 401, { error: 'E-mail ou senha inválidos.' });
+    a.ultimoAcesso = new Date().toISOString(); persist(); tentativas.delete('portal:' + ip);
+    return send(res, 200, { token: novaSessaoCliente(cid), trocarSenha: !!a.trocarSenha });
+  }
+  const ses = clienteDa(req); if (!ses) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
+  if (p === '/api/portal/dados' && req.method === 'GET') return send(res, 200, dadosPortal(ses.c.id), { 'Cache-Control': 'no-store' });
+  if (p === '/api/portal/logout') { sessions.delete(ses.t); saveSessions(); return send(res, 200, { ok: true }); }
+  if (p === '/api/portal/senha' && req.method === 'POST') {
+    const { atual, nova } = await readJSON(req, 1e4); if (!safeEq(pbkdf2(String(atual || ''), ses.a.salt), ses.a.hash)) return send(res, 400, { error: 'Senha atual incorreta.' });
+    if (String(nova || '').length < 6) return send(res, 400, { error: 'A nova senha precisa ter 6 caracteres ou mais.' });
+    ses.a.salt = crypto.randomBytes(16).toString('hex'); ses.a.hash = pbkdf2(String(nova), ses.a.salt); delete ses.a.trocarSenha; persist(); return send(res, 200, { ok: true });
+  }
+  if (p === '/api/portal/solicitar' && req.method === 'POST') {
+    const { vendaId, parcelaId, tipo = 'boleto', obs = '' } = await readJSON(req, 1e4);
+    const v = db.vendas[vendaId]; if (!v || v.clienteId !== ses.c.id) return send(res, 404, { error: 'Contrato não encontrado.' });
+    const parc = (v.parcelas || []).find(x => x.id === parcelaId); if (tipo === 'boleto' && !parc) return send(res, 404, { error: 'Parcela não encontrada.' });
+    const dup = Object.values(db.solicitacoes).find(x => x.clienteId === ses.c.id && x.parcelaId === parcelaId && x.tipo === tipo && x.status === 'Pendente'); if (dup) return send(res, 200, { ok: true, solicitacao: dup, repetida: true });
+    const id = 'sol_' + crypto.randomBytes(8).toString('hex');
+    const sol = { id, clienteId: ses.c.id, clienteNome: ses.c.nome, vendaId, vendaNumero: v.numero, filialId: v.filialId, parcelaId: parc?.id || '', parcelaRef: parc ? `${parc.tipo} ${parc.ref}` : '', venc: parc?.venc || '', tipo, obs: String(obs).slice(0, 500), status: 'Pendente', criadoEm: new Date().toISOString() };
+    db.solicitacoes[id] = sol; persist();
+    const avisar = Object.values(db.webhooks).filter(h => h.avisosPortal && (!h.filialId || h.filialId === v.filialId));
+    for (const h of avisar) enviarDiscord(h.id, `📄 Painel do cliente: ${ses.c.nome} solicitou ${tipo === 'boleto' ? 'boleto' : tipo} — contrato ${v.numero}${parc ? `, parcela ${parc.tipo} ${parc.ref} (venc. ${parc.venc.split('-').reverse().join('/')})` : ''}.${sol.obs ? ' Obs.: ' + sol.obs : ''}`).catch(() => { });
+    return send(res, 200, { ok: true, solicitacao: sol });
+  }
+  return send(res, 404, { error: 'Rota não encontrada.' });
+}
+function rotaPortalAdmin(req, res, p, user) {
+  if (!PORTAL_STAFF.has(user.perfil)) return send(res, 403, { error: 'Sem permissão para gerenciar o painel do cliente.' });
+  if (p === '/api/portal-admin/acessos' && req.method === 'GET') return send(res, 200, { acessos: Object.entries(db.portal).map(([clienteId, a]) => ({ clienteId, email: a.email, ativo: a.ativo !== false, criadoEm: a.criadoEm, ultimoAcesso: a.ultimoAcesso })) });
+  if (p === '/api/portal-admin/acesso' && req.method === 'POST') return readJSON(req, 1e4).then(({ clienteId, email, senha, ativo = true, remover }) => {
+    if (!db.clientes[clienteId]) return send(res, 404, { error: 'Cliente não encontrado.' });
+    if (remover) { delete db.portal[clienteId]; for (const [t, s] of sessions) if (s.tipo === 'cliente' && s.clienteId === clienteId) sessions.delete(t); saveSessions(); persist(); return send(res, 200, { ok: true }); }
+    const e = String(email || '').trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return send(res, 400, { error: 'Informe um e-mail válido.' });
+    const outro = Object.keys(db.portal).find(k => k !== clienteId && db.portal[k].email === e); if (outro) return send(res, 400, { error: 'Este e-mail já dá acesso ao painel de outro cliente (' + (db.clientes[outro]?.nome || outro) + ').' });
+    const a = db.portal[clienteId] || { criadoEm: new Date().toISOString() };
+    if (senha) { if (String(senha).length < 6) return send(res, 400, { error: 'A senha precisa ter 6 caracteres ou mais.' }); a.salt = crypto.randomBytes(16).toString('hex'); a.hash = pbkdf2(String(senha), a.salt); a.trocarSenha = true; }
+    if (!a.hash) return send(res, 400, { error: 'Defina uma senha inicial para o cliente.' });
+    Object.assign(a, { email: e, ativo: !!ativo, atualizadoPor: user.nome, atualizadoEm: new Date().toISOString() }); db.portal[clienteId] = a;
+    if (!a.ativo) for (const [t, s] of sessions) if (s.tipo === 'cliente' && s.clienteId === clienteId) sessions.delete(t);
+    persist(); return send(res, 200, { ok: true });
+  });
+  return send(res, 404, { error: 'Rota não encontrada.' });
+}
 const INDEX = path.join(ROOT, 'public', 'index.html');
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const p = url.pathname; const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
@@ -148,7 +219,9 @@ const server = http.createServer(async (req, res) => {
       u.ultimoAcesso = new Date().toISOString(); persist(); tentativas.delete(ip);
       return send(res, 200, { token: novaSessao(u.id), userId: u.id });
     }
+    if (p.startsWith('/api/portal/')) return await rotaPortal(req, res, p, ip);
     const user = usuarioDa(req); if (!user) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
+    if (p.startsWith('/api/portal-admin/')) return await rotaPortalAdmin(req, res, p, user);
     if (p === '/api/logout') { sessions.delete((req.headers.authorization || '').replace(/^Bearer\s+/i, '')); saveSessions(); return send(res, 200, { ok: true }); }
     if (p === '/api/data' && req.method === 'GET') { const out = {}; for (const c of COLS) out[c] = Object.values(db[c]).map(o => c === 'usuarios' ? semSegredo(o) : o); return send(res, 200, out, { 'Cache-Control': 'no-store' }); }
     const m = p.match(/^\/api\/data\/([a-z]+)\/([A-Za-z0-9_.:@+~-]{1,120})$/);

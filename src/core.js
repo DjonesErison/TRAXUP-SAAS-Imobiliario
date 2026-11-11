@@ -44,7 +44,7 @@ function extenso(cents) {
 }
 
 /* ---------- armazenamento (3 modos: servidor próprio, base do artefato, navegador) ---------- */
-const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs'];
+const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes'];
 const Store = {
   mode: 'local', data: {}, db: null, token: null, downloads: null, queue: {},
   async init() {
@@ -85,6 +85,7 @@ const Store = {
   get(c, id) { return id ? (this.data[c] || {})[id] : undefined; },
   saveLocal() { try { localStorage.setItem('traxup_imob_v1', JSON.stringify(this.data)); } catch (e) { toast('Não foi possível gravar no navegador (espaço cheio?).', true); } },
   async put(c, o) {
+    if (this.mode === 'portal') throw Error('Painel somente para consulta.');
     o = JSON.parse(JSON.stringify(o)); if (!o.id) o.id = uid(); o.atualizadoEm = new Date().toISOString();
     (this.data[c] ||= {})[o.id] = o;
     const key = c + '/' + o.id; const prev = this.queue[key] || Promise.resolve();
@@ -96,6 +97,7 @@ const Store = {
     this.saveLocal();
   },
   async del(c, id) {
+    if (this.mode === 'portal') throw Error('Painel somente para consulta.');
     delete (this.data[c] || {})[id];
     if (this.mode === 'server') { const r = await fetch(`api/data/${c}/${encodeURIComponent(id)}`, { method: 'DELETE', headers: this.authH() }); if (!r.ok) throw Error('O servidor recusou a exclusão.'); return; }
     if (this.mode === 'db') { await this.db.collection(c).doc(id).delete(); return; }

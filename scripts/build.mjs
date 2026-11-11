@@ -16,6 +16,7 @@ const html = `<!DOCTYPE html>
 <script>${r('src/vico.js')}</script>
 <script>${r('src/app.js')}</script>
 <script>${r('src/actions.js')}</script>
+<script>${r('src/portal.js')}</script>
 </body></html>`;
 fs.mkdirSync(path.join(root, 'public'), { recursive: true });
 fs.writeFileSync(path.join(root, 'public/index.html'), html);

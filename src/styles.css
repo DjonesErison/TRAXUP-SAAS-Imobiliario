@@ -360,3 +360,26 @@ body.dark .eyebrow{color:#7FA6FF}
 .chipF{display:inline-flex;align-items:center;gap:6px;align-self:flex-end;background:var(--blue-soft,#e8efff);color:var(--blue);border-radius:999px;padding:7px 8px 7px 12px;font-size:12.5px;font-weight:600}.chipF button{all:unset;cursor:pointer;width:20px;height:20px;border-radius:50%;text-align:center;line-height:19px;font-size:15px}.chipF button:hover{background:var(--blue);color:#fff}
 body.dark .chipF{background:rgba(80,130,255,.18)}
 .stTabs.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+
+/* ---------- Painel do cliente ---------- */
+.ptShell{min-height:100vh;background:var(--bg)}
+.ptTop{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:12px 28px;background:linear-gradient(90deg,#0A2463,#123A9C);color:#fff;box-shadow:0 2px 14px rgba(10,36,99,.25)}
+.ptTop .brand{display:flex;align-items:center;gap:10px;padding:0}.ptTop .brand svg{width:34px;height:34px}
+.ptTop .ghost{color:#fff;border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.06)}.ptTop .ghost:hover{background:rgba(255,255,255,.16)}
+.ptUser{display:flex;align-items:center;gap:10px;margin:0 6px}.ptUser b{display:block;font-size:13.5px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ptUser small{display:block;font-size:11.5px;opacity:.75}
+.ptUser .avatar{width:34px;height:34px;border-radius:50%;background:var(--orange);color:#0A2463;display:grid;place-items:center;font-weight:800}
+.ptMain{max-width:1240px;margin:0 auto;padding:26px 28px 40px;display:flex;flex-direction:column;gap:18px}
+.ptHello{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}.ptHello h1{font-family:var(--title);font-size:30px;margin:4px 0 4px;letter-spacing:-.5px}.ptHello p{margin:0}
+.ptActs{display:flex;gap:8px;flex-wrap:wrap}
+.ptContratos{display:flex;gap:10px;flex-wrap:wrap}.ptContratos button{all:unset;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)}
+.ptContratos button b{display:block;font-size:14px}.ptContratos button small{color:var(--muted);font-size:12px}.ptContratos button.on{background:var(--blue);border-color:var(--blue);color:#fff}.ptContratos button.on small{color:rgba(255,255,255,.8)}
+.ptKpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ptBar{height:6px;border-radius:9px;background:var(--line);margin-top:8px;overflow:hidden}.ptBar i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--orange));border-radius:9px}
+.ptGrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}.ptSide{display:flex;flex-direction:column;gap:18px}
+.ptDl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:0;font-size:13.5px}.ptDl dt{color:var(--muted)}.ptDl dd{margin:0;font-weight:600;text-align:right}
+.ptSols{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}.ptSols li{display:flex;justify-content:space-between;align-items:center;gap:10px}.ptSols small{display:block;color:var(--muted);font-size:11.5px}
+.ptMais{text-align:center;padding:10px}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}.seg button{border:0;background:transparent;padding:6px 12px;border-radius:8px;font-weight:600;color:var(--muted);box-shadow:none}.seg button.on{background:var(--blue);color:#fff}
+.ptFoot{text-align:center;color:var(--muted);font-size:12px;margin-top:6px}
+@media(max-width:980px){.ptGrid{grid-template-columns:1fr}.ptKpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.ptTop{padding:10px 14px}.ptUser div:last-child,.hideSm{display:none}.ptMain{padding:16px 14px 30px}.ptHello h1{font-size:24px}.ptKpis{grid-template-columns:1fr 1fr}.ptKpis .kpi strong{font-size:16px}}

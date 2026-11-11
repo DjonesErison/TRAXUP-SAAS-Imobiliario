@@ -116,3 +116,11 @@ Sem dependências npm. Leitura de .docx carrega o JSZip do cdnjs sob demanda.
 
 - O modelo de contrato incluído é uma **base** para adaptação; revise com o jurídico da empresa.
 - No modo artefato, quem tem acesso ao artefato pode ler os registros da base (inclusive o hash das senhas). Para clientes e dados reais, use o servidor TRAXUP.
+
+## Painel do cliente
+
+Endereço: `https://imob.traxup.com.br/painel-cliente` (mesmo servidor, sem configuração extra de DNS).
+
+- A equipe (Administrador, Gerente, Financeiro) libera o acesso em **Clientes → Painel**: e-mail, senha inicial e bloqueio.
+- O cliente vê, somente para consulta, seus contratos, parcelas, 2ª via de boletos registrados ou liberados, o contrato gerado e o extrato. Pode solicitar boleto (aparece em **Boletos → Solicitações do painel do cliente**).
+- As senhas dos clientes ficam apenas no servidor (`data/db.json`, campo `portal`, com PBKDF2) e nunca são enviadas para o sistema da equipe.
