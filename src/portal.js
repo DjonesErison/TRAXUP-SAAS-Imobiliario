@@ -38,7 +38,7 @@ async function portalCarregar() {
   const d = await portalApi('dados');
   PORTAL.dados = d;
   Store.data = {}; COLS.forEach(c => Store.data[c] = {});
-  for (const c of ['clientes', 'vendas', 'lotes', 'empreendimentos', 'filiais', 'boletos', 'modelos', 'solicitacoes']) for (const o of (d[c] || [])) (Store.data[c] ||= {})[o.id] = o;
+  for (const c of ['clientes', 'vendas', 'lotes', 'empreendimentos', 'filiais', 'boletos', 'modelos', 'solicitacoes', 'assinaturas']) for (const o of (d[c] || [])) (Store.data[c] ||= {})[o.id] = o;
   PORTAL.cliente = d.clientes[0];
   const vs = d.vendas.sort((a, b) => (a.data || '').localeCompare(b.data || ''));
   if (!vs.some(v => v.id === PORTAL.venda)) PORTAL.venda = vs[0]?.id || null;
@@ -82,17 +82,41 @@ function portalRender() {
   const sols = Store.list('solicitacoes').filter(s => s.vendaId === v.id).sort((a, b) => (b.criadoEm || '').localeCompare(a.criadoEm || '')).slice(0, 6);
   $('#app').innerHTML = `<div class="ptShell">${head}<main class="ptMain">
   <div class="ptHello"><div><div class="eyebrow">Olá, ${esc(primeiro)}</div><h1>${esc(pNomeLote(v))}</h1><p class="muted">${esc(e.nome || '')}${e.cidade ? ' · ' + esc(e.cidade) : ''} · contrato ${esc(v.numero)} de ${dataBR(v.data)}</p></div><span class="spacer"></span>
-    <div class="ptActs"><button data-act="ptExtrato">${ic('down')}Imprimir extrato</button>${mod ? `<button data-act="ptContrato" data-id="${v.id}">${ic('doc')}Ver contrato</button>` : `<button disabled title="O contrato ainda não foi disponibilizado pela empresa">${ic('doc')}Contrato indisponível</button>`}</div></div>
+    <div class="ptActs">${botaoAssinar(v)}<button data-act="ptExtrato">${ic('down')}Imprimir extrato</button>${mod ? `<button data-act="ptContrato" data-id="${v.id}">${ic('doc')}Ver contrato</button>` : `<button disabled title="O contrato ainda não foi disponibilizado pela empresa">${ic('doc')}Contrato indisponível</button>`}</div></div>
   ${seletor}
   ${atraso.length ? `<div class="notice bad">Você tem ${atraso.length} parcela${atraso.length > 1 ? 's' : ''} em atraso, somando ${brl(soma(atraso, saldoParcela))}. Use a 2ª via do boleto ou solicite um novo boleto abaixo.</div>` : ''}
   <div class="kpis ptKpis"><div class="kpi bl"><span>Valor do contrato</span><strong>${brl(v.valor)}</strong><small>${ps.length} parcelas</small></div><div class="kpi"><span>Já pago</span><strong class="green">${brl(pago)}</strong><small>${pagas} de ${ps.length} parcelas · ${pct}%</small><div class="ptBar"><i style="width:${pct}%"></i></div></div><div class="kpi hl"><span>Saldo a pagar</span><strong>${brl(saldo)}</strong><small>${ps.length - pagas} parcelas restantes</small></div><div class="kpi ${atraso.length ? '' : 'bl'}"><span>${atraso.length ? 'Em atraso' : 'Próxima parcela'}</span><strong class="${atraso.length ? 'red' : ''}">${atraso.length ? brl(soma(atraso, saldoParcela)) : prox ? brl(saldoParcela(prox)) : '—'}</strong><small>${atraso.length ? 'desde ' + dataBR(atraso[0].venc) : prox ? 'vence em ' + dataBR(prox.venc) : 'tudo quitado'}</small></div></div>
   ${cardMercadoResumo(v.indice || '')}
   <div class="ptGrid"><div class="card"><div class="cardHead"><div><h2>Parcelas</h2><p>Consulte, imprima a 2ª via ou solicite o boleto</p></div><div class="seg">${[['abertas', 'A pagar'], ['pagas', 'Pagas'], ['todas', 'Todas']].map(([k, t]) => `<button class="${PORTAL.aba === k ? 'on' : ''}" data-act="ptAba" data-k="${k}">${t}</button>`).join('')}</div></div>
     <div class="tableWrap"><table><thead><tr><th>Vencimento</th><th>Parcela</th><th class="num">Valor</th><th class="num">Pago</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(p => `<tr><td>${dataBR(p.venc)}</td><td>${esc(p.tipo)} ${esc(p.ref)}</td><td class="num">${brl(totalParcela(p))}</td><td class="num">${brl(pagoParcela(p))}</td><td>${badgeSit(statusParcela(p, ref))}</td><td class="actions">${acao(p)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma parcela aqui.</td></tr>'}</tbody></table></div>${listaTot.length > 12 ? `<div class="ptMais"><button class="ghost" data-act="ptMais">${PORTAL.mais ? 'Mostrar menos' : `Mostrar todas as ${listaTot.length} parcelas`}</button></div>` : ''}<p class="hint" style="padding:0 18px 14px;margin:0">O boleto pode ser solicitado para parcelas em atraso ou que vencem nos próximos 45 dias.</p></div>
-    <div class="ptSide"><div class="card"><div class="cardHead"><div><h2>Seu lote</h2></div></div><div class="cardBody"><dl class="ptDl"><dt>Empreendimento</dt><dd>${esc(e.nome || '—')}</dd><dt>Quadra / lote</dt><dd>${esc(l.quadra || '—')} / ${esc(l.numero || '—')}</dd>${l.area ? `<dt>Área</dt><dd>${String(l.area).replace('.', ',')} m²</dd>` : ''}${l.frente ? `<dt>Frente × fundo</dt><dd>${esc(l.frente)} m × ${esc(l.fundo || '—')} m</dd>` : ''}${l.matricula ? `<dt>Matrícula</dt><dd>${esc(l.matricula)}</dd>` : ''}<dt>Reajuste</dt><dd>${esc(v.indice || '—')}</dd><dt>Empresa</dt><dd>${esc(fil.nome || '')}</dd></dl></div></div>
+    <div class="ptSide">${cardAssinaturaLateral(v)}<div class="card"><div class="cardHead"><div><h2>Seu lote</h2></div></div><div class="cardBody"><dl class="ptDl"><dt>Empreendimento</dt><dd>${esc(e.nome || '—')}</dd><dt>Quadra / lote</dt><dd>${esc(l.quadra || '—')} / ${esc(l.numero || '—')}</dd>${l.area ? `<dt>Área</dt><dd>${String(l.area).replace('.', ',')} m²</dd>` : ''}${l.frente ? `<dt>Frente × fundo</dt><dd>${esc(l.frente)} m × ${esc(l.fundo || '—')} m</dd>` : ''}${l.matricula ? `<dt>Matrícula</dt><dd>${esc(l.matricula)}</dd>` : ''}<dt>Reajuste</dt><dd>${esc(v.indice || '—')}</dd><dt>Empresa</dt><dd>${esc(fil.nome || '')}</dd></dl></div></div>
     <div class="card"><div class="cardHead"><div><h2>Suas solicitações</h2></div></div><div class="cardBody">${sols.length ? `<ul class="ptSols">${sols.map(s => `<li><div><b>${s.tipo === 'boleto' ? 'Boleto' : esc(s.tipo)} ${esc(s.parcelaRef || '')}</b><small>${new Date(s.criadoEm).toLocaleString('pt-BR')}</small></div><span class="badge ${s.status === 'Atendida' ? 'ok' : 'warn'}">${esc(s.status)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Nenhuma solicitação ainda.</p>'}</div></div></div></div>
   <p class="ptFoot">TRAXUP Imobiliário · Tecnologia que impulsiona negócios · Este painel é apenas para consulta. Para alterar dados, fale com a empresa.</p>
   </main></div>`;
+}
+
+function botaoAssinar(v) {
+  const a = Store.get('assinaturas', v.id); if (!a || a.status === 'Não enviado') return '';
+  if (a.status === 'Assinado') return `<button data-act="ptVerAssinado" data-id="${v.id}">${ic('check')}Contrato assinado</button>`;
+  return `<button class="${a.status === 'Aguardando assinatura' ? 'primary ptPulse' : ''}" data-act="ptAssinar" data-id="${v.id}">${ic('key')}${a.status === 'Aguardando assinatura' ? 'Assinar contrato' : 'Assinatura em conferência'}</button>`;
+}
+function cardAssinaturaLateral(v) {
+  const a = Store.get('assinaturas', v.id); if (!a || a.status === 'Não enviado') return '';
+  const st = a.status, cor = st === 'Assinado' ? 'ok' : st === 'Enviado pelo cliente' ? 'blue' : 'warn', rot = st === 'Assinado' ? 'Assinado' : st === 'Enviado pelo cliente' ? 'Em conferência' : 'Aguardando sua assinatura';
+  return `<div class="card"><div class="cardHead"><div><h2>Assinatura do contrato</h2><p>Pelo gov.br, grátis</p></div><span class="badge ${cor}">${rot}</span></div><div class="cardBody">${a.motivo && st === 'Aguardando assinatura' ? `<div class="notice warn" style="margin-top:0">A empresa pediu um novo envio: ${esc(a.motivo)}</div>` : ''}${st === 'Assinado' ? `<button class="primary" style="width:100%;justify-content:center" data-act="ptVerAssinado" data-id="${v.id}">${ic('doc')}Baixar contrato assinado</button>` : `<button class="${st === 'Aguardando assinatura' ? 'primary' : ''}" style="width:100%;justify-content:center" data-act="ptAssinar" data-id="${v.id}">${ic('key')}${st === 'Aguardando assinatura' ? 'Ver como assinar' : 'Ver detalhes'}</button>`}</div></div>`;
+}
+function cardAssinaturaPortal(v) {
+  const a = Store.get('assinaturas', v.id); if (!a || a.status === 'Não enviado') return '';
+  const mod = pModeloDa(v); const passo = (n, ok, tit, txt, acoes = '') => `<div class="asPasso ${ok ? 'ok' : ''}"><span class="asN">${ok ? ic('check') : n}</span><div><b>${tit}</b><p>${txt}</p>${acoes ? `<div class="asAc">${acoes}</div>` : ''}</div></div>`;
+  if (a.status === 'Assinado') return `<div class="card ptAss"><div class="cardHead"><div><h2>Contrato assinado</h2><p>Assinatura conferida pela empresa${a.conferidoEm ? ' em ' + new Date(a.conferidoEm).toLocaleDateString('pt-BR') : ''}</p></div><span class="badge ok">Assinado</span></div><div class="cardBody"><button class="primary" data-act="ptVerAssinado" data-id="${v.id}">${ic('doc')}Baixar contrato assinado</button></div></div>`;
+  const enviado = a.status === 'Enviado pelo cliente';
+  return `<div class="card ptAss" style="border-left:4px solid var(--orange)"><div class="cardHead"><div><h2>Assine o seu contrato pelo gov.br</h2><p>É grátis e tem validade jurídica. Leva poucos minutos.</p></div><span class="badge ${enviado ? 'blue' : 'warn'}">${enviado ? 'Em conferência' : 'Aguardando sua assinatura'}</span></div><div class="cardBody">
+  ${a.motivo && !enviado ? `<div class="notice warn">A empresa pediu um novo envio: ${esc(a.motivo)}</div>` : ''}
+  ${enviado ? `<div class="notice info">Recebemos o seu contrato assinado em ${new Date(a.enviadoEm).toLocaleString('pt-BR')}. A empresa vai conferir e avisar por aqui.</div>` : `<div class="asPassos" style="margin:0">
+  ${passo(1, false, 'Baixe o contrato em PDF', 'Clique no botão e, na janela de impressão, escolha <b>Salvar como PDF</b>.', mod ? `<button class="sm" data-act="ptPdfAssinar" data-id="${v.id}">${ic('down')}Baixar contrato em PDF</button>` : '')}
+  ${passo(2, false, 'Assine no gov.br', 'Entre em <b>assinador.iti.br</b> com sua conta gov.br (nível prata ou ouro), envie o PDF, posicione a assinatura e confirme pelo app gov.br. Se o contrato tiver cônjuge, ele também assina o mesmo arquivo.', `<a class="sm btnLink" href="https://assinador.iti.br" target="_blank" rel="noopener">${ic('key')}Abrir assinador gov.br</a>`)}
+  ${passo(3, false, 'Envie o PDF assinado', 'Envie aqui o arquivo que o gov.br devolveu (termina em .pdf).', `<label class="sm asUp" style="background:var(--blue);color:#fff;border-color:var(--blue)">${ic('upload')}Enviar contrato assinado<input type="file" accept="application/pdf,.pdf" data-pt-anexo="${v.id}" hidden></label>`)}
+  </div>`}</div></div>`;
 }
 
 function portalExtrato() {
@@ -118,6 +142,9 @@ function portalContrato(vid) {
 
 Object.assign(ACT, {
   ptSair: () => portalSair(),
+  ptAssinar: el => { const v = Store.get('vendas', el.dataset.id); modal(`${mHead('Assinatura do contrato ' + v.numero, 'Assine pelo gov.br')}<div class="modalBody">${cardAssinaturaPortal(v).replace(/^<div class="card ptAss"[^>]*>/, '<div class="ptAss">')}</div>`, 'wide'); },
+  ptPdfAssinar: el => { const v = Store.get('vendas', el.dataset.id), m = pModeloDa(v); if (m) imprimirContratoPdf(v, m); },
+  ptVerAssinado: el => abrirPdfAssinado('/api/portal/contrato/' + encodeURIComponent(el.dataset.id) + '/pdf', { Authorization: 'Bearer ' + PORTAL.token }),
   ptMercado: () => modal(`${mHead('Mercado e índices', 'Câmbio, bolsa e índices de reajuste')}<div class="modalBody">${cardMercado().replace('id="mercadoCard"', '').replace(/<button class="sm" data-act="mercadoAtualizar"[^]*?<\/button>/, '')}<p class="hint">Índices: Banco Central do Brasil. Valores informativos; o reajuste da sua parcela segue o índice e as regras do seu contrato.</p></div>`, 'wide'),
   ptVoltarLogin: () => portalLogin(),
   ptVenda: el => { PORTAL.venda = el.dataset.id; portalRender(); },

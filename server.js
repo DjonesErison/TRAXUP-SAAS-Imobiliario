@@ -29,7 +29,7 @@ const BB = {
 };
 BB.oauth = BB.ambiente === 'producao' ? 'https://oauth.bb.com.br/oauth/token' : 'https://oauth.sandbox.bb.com.br/oauth/token';
 BB.api = BB.ambiente === 'producao' ? 'https://api.bb.com.br/cobrancas/v2' : 'https://api.hm.bb.com.br/cobrancas/v2';
-const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes'];
+const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes', 'assinaturas'];
 const ADMIN_ONLY = new Set(['usuarios', 'filiais']);
 
 /* ---------- base de dados em arquivo JSON (gravação atômica) ---------- */
@@ -152,7 +152,8 @@ function dadosPortal(cid) {
   const boletos = Object.values(db.boletos).filter(b => vids.has(b.vendaId) && b.status !== 'Cancelado' && (b.status === 'Registrado' || b.portal === true));
   const modelos = {}; for (const v of vendas) { if (!v.contratoGeradoEm) continue; const m = db.modelos[v.contratoModeloId] || Object.values(db.modelos).find(x => x.nome === v.contratoModelo); if (m) modelos[m.id] = { id: m.id, nome: m.nome, tipo: m.tipo, conteudo: m.conteudo }; }
   const solicitacoes = Object.values(db.solicitacoes).filter(x => x.clienteId === cid);
-  return { clientes: [semChaves(cli, /^obs|classific/i)], vendas, lotes, empreendimentos: emps, filiais, boletos, modelos: Object.values(modelos), solicitacoes, acesso: { email: db.portal[cid].email, ultimoAcesso: db.portal[cid].ultimoAcesso } };
+  const assinaturas = vendas.map(v => db.assinaturas[v.id]).filter(Boolean).map(a => ({ id: a.id, vendaId: a.vendaId, status: a.status, liberadoEm: a.liberadoEm, enviadoEm: a.enviadoEm, conferidoEm: a.conferidoEm, motivo: a.motivo, temPdf: !!a.arquivo }));
+  return { clientes: [semChaves(cli, /^obs|classific/i)], vendas, lotes, empreendimentos: emps, filiais, boletos, modelos: Object.values(modelos), solicitacoes, assinaturas, acesso: { email: db.portal[cid].email, ultimoAcesso: db.portal[cid].ultimoAcesso } };
 }
 async function rotaPortal(req, res, p, ip) {
   if (p === '/api/portal/login' && req.method === 'POST') {
@@ -166,6 +167,21 @@ async function rotaPortal(req, res, p, ip) {
   }
   const ses = clienteDa(req); if (!ses) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
   if (p === '/api/portal/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(false), { 'Cache-Control': 'no-store' });
+  { const mP = p.match(/^\/api\/portal\/contrato\/([A-Za-z0-9_.:@+~-]{1,120})(\/pdf)?$/);
+    if (mP) {
+      const [, vid, pdf] = mP; const v = db.vendas[vid]; if (!v || v.clienteId !== ses.c.id) return send(res, 404, { error: 'Contrato não encontrado.' });
+      const a = db.assinaturas[vid];
+      if (pdf && req.method === 'GET') { const buf = lerPdf(vid); if (!buf) return send(res, 404, { error: 'Ainda não há contrato assinado.' }); return enviarPdf(res, buf, `contrato_${v.numero}_assinado.pdf`); }
+      if (!pdf && req.method === 'POST') {
+        if (!a || !['Aguardando assinatura', 'Enviado pelo cliente'].includes(a.status)) return send(res, 400, { error: 'A empresa ainda não liberou este contrato para assinatura.' });
+        const { base64, nomeArquivo } = await readJSON(req, 25e6);
+        Object.assign(a, salvarPdf(vid, base64), { nomeOriginal: String(nomeArquivo || '').slice(0, 120), status: 'Enviado pelo cliente', origem: 'cliente', enviadoEm: new Date().toISOString(), enviadoPor: ses.c.nome }); delete a.motivo;
+        historicoAss(a, 'Contrato assinado enviado pelo cliente', ses.c.nome); persist();
+        notificar('contrato', ses.c, `enviou o contrato assinado pelo gov.br — contrato ${v.numero}`, { vendaId: vid, filialId: v.filialId });
+        return send(res, 200, { ok: true, assinatura: { status: a.status, enviadoEm: a.enviadoEm } });
+      }
+      return send(res, 405, { error: 'Método não permitido.' });
+    } }
   if (p === '/api/portal/dados' && req.method === 'GET') return send(res, 200, dadosPortal(ses.c.id), { 'Cache-Control': 'no-store' });
   if (p === '/api/portal/logout') { sessions.delete(ses.t); saveSessions(); return send(res, 200, { ok: true }); }
   if (p === '/api/portal/senha' && req.method === 'POST') {
@@ -352,6 +368,25 @@ function redefinirSenha(token, nova) {
   delete db.resets[h]; for (const [t, s] of sessions) if ((r.tipo === 'cliente' && s.tipo === 'cliente' && s.clienteId === r.id) || (r.tipo !== 'cliente' && s.userId === r.id)) sessions.delete(t);
   saveSessions(); persist(); return r.tipo;
 }
+
+/* ---------- Contratos assinados (PDF anexado; assinatura gov.br feita no assinador.iti.br) ---------- */
+const CT_DIR = path.join(DATA_DIR, 'contratos');
+const MAX_PDF = 15 * 1024 * 1024;
+function salvarPdf(vendaId, base64) {
+  const buf = Buffer.from(String(base64 || '').replace(/^data:[^,]*,/, ''), 'base64');
+  if (!buf.length) throw Object.assign(Error('Arquivo vazio.'), { status: 400 });
+  if (buf.length > MAX_PDF) throw Object.assign(Error('O PDF passa de 15 MB.'), { status: 413 });
+  if (buf.slice(0, 5).toString() !== '%PDF-') throw Object.assign(Error('Envie o contrato em PDF (o assinador do gov.br devolve o arquivo em PDF).'), { status: 400 });
+  const dir = path.join(CT_DIR, vendaId.replace(/[^\w.-]/g, '_')); fs.mkdirSync(dir, { recursive: true });
+  const nome = `assinado_${Date.now()}.pdf`; fs.writeFileSync(path.join(dir, nome), buf);
+  return { arquivo: nome, tamanho: buf.length, hash: crypto.createHash('sha256').update(buf).digest('hex') };
+}
+function lerPdf(vendaId) {
+  const a = db.assinaturas[vendaId]; if (!a?.arquivo) return null;
+  const f = path.join(CT_DIR, vendaId.replace(/[^\w.-]/g, '_'), a.arquivo); return fs.existsSync(f) ? fs.readFileSync(f) : null;
+}
+const enviarPdf = (res, buf, nome) => { res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${nome}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(buf); };
+function historicoAss(a, acao, quem) { (a.historico ||= []).push({ data: new Date().toISOString(), acao, quem }); if (a.historico.length > 50) a.historico = a.historico.slice(-50); }
 const INDEX = path.join(ROOT, 'public', 'index.html');
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const p = url.pathname; const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
@@ -391,7 +426,23 @@ const server = http.createServer(async (req, res) => {
     }
     if (p.startsWith('/api/portal/')) return await rotaPortal(req, res, p, ip);
     const user = usuarioDa(req); if (!user) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
-    if (p === '/api/notificacoes' && req.method === 'GET') return send(res, 200, { notificacoes: Object.values(db.notificacoes).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 60), solicitacoes: Object.values(db.solicitacoes).filter(x => x.status === 'Pendente') }, { 'Cache-Control': 'no-store' });
+    { const mA = p.match(/^\/api\/assinaturas\/([A-Za-z0-9_.:@+~-]{1,120})(\/pdf)?$/);
+      if (mA) {
+        const [, vid, pdf] = mA; const v = db.vendas[vid]; if (!v) return send(res, 404, { error: 'Venda não encontrada.' });
+        if (pdf && req.method === 'GET') { const buf = lerPdf(vid); if (!buf) return send(res, 404, { error: 'Nenhum contrato assinado anexado.' }); return enviarPdf(res, buf, `contrato_${v.numero}_assinado.pdf`); }
+        if (!pdf && req.method === 'POST') {
+          const { acao, base64, nomeArquivo, obs } = await readJSON(req, 25e6); const a = db.assinaturas[vid] || { id: vid, vendaId: vid, criadoEm: new Date().toISOString() };
+          if (acao === 'liberar') { if (a.status !== 'Assinado') a.status = 'Aguardando assinatura'; a.liberadoEm = new Date().toISOString(); historicoAss(a, 'Liberado para o cliente assinar pelo gov.br', user.nome); }
+          else if (acao === 'anexar') { Object.assign(a, salvarPdf(vid, base64), { nomeOriginal: String(nomeArquivo || '').slice(0, 120), status: 'Assinado', origem: 'equipe', enviadoEm: new Date().toISOString(), enviadoPor: user.nome, conferidoEm: new Date().toISOString(), conferidoPor: user.nome, obs: String(obs || '').slice(0, 300) }); historicoAss(a, 'Contrato assinado anexado pela equipe', user.nome); }
+          else if (acao === 'conferir') { if (!a.arquivo) return send(res, 400, { error: 'Não há PDF anexado.' }); Object.assign(a, { status: 'Assinado', conferidoEm: new Date().toISOString(), conferidoPor: user.nome }); historicoAss(a, 'Assinatura conferida', user.nome); }
+          else if (acao === 'recusar') { Object.assign(a, { status: 'Aguardando assinatura', motivo: String(obs || '').slice(0, 300) }); delete a.conferidoEm; historicoAss(a, 'Arquivo do cliente recusado: ' + (obs || 'sem motivo'), user.nome); }
+          else if (acao === 'remover') { if (!['Administrador', 'Gerente'].includes(user.perfil)) return send(res, 403, { error: 'Apenas Administrador ou Gerente.' }); Object.assign(a, { status: 'Não enviado' }); delete a.arquivo; historicoAss(a, 'Anexo removido', user.nome); }
+          else return send(res, 400, { error: 'Ação inválida.' });
+          db.assinaturas[vid] = a; persist(); return send(res, 200, { ok: true, assinatura: a });
+        }
+        return send(res, 405, { error: 'Método não permitido.' });
+      } }
+    if (p === '/api/notificacoes' && req.method === 'GET') return send(res, 200, { notificacoes: Object.values(db.notificacoes).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 60), solicitacoes: Object.values(db.solicitacoes).filter(x => x.status === 'Pendente'), assinaturas: Object.values(db.assinaturas) }, { 'Cache-Control': 'no-store' });
     if (p === '/api/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(url.searchParams.get('forcar') === '1' && user.perfil === 'Administrador'), { 'Cache-Control': 'no-store' });
     if (p === '/api/email/teste' && req.method === 'POST') { if (user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores.' }); const { para } = await readJSON(req, 1e4); await enviarEmail({ para: String(para || user.email || '').trim(), assunto: 'Teste de envio — TRAXUP Imobiliário', html: '<p style="font-family:Arial">Tudo certo! O envio de e-mails do <b>TRAXUP Imobiliário</b> está funcionando.</p>', texto: 'Tudo certo! O envio de e-mails do TRAXUP Imobiliário está funcionando.' }); return send(res, 200, { ok: true }); }
     if (p.startsWith('/api/portal-admin/')) return await rotaPortalAdmin(req, res, p, user);

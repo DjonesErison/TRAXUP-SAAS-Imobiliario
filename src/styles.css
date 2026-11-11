@@ -466,3 +466,18 @@ body.dark .lg .loginCard,.lg .loginCard{background:transparent!important;box-sha
 body.dark .mAc{color:#FFB84D}.mVazio{padding:20px;text-align:center;color:var(--muted)}
 .mResumo{margin-bottom:0;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}.mI .mQi{background:rgba(255,159,28,.16);color:#C46A00}
 .mQ{position:relative}.mSeu{border-color:var(--orange)!important;box-shadow:0 0 0 2px rgba(255,159,28,.25)}.mTag{position:absolute;top:-9px;right:10px;background:var(--orange);color:#0A2463;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.3px}
+
+/* ---------- Assinatura do contrato ---------- */
+.asTopo{display:flex;gap:16px;align-items:center;margin-bottom:14px}
+.asPassos{display:flex;flex-direction:column;gap:12px;margin:14px 0}
+.asPasso{display:flex;gap:14px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--card)}
+.asPasso.ok{border-color:rgba(22,163,74,.35);background:rgba(22,163,74,.05)}
+.asN{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--blue);color:#fff;font-weight:800}.asPasso.ok .asN{background:#16A34A}.asN svg{width:17px;height:17px}
+.asPasso>div>b{display:block;font-size:14.5px}.asPasso p{margin:3px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+.asAc{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.asUp,.btnLink{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:13px;font-weight:600;cursor:pointer;background:var(--card);color:var(--text);text-decoration:none}.asUp:hover,.btnLink:hover{border-color:var(--blue);color:var(--blue)}.asUp svg,.btnLink svg{width:15px;height:15px}
+.asHist summary{cursor:pointer;color:var(--muted);font-size:13px}.asHist ul{margin:8px 0 0;padding-left:18px;font-size:12.5px}.asHist li span{color:var(--muted)}.asHist em{color:var(--muted)}
+.ptAss .asPasso{padding:12px 14px}.ptAss .asN{flex-basis:28px;height:28px;font-size:13px}
+.asUp{display:inline-flex!important;flex-direction:row!important;align-items:center!important;width:auto!important;margin:0!important}
+.ptPulse{background:var(--orange)!important;border-color:var(--orange)!important;color:#0A2463!important;animation:ptPulse 2s ease-in-out infinite}@keyframes ptPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,159,28,.55)}50%{box-shadow:0 0 0 8px rgba(255,159,28,0)}}
+.modalBody .ptAss .cardHead{padding-top:0}
