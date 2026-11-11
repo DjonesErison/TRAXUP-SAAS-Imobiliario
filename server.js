@@ -236,24 +236,41 @@ async function buscarIndices() {
   return out;
 }
 async function buscarCotacoes() {
-  const res = { moedas: [], bolsa: [] };
+  const res = { moedas: [], bolsa: [] }; const UA = { 'User-Agent': 'Mozilla/5.0 (TRAXUP-Imobiliario)', Accept: 'application/json' };
+  // 1) AwesomeAPI (tempo real). Token opcional em AWESOMEAPI_TOKEN aumenta o limite.
   try {
-    const r = await httpsJSON('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,GBP-BRL,BTC-BRL', { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } });
-    if (r.status === 200 && r.json) for (const [k, n] of [['USDBRL', 'Dólar'], ['EURBRL', 'Euro'], ['GBPBRL', 'Libra'], ['BTCBRL', 'Bitcoin']]) { const x = r.json[k]; if (x) res.moedas.push({ id: k, nome: n, compra: numBR(x.bid), venda: numBR(x.ask), varPct: numBR(x.pctChange), max: numBR(x.high), min: numBR(x.low), em: new Date(+x.timestamp * 1000).toISOString() }); }
-  } catch { }
+    const tk = process.env.AWESOMEAPI_TOKEN ? { 'x-api-key': process.env.AWESOMEAPI_TOKEN } : {};
+    const r = await httpsJSON('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,GBP-BRL,BTC-BRL', { headers: { ...UA, ...tk } });
+    if (r.status === 200 && r.json && r.json.USDBRL) { for (const [k, n] of [['USDBRL', 'Dólar'], ['EURBRL', 'Euro'], ['GBPBRL', 'Libra'], ['BTCBRL', 'Bitcoin']]) { const x = r.json[k]; if (x) res.moedas.push({ id: k, nome: n, compra: numBR(x.bid), venda: numBR(x.ask), varPct: numBR(x.pctChange), max: numBR(x.high), min: numBR(x.low), fonte: 'AwesomeAPI', em: new Date(+x.timestamp * 1000).toISOString() }); } }
+    else console.error('[mercado] AwesomeAPI respondeu', r.status, JSON.stringify(r.json).slice(0, 160));
+  } catch (e) { console.error('[mercado] AwesomeAPI', e.message); }
+  // 2) Reserva: PTAX do Banco Central (dólar, euro, libra) e Binance / Mercado Bitcoin (bitcoin)
+  const tem = id => res.moedas.some(m => m.id === id);
+  for (const [id, nome, cod] of [['USDBRL', 'Dólar', 1], ['EURBRL', 'Euro', 21619], ['GBPBRL', 'Libra', 21623]]) {
+    if (tem(id)) continue;
+    try { const a = await sgs(cod, 2); const u = a[a.length - 1], ant = a[a.length - 2]; res.moedas.push({ id, nome, compra: u.valor, venda: u.valor, varPct: ant ? +(((u.valor / ant.valor) - 1) * 100).toFixed(2) : null, max: null, min: null, fonte: 'PTAX BCB ' + u.data.split('-').reverse().join('/'), em: new Date().toISOString() }); }
+    catch (e) { console.error('[mercado] PTAX', nome, e.message); }
+  }
+  if (!tem('BTCBRL')) {
+    try { const r = await httpsJSON('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCBRL', { headers: UA }); const x = r.json; if (r.status === 200 && x?.lastPrice) res.moedas.push({ id: 'BTCBRL', nome: 'Bitcoin', compra: numBR(x.bidPrice), venda: numBR(x.askPrice || x.lastPrice), varPct: numBR(x.priceChangePercent), max: numBR(x.highPrice), min: numBR(x.lowPrice), fonte: 'Binance', em: new Date().toISOString() }); else console.error('[mercado] Binance', r.status); } catch (e) { console.error('[mercado] Binance', e.message); }
+  }
+  if (!tem('BTCBRL')) {
+    try { const r = await httpsJSON('https://www.mercadobitcoin.net/api/BTC/ticker/', { headers: UA }); const x = r.json?.ticker; if (x?.last) res.moedas.push({ id: 'BTCBRL', nome: 'Bitcoin', compra: numBR(x.buy), venda: numBR(x.sell || x.last), varPct: null, max: numBR(x.high), min: numBR(x.low), fonte: 'Mercado Bitcoin', em: new Date().toISOString() }); } catch (e) { console.error('[mercado] Mercado Bitcoin', e.message); }
+  }
+  const ordem = ['USDBRL', 'EURBRL', 'GBPBRL', 'BTCBRL']; res.moedas.sort((a, b) => ordem.indexOf(a.id) - ordem.indexOf(b.id));
   for (const [sym, nome] of [['^BVSP', 'Ibovespa'], ['^GSPC', 'S&P 500'], ['IFIX.SA', 'IFIX (fundos imobiliários)']]) {
     try {
       const r = await httpsJSON(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1mo&interval=1d`, { headers: { 'User-Agent': 'Mozilla/5.0 (TRAXUP-Imobiliario)' } });
-      const m = r.json?.chart?.result?.[0]; if (!m) continue; const fech = (m.indicators?.quote?.[0]?.close || []).filter(v => v != null);
+      const m = r.json?.chart?.result?.[0]; if (!m) { console.error('[mercado] Yahoo', sym, r.status); continue; } const fech = (m.indicators?.quote?.[0]?.close || []).filter(v => v != null);
       const atual = m.meta.regularMarketPrice ?? fech[fech.length - 1], ant = m.meta.chartPreviousClose ?? m.meta.previousClose ?? fech[fech.length - 2];
       res.bolsa.push({ id: sym, nome, pontos: atual, varPct: ant ? +(((atual / ant) - 1) * 100).toFixed(2) : null, serie: fech.slice(-22), em: new Date((m.meta.regularMarketTime || Date.now() / 1000) * 1000).toISOString() });
-    } catch { }
+    } catch (e) { console.error('[mercado] Yahoo', sym, e.message); }
   }
   return res;
 }
 async function dadosMercado(forcar = false) {
   const agora = Date.now();
-  if (forcar || !cacheMercado.cot || agora - cacheMercado.cotEm > 10 * 60e3) { const c = await buscarCotacoes(); if (c.moedas.length || c.bolsa.length || !cacheMercado.cot) { cacheMercado.cot = c; cacheMercado.cotEm = agora; } }
+  if (forcar || !cacheMercado.cot || agora - cacheMercado.cotEm > (cacheMercado.cot?.moedas?.length ? 10 * 60e3 : 2 * 60e3)) { const c = await buscarCotacoes(); if (c.moedas.length || c.bolsa.length || !cacheMercado.cot) { cacheMercado.cot = c; cacheMercado.cotEm = agora; } }
   if (forcar || !cacheMercado.ind || agora - cacheMercado.indEm > 6 * 3600e3) { const i = await buscarIndices(); if (i.some(x => !x.erro) || !cacheMercado.ind) { cacheMercado.ind = i; cacheMercado.indEm = agora; } }
   return { ...cacheMercado.cot, indices: cacheMercado.ind, atualizadoEm: new Date(cacheMercado.cotEm).toISOString(), indicesEm: new Date(cacheMercado.indEm).toISOString() };
 }
