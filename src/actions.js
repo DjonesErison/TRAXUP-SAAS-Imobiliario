@@ -91,6 +91,8 @@ const ACT = {
   editFilial: el => formFilial(Store.get('filiais', el.dataset.id)),
   editEmp: el => formEmp(Store.get('empreendimentos', el.dataset.id)),
   recMes: el => { const same = +S.f.pMes === +el.dataset.m && String(S.f.pAno) === el.dataset.a; S.f.pMes = same ? '' : el.dataset.m; S.f.pAno = el.dataset.a; renderView(); },
+  fcAno: el => { if (el.disabled) return; S.f.fSel = +el.dataset.i; S.f.fExp = false; renderView(); },
+  fcExp: () => { S.f.fExp = !S.f.fExp; renderView(); },
   p12: el => { S.f.p12 = +el.dataset.i; renderView(); },
   limparPeriodo: () => { S.f.pAno = ''; S.f.pMes = ''; renderView(); },
   recDetalhes: el => { if (el.dataset.prev) Object.assign(S.f, { pst: 'Em aberto', pini: el.dataset.ini, pfim: el.dataset.fim, ppini: '', ppfim: '' }); else Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim, pini: '', pfim: '' }); S.view = 'financeiro'; render(); },

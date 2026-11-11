@@ -152,6 +152,18 @@ tfoot td{font-weight:700;background:var(--surface-2)}
 .empSub button{border-radius:99px;padding:7px 14px;font-weight:600;border-color:var(--line);color:var(--navy)}
 .empSub button.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:inset 0 -2px 0 var(--orange)}
 .empSub button.on .icon{color:var(--orange-2)}
+/* receita projetada */
+.ipcaBox{flex-direction:row;align-items:center;gap:8px}.ipcaBox span{display:flex;align-items:center;gap:8px;white-space:nowrap;color:var(--muted)}.ipcaBox input{width:90px}
+.fcTotal{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:12px;background:var(--surface-2);margin-bottom:16px}
+.fcTotal span{font-weight:700}.fcTotal b{font-family:var(--title);font-size:30px;color:var(--ok);white-space:nowrap}
+.fcGrid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:18px;align-items:start}
+.fcTable tr{cursor:pointer}.fcTable td{padding:14px 12px}.fcTable td small{font-size:11.5px}
+.fcTable tr.fcSel td{background:var(--ok-3)!important}.fcTable tr.fcSel td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
+.fcPag{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px}
+.fcDet{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:var(--surface-2)}.fcDet h3{font-size:22px}.fcDet p{margin:4px 0 10px;font-size:13px}
+.fcBtn{width:100%;justify-content:center;margin-top:14px;padding:11px}
+.fcHow{cursor:pointer;color:var(--blue);font-weight:600;font-size:14px}body.dark .fcHow{color:#7FA6FF}
+@media (max-width:1000px){.fcGrid{grid-template-columns:1fr}.ipcaBox{flex-direction:column;align-items:flex-start}}
 /* ranking de vencidos */
 .rankList{display:grid;gap:6px}
 .rankRow{display:grid;grid-template-columns:44px minmax(180px,1.4fr) 140px minmax(120px,1.6fr) 150px;align-items:center;gap:16px;width:100%;text-align:left;padding:14px 16px;border:1px solid transparent;border-bottom-color:var(--soft);border-radius:12px;background:transparent;font-weight:400;white-space:normal}

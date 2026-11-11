@@ -156,6 +156,7 @@ VIEWS.painel = () => {
    <div class="kpi"><span>Inadimplência</span><strong class="${nInad ? 'red' : ''}">${nInad}</strong><small>contratos com 3+ parcelas vencidas${P.ativo ? ' (no período)' : ''}</small></div></div>
   <div class="two">${graf}${rosca}</div>
   ${proximos12(ps)}
+  ${receitaProjetada(todas)}
   ${resultadosPorEmpresa(todas, lotes)}${comissoesPorEmpresa(vendasPer)}
   ${maioresVencidos(todas, vencPer)}
   <div class="two"><div class="card"><div class="cardHead"><h2>Vencem nos próximos 7 dias</h2></div><div class="cardBody">${prox.length ? `<div class="list">${prox.map(x => `<div class="listRow"><span>${esc(cliNome(x.v.clienteId))}<br><small class="muted">${esc(x.p.tipo)} ${esc(x.p.ref)} · ${dataBR(x.p.venc)}</small></span><b>${brl(saldoParcela(x.p))}</b></div>`).join('')}</div>` : '<div class="empty">Nada vencendo nesta semana.</div>'}</div></div></div>`;
@@ -191,6 +192,31 @@ function maioresVencidos(vendas, vencPer) {
   const lotes = x => x.vendas.map(v => { const l = loteDe(v); return `${nomeFilial(v.filialId)} · ${l.quadra || ''}-${l.numero || ''}`; }).join(' / ');
   return `<div class="card"><div class="cardHead"><div><h2>Clientes com maiores valores vencidos</h2><p>5 maiores saldos · atrasados e inadimplentes${P.ativo ? ` · vencidas em ${esc(P.label)}` : ''}</p></div><button class="sm" data-act="go" data-v="inadimplencia">Ver todos os clientes</button></div><div class="cardBody">
   ${top.length ? `<div class="rankList">${top.map((x, i) => `<button class="rankRow ${i === 0 ? 'top' : ''}" data-act="verVenda" data-id="${x.vendas[0].id}" title="Abrir contrato"><span class="rankN">${i + 1}</span><span class="rankNome"><b>${esc(x.cli?.nome || '—')}</b><small>${esc(lotes(x))}</small></span><span class="rankSit ${x.inad ? 'bad' : 'warn'}">${x.inad ? 'Inadimplente' : 'Em atraso'}</span><span class="rankBar"><i class="${x.inad ? 'bad' : 'warn'}" style="width:${Math.max(3, x.val / max * 100)}%"></i></span><span class="rankVal">${brl(x.val)}</span></button>`).join('')}</div>` : '<div class="empty">Nenhum cliente com valores vencidos. 🎉</div>'}</div></div>`;
+}
+function receitaProjetada(vendas) {
+  const txt = S.f.ipca ?? '0'; const rate = Number(String(txt).replace(',', '.')); const valid = String(txt).trim() !== '' && Number.isFinite(rate) && rate > -100 && rate <= 100;
+  const start = hoje(), baseMonth = +start.slice(0, 4) * 12 + +start.slice(5, 7) - 1; const annual = (1 + (valid ? rate : 0) / 100) * 1.07;
+  const rows = Array.from({ length: 180 }, (_, i) => { const ix = baseMonth + i; return { month: `${Math.floor(ix / 12)}-${String(ix % 12 + 1).padStart(2, '0')}`, base: 0, proj: 0, types: {} }; });
+  for (const v of vendas) {
+    const firstMonthly = (v.parcelas || []).filter(p => p.tipo === 'Mensal' && /^\d{4}-\d{2}-\d{2}$/.test(p.venc)).map(p => p.venc).sort()[0];
+    const yearsSince = d => firstMonthly ? Math.max(0, +d.slice(0, 4) - +firstMonthly.slice(0, 4) - (d.slice(5) < firstMonthly.slice(5) ? 1 : 0)) : 0;
+    for (const p of v.parcelas || []) {
+      const sd = saldoParcela(p); if (p.venc < start || sd <= 0) continue;
+      const off = +p.venc.slice(0, 4) * 12 + +p.venc.slice(5, 7) - 1 - baseMonth; if (!Number.isInteger(off) || off < 0 || off >= 180) continue;
+      const ann = Math.max(0, yearsSince(p.venc) - yearsSince(start)); const val = Math.round(sd * (p.tipo === 'Mensal' || p.tipo === 'Intercalada' ? annual ** ann : 1));
+      rows[off].base += sd; rows[off].proj += val; rows[off].types[p.tipo] = (rows[off].types[p.tipo] || 0) + val;
+    }
+  }
+  const total = soma(rows, r => r.proj); const fmtM = m => m.split('-').reverse().join('/');
+  const blocks = Array.from({ length: 15 }, (_, i) => { const ms = rows.slice(i * 12, (i + 1) * 12); return { label: `Ano ${i + 1}`, ms, base: soma(ms, r => r.base), val: soma(ms, r => r.proj), types: ['Entrada', 'Mensal', 'Intercalada'].map(t => soma(ms, r => r.types[t] || 0)) }; });
+  const sel = Math.min(14, Math.max(0, +S.f.fSel || 0)), page = Math.floor(sel / 6), a = blocks[sel];
+  return `<div class="card"><div class="cardHead"><div><h2>Receita projetada para os próximos 15 anos</h2><p>Simulação de 180 meses · ${fmtM(rows[0].month)} a ${fmtM(rows[179].month)}</p></div><label class="ipcaBox">IPCA anual estimado (%)<span><input id="ipca" inputmode="decimal" value="${esc(txt)}"> + 7% ao ano</span></label></div><div class="cardBody">
+  ${!valid ? '<div class="notice bad">Informe um IPCA maior que −100% e até 100%.</div>' : `<div class="fcTotal"><span>Total projetado</span><b>${brl(total)}</b></div>
+  <div class="fcGrid"><div><div class="tableWrap"><table class="fcTable"><thead><tr><th>Período</th><th class="num">Sem reajuste</th><th class="num">Projetado</th></tr></thead><tbody>${blocks.slice(page * 6, page * 6 + 6).map((b, i) => { const ix = page * 6 + i; return `<tr class="${ix === sel ? 'fcSel' : ''}" data-act="fcAno" data-i="${ix}"><td><b>${b.label}</b><small>${fmtM(b.ms[0].month)} a ${fmtM(b.ms[11].month)}</small></td><td class="num">${brl(b.base)}</td><td class="num"><b>${brl(b.val)}</b></td></tr>`; }).join('')}</tbody></table></div>
+  <div class="fcPag"><button class="sm" data-act="fcAno" data-i="${(page - 1) * 6}" ${page === 0 ? 'disabled' : ''}>Anterior</button><span class="muted">Anos ${page * 6 + 1}–${Math.min(page * 6 + 6, 15)} de 15</span><button class="sm" data-act="fcAno" data-i="${(page + 1) * 6}" ${page === 2 ? 'disabled' : ''}>Próximos</button></div></div>
+  <div class="fcDet"><h3>${a.label}</h3><p class="muted">${fmtM(a.ms[0].month)} a ${fmtM(a.ms[11].month)}</p><div class="bigNum" style="color:var(--ok)">${brl(a.val)}</div>${['Entrada', 'Mensal', 'Intercalada'].map((t, i) => `<div class="listRow"><span>${t}</span><b>${brl(a.types[i])}</b></div>`).join('')}<div class="listRow"><span class="muted">Sem reajuste</span><span class="muted">${brl(a.base)}</span></div><button class="fcBtn" data-act="fcExp">${S.f.fExp ? 'Ocultar meses' : 'Ver os 12 meses'}</button></div></div>
+  ${S.f.fExp ? `<div class="tableWrap" style="margin-top:16px;border:1px solid var(--line);border-radius:10px"><table><thead><tr><th>Mês</th><th class="num">Sem reajuste</th><th class="num">Entrada</th><th class="num">Mensal</th><th class="num">Intercalada</th><th class="num">Projetado</th></tr></thead><tbody>${a.ms.map(r => `<tr><td>${fmtM(r.month)}</td><td class="num">${brl(r.base)}</td>${['Entrada', 'Mensal', 'Intercalada'].map(t => `<td class="num">${brl(r.types[t] || 0)}</td>`).join('')}<td class="num"><b>${brl(r.proj)}</b></td></tr>`).join('')}</tbody></table></div>` : ''}
+  <details style="margin-top:14px"><summary class="fcHow">Como a projeção é calculada</summary><p class="hint" style="margin-top:8px">Os anos são blocos consecutivos de 12 meses a partir do mês atual. Mensais e intercaladas recebem reajuste nos aniversários do primeiro vencimento mensal do contrato, pelo fator (1 + IPCA) × 1,07. Entradas mantêm o saldo atual. O IPCA inicial de 0% é uma hipótese ajustável. Inclui só parcelas futuras com saldo, respeitando o término dos contratos e a empresa/empreendimento escolhidos. Não inclui vencidos, novas vendas ou descontos. Os valores cadastrados são considerados atualizados até hoje; só os reajustes futuros são aplicados. Contratos sem mensal cadastrada não recebem reajuste.</p></details>`}</div></div>`;
 }
 function proximos12(ps) {
   const base = hoje().slice(0, 7) + '-01'; const meses = Array.from({ length: 12 }, (_, i) => addMeses(base, i).slice(0, 7));
@@ -251,7 +277,7 @@ VIEWS.mapa = () => {
   return `<div class="toolbar"><label>Empreendimento<select id="mapaEmp">${emps.map(e => opt(e.id, e.nome, emp.id)).join('')}</select></label><label>Situação<select id="mapaStatus">${opt('', 'Todas', fst)}${['Disponível', 'Reservado', 'Vendido', 'Bloqueado'].map(s => opt(s, s, fst)).join('')}</select></label><div class="tabs"><button class="${modo === 'quadras' ? 'on' : ''}" data-act="mapaModo" data-v="quadras">Quadras</button><button class="${modo === 'planta' ? 'on' : ''}" data-act="mapaModo" data-v="planta">Planta</button></div><span class="spacer"></span><div class="legend">${['Disponível', 'Reservado', 'Vendido', 'Bloqueado'].map(s => `<span><i class="st-${s}"></i>${s} (${cnt(s)})</span>`).join('')}</div>${modo === 'planta' && planta ? `<label style="min-width:0"><span class="sm" style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 10px;cursor:pointer;color:var(--text)">${ic('upload')}Trocar planta</span><input type="file" accept="image/*" id="plantaFile" hidden></label>` : ''}</div>
   <div class="mapLayout"><div class="card"><div class="cardBody">${body}</div></div>${panel}</div>`;
 };
-AFTER.painel = () => { bindFilter('pAno', 'pAno'); bindFilter('pMes', 'pMes'); };
+AFTER.painel = () => { bindFilter('pAno', 'pAno'); bindFilter('pMes', 'pMes'); bindFilter('ipca', 'ipca', true); };
 AFTER.mapa = () => {
   $('#mapaEmp')?.addEventListener('change', e => { S.f.mapaEmp = e.target.value; S.sel.lote = null; S.f.placing = false; renderView(); });
   $('#mapaStatus')?.addEventListener('change', e => { S.f.mapaStatus = e.target.value; renderView(); });
