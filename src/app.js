@@ -3,7 +3,7 @@
 
 const S = { user: null, filial: '*', view: 'painel', f: {}, sel: {}, busy: false };
 const ICON = {
-  bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0', key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  mail: 'M3 5h18v14H3zM3 6l9 7 9-7', lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', eye: 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', arrow: 'M5 12h14M13 6l6 6-6 6', bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0', key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zm0 0v14m6-12v14', layers: 'm12 3 9 5-9 5-9-5 9-5zm-9 9 9 5 9-5M3 16l9 5 9-5',
   users: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8', file: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zm0 0v6h6M8 13h8M8 17h6',
   wallet: 'M3 7h18v12H3zM3 7l3-4h12l3 4M16 13h2', alert: 'M12 3 2 20h20L12 3zm0 6v5m0 3v.5', barcode: 'M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14', bank: 'M3 10h18M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18M12 3l9 5H3l9-5z',
@@ -12,7 +12,8 @@ const ICON = {
   plus: 'M12 5v14M5 12h14', x: 'M18 6 6 18M6 6l12 12', search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm10 2-4.3-4.3', logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9', menu: 'M3 6h18M3 12h18M3 18h18', down: 'M12 3v12m-5-5 5 5 5-5M5 21h14', upload: 'M12 21V9m-5 5 5-5 5 5M5 3h14', copy: 'M9 9h11v11H9zM5 15H4V4h11v1', check: 'M20 6 9 17l-5-5', chev: 'm9 6 6 6-6 6'
 };
 const ic = (n, cls = 'icon') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${ICON[n] || ''}"/></svg>`;
-const LOGO_MARK = `<svg viewBox="0 0 48 48"><rect x="6" y="24" width="8" height="16" rx="2" fill="#2F6BF0"/><rect x="18" y="17" width="8" height="23" rx="2" fill="#2F6BF0"/><rect x="30" y="10" width="8" height="30" rx="2" fill="#2F6BF0"/><path d="M4 36 L16 27 L22 31 L36 17" stroke="#FF9F1C" stroke-width="4.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M30 14 L41 11 L38 22 Z" fill="#FFB938"/></svg>`;
+const LOGO_MARK = `<img class="logoMark" src="${LOGO_ICON}" alt="">`;
+const LOGO_MARCA = (sub = 'IMOBILIÁRIO', h = false) => `<div class="brand3d"><img src="${h ? LOGO_H : LOGO_WORD}" alt="TRAXUP"><span>${sub}</span></div>`;
 
 const MENU = [
   ['Gestão', [['painel', 'Painel', 'grid'], ['mapa', 'Mapa de lotes', 'map'], ['lotes', 'Lotes', 'layers'], ['clientes', 'Clientes', 'users'], ['vendas', 'Vendas', 'file'], ['contratos', 'Contratos', 'doc'], ['custos', 'Custo, venda e lucro', 'wallet']]],
@@ -56,7 +57,7 @@ const cfg = () => Store.get('config', 'geral') || { id: 'geral' };
 function aplicarTema(t) { document.body.classList.toggle('dark', t === 'dark'); }
 (function temaInicial() { let t = null; try { t = localStorage.getItem('traxup_tema'); } catch (e) { } if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; aplicarTema(t); })();
 async function boot() {
-  $('#app').innerHTML = `<div class="login"><div class="loginArt"><img src="${LOGO_IMG}" alt="TRAXUP"></div><div class="loginPanel"><div class="loginCard"><h1>Carregando…</h1><p class="sub">Conectando ao armazenamento de dados.</p></div></div></div>`;
+  $('#app').innerHTML = `<div class="lgLoad"><img src="${LOGO_IMG}" alt="TRAXUP"><div class="lgSpin"></div></div>`;
   await Store.init();
   try { const s = JSON.parse(sessionStorage.getItem('traxup_sess') || 'null'); if (s && Store.mode === 'server' && s.token) { Store.token = s.token; await Store.loadAll(); const u = Store.get('usuarios', s.userId); if (u && u.ativo !== false) { S.user = u; return entrar(); } } } catch (e) { Store.token = null; }
   if (Store.mode !== 'server') { try { await Store.loadAll(); } catch (e) { return telaErro(e.message); } }
@@ -64,10 +65,34 @@ async function boot() {
   try { const s = JSON.parse(sessionStorage.getItem('traxup_sess') || 'null'); if (s && Store.mode !== 'server') { const u = Store.get('usuarios', s.userId); if (u && u.ativo !== false) { S.user = u; return entrar(); } } } catch (e) { }
   setup ? telaSetup() : telaLogin();
 }
-function telaErro(msg) { $('#app').innerHTML = `<div class="login"><div class="loginArt"><img src="${LOGO_IMG}" alt="TRAXUP"></div><div class="loginPanel"><div class="loginCard"><h1>Não foi possível carregar</h1><div class="notice bad">${esc(msg)}</div></div></div></div>`; }
-const loginShell = inner => `<div class="login"><div class="loginArt"><img src="${LOGO_IMG}" alt="TRAXUP — Tecnologia que impulsiona negócios"><p>Gestão imobiliária multifilial: lotes, vendas, recebimentos, boletos Banco do Brasil, conciliação bancária e contratos em um só lugar.</p></div><div class="loginPanel">${inner}</div></div>`;
+function telaErro(msg) { $('#app').innerHTML = loginShell(`<div class="loginCard"><div><div class="eyebrow">TRAXUP Imobiliário</div><h1>Não foi possível carregar</h1></div><div class="notice bad">${esc(msg)}</div><button class="primary" onclick="location.reload()">Tentar novamente</button></div>`); }
+const LOGIN_TXT = {
+  equipe: { k: '', h: ['Seu empreendimento', 'sob controle', 'em um só lugar.'], p: 'Lotes, vendas, contas a receber, boletos do Banco do Brasil, conciliação bancária e contratos de todas as empresas num painel só — sempre atualizado.',
+    f: [['grid', 'Dashboard', 'Vendas, recebimentos e previsões de cada empresa num só lugar.'], ['wallet', 'Controle financeiro', 'Contas a receber, baixas, conciliação bancária e inadimplência.'], ['users', 'Painel do cliente', 'O comprador consulta o lote, o contrato e as parcelas sozinho.'], ['barcode', 'Emissão de boleto', 'Boletos do Banco do Brasil emitidos e registrados pelo sistema.']], rodape: 'Mais controle. Menos surpresa no fim do mês.' },
+  cliente: { k: 'Olá, cliente!', h: ['Seu loteamento', 'na palma', 'da sua mão.'], p: 'Consulte as parcelas, imprima boletos, veja o contrato e acompanhe tudo do seu lote quando quiser — sem precisar ligar.',
+    f: [['barcode', '2ª via de boleto', 'Imprima ou copie a linha digitável na hora.'], ['doc', 'Contratos e extratos', 'Visualize o contrato e imprima o extrato completo.'], ['send', 'Solicitações', 'Peça o boleto da parcela e acompanhe o atendimento.'], ['file', 'Relatórios', 'Quanto já pagou, quanto falta e as próximas parcelas.']], rodape: 'Transparência em cada parcela.' }
+};
+const loginShell = (inner, modo = 'equipe') => {
+  const t = LOGIN_TXT[modo] || LOGIN_TXT.equipe;
+  return `<div class="lg"><section class="lgArt"><svg class="lgCurve" viewBox="0 0 800 600" preserveAspectRatio="none" aria-hidden="true"><path d="M-20 560 C 220 380, 520 360, 820 470"/></svg>
+  <img class="lgLogo" src="${LOGO_H}" alt="TRAXUP — Tecnologia que impulsiona negócios">
+  <div class="lgHero">${t.k ? `<div class="lgKicker">${esc(t.k)}</div>` : ''}<h2>${esc(t.h[0])}<br>${esc(t.h[1])}<br><em>${esc(t.h[2])}</em></h2><p>${esc(t.p)}</p>
+  <ul class="lgFeat">${t.f.map(([i, ti, d]) => `<li><span class="lgFi">${ic(i)}</span><div><b>${esc(ti)}</b><small>${esc(d)}</small></div></li>`).join('')}</ul></div>
+  <div class="lgArtFoot">${esc(t.rodape)}<i></i></div></section>
+  <section class="lgPanel"><div class="lgSafe">${ic('lock')}Ambiente seguro</div><div class="lgMobile"><img src="${LOGO_WORD}" alt="TRAXUP"></div>${inner}</section></div>`;
+};
+const campoSenha = (name, label, auto) => `<label>${label}<span class="lgInput">${ic('lock')}<input name="${name}" type="password" placeholder="Sua senha" autocomplete="${auto}" required><button type="button" class="lgEye" data-act="verSenha" title="Mostrar senha" aria-label="Mostrar senha">${ic('eye')}</button></span></label>`;
+const lembrado = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+const lembrar = (k, val, on) => { try { on ? localStorage.setItem(k, val) : localStorage.removeItem(k); } catch (e) { } };
+const loginAjuda = (ajuda, esqueci) => `<div class="lgRow"><label class="lgCheck"><input type="checkbox" name="lembrar" checked> ${ajuda}</label><button type="button" class="lgLink" data-act="esqueciSenha" data-msg="${esc(esqueci)}">Esqueci minha senha</button></div>`;
 function telaLogin(erro = '') {
-  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="login"><div><div class="eyebrow">TRAXUP Imobiliário</div><h1>Entrar no sistema</h1></div><p class="sub">Use o login e a senha cadastrados pelo administrador.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}<label>Login ou e-mail<input name="login" autocomplete="username" required></label><label>Senha<input name="senha" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">Entrar</button><div class="storageNote">Dados: <b>${esc(Store.label())}</b>${Store.mode === 'local' ? '. Para uso real, rode o servidor TRAXUP no seu VPS.' : ''}</div></form>`);
+  const ult = lembrado('traxup_ultimo_login');
+  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="login"><h1>Acesse o TRAXUP<br>Imobiliário</h1><p class="sub">Entre com o login ou e-mail e a senha cadastrados.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
+  <label>Login ou e-mail<span class="lgInput">${ic('mail')}<input name="login" autocomplete="username" placeholder="seu.login ou e-mail" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
+  ${loginAjuda('Lembrar meu login', 'Peça ao administrador do sistema para redefinir a sua senha em Usuários.')}
+  <button class="primary lgBtn" type="submit">Entrar ${ic('arrow')}</button>
+  <div class="lgHelp"><span>Precisa de ajuda?</span></div><p class="lgHelpTxt">Fale com o administrador do sistema.</p>${Store.mode !== 'server' ? `<div class="lgMeta">${esc(Store.label())}</div>` : ''}</form>`);
+  if (ult) setTimeout(() => $('input[name=senha]')?.focus(), 30);
 }
 function telaSetup() {
   $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="setup"><div><div class="eyebrow">Primeiro acesso</div><h1>Configurar o sistema</h1></div><p class="sub">Cadastre a primeira filial e o administrador. Depois você cria as demais filiais e usuários.</p>
@@ -91,7 +116,7 @@ function render() {
   if (!S.user) return telaLogin();
   if (!pode(S.user, S.view)) S.view = 'mapa';
   const fs = filiaisUsuario(); const nav = MENU.map(([g, items]) => { const its = items.filter(([k]) => pode(S.user, k)); return its.length ? `<div class="navGroup">${g}</div>` + its.map(([k, t, i]) => `<button class="${S.view === k ? 'active' : ''}" data-act="go" data-v="${k}">${ic(i)}${t}</button>`).join('') : ''; }).join('');
-  $('#app').innerHTML = `<div class="shell"><aside><div class="brand">${LOGO_MARK}<div><div class="brandText">TRAX<b>UP</b></div><div class="brandSub">IMOBILIÁRIO</div></div></div><div class="brandLine"></div><nav>${nav}</nav><div class="asideFoot">Tecnologia que impulsiona negócios<br>${esc(Store.label())}</div></aside>
+  $('#app').innerHTML = `<div class="shell"><aside><div class="brand">${LOGO_MARCA()}</div><div class="brandLine"></div><nav>${nav}</nav><div class="asideFoot">Tecnologia que impulsiona negócios<br>${esc(Store.label())}</div></aside>
   <main><div class="topbar"><button class="menuToggle ghost" data-act="toggleNav">${ic('menu')}</button><div class="title"><div class="eyebrow">TRAXUP / ${esc(TITULOS[S.view] || '')}</div><h1>${esc(TITULOS[S.view] || '')}</h1></div>
   <div class="filialPick">Empresa ${fs.length > 1 ? `<select id="filialSel">${opt('*', 'Todas as empresas', S.filial)}${fs.map(f => opt(f.id, f.nome, S.filial)).join('')}</select>` : `<b style="padding:6px 8px;color:var(--text)">${esc(fs[0]?.nome || '—')}</b>`}</div>
   ${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}${sinoHTML()}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>

@@ -16,17 +16,20 @@ async function portalApi(rota, opt = {}) {
 
 async function portalBoot() {
   document.title = 'Painel do cliente — TRAXUP Imobiliário';
-  $('#app').innerHTML = `<div class="login"><div class="loginArt"><img src="${LOGO_IMG}" alt="TRAXUP"></div><div class="loginPanel"><div class="loginCard"><h1>Carregando…</h1></div></div></div>`;
+  $('#app').innerHTML = `<div class="lgLoad"><img src="${LOGO_IMG}" alt="TRAXUP"><div class="lgSpin"></div></div>`;
   Store.mode = 'portal';
   try { const s = JSON.parse(sessionStorage.getItem('traxup_portal') || 'null'); if (s?.token) { PORTAL.token = s.token; await portalCarregar(); return portalRender(); } } catch (e) { PORTAL.token = null; }
   portalLogin();
 }
 
 function portalLogin(erro = '') {
-  $('#app').innerHTML = `<div class="login"><div class="loginArt"><img src="${LOGO_IMG}" alt="TRAXUP — Tecnologia que impulsiona negócios"><p>Acompanhe o seu lote, as parcelas, os boletos e o contrato em um só lugar, quando quiser.</p></div><div class="loginPanel">
-  <form class="loginCard" data-form="portalLogin"><div><div class="eyebrow">Painel do cliente</div><h1>Acesse sua conta</h1></div><p class="sub">Entre com o e-mail e a senha que a empresa enviou para você.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
-  <label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="senha" type="password" autocomplete="current-password" required></label>
-  <button class="primary" type="submit">Entrar</button><div class="storageNote">Esqueceu a senha? Fale com a empresa onde você comprou o lote.</div></form></div></div>`;
+  const ult = lembrado('traxup_portal_email');
+  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="portalLogin"><h1>Acesse a Área<br>do Cliente</h1><p class="sub">Entre com o e-mail e a senha enviados pela empresa.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
+  <label>E-mail<span class="lgInput">${ic('mail')}<input name="email" type="email" autocomplete="username" placeholder="seu@email.com" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
+  ${loginAjuda('Lembrar meu e-mail', 'Fale com a empresa onde você comprou o lote para receber uma nova senha.')}
+  <button class="primary lgBtn" type="submit">Entrar ${ic('arrow')}</button>
+  <div class="lgHelp"><span>Precisa de ajuda?</span></div><p class="lgHelpTxt">Fale com a empresa onde você comprou o seu lote.</p></form>`, 'cliente');
+  if (ult) setTimeout(() => $('input[name=senha]')?.focus(), 30);
 }
 
 async function portalCarregar() {
@@ -56,7 +59,7 @@ const pNomeLote = v => { const l = pLote(v); return `Quadra ${l.quadra || '—'}
 function portalRender() {
   const c = PORTAL.cliente || {}, vs = pVendas(), v = Store.get('vendas', PORTAL.venda);
   const primeiro = (c.nome || '').split(' ')[0];
-  const head = `<header class="ptTop"><div class="brand">${LOGO_MARK}<div><div class="brandText">TRAX<b>UP</b></div><div class="brandSub">PAINEL DO CLIENTE</div></div></div><span class="spacer"></span>
+  const head = `<header class="ptTop"><div class="brand">${LOGO_MARCA('PAINEL DO CLIENTE', true)}</div><span class="spacer"></span>
     <button class="ghost themeBtn" data-act="tema" title="Tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button>
     <div class="ptUser"><div class="avatar">${esc((c.nome || '?')[0])}</div><div><b>${esc(c.nome || '')}</b><small>${esc(PORTAL.dados?.acesso?.email || '')}</small></div></div>
     <button class="ghost" data-act="ptSenha" title="Alterar senha">${ic('key')}<span class="hideSm">Senha</span></button><button class="ghost" data-act="ptSair" title="Sair">${ic('logout')}<span class="hideSm">Sair</span></button></header>`;
@@ -125,7 +128,7 @@ Object.assign(ACT, {
 });
 Object.assign(FORMS, {
   async portalLogin(v) {
-    try { const j = await portalApi('login', { method: 'POST', body: JSON.stringify({ email: v.email, senha: v.senha }) }); PORTAL.token = j.token; try { sessionStorage.setItem('traxup_portal', JSON.stringify({ token: j.token })); } catch (e) { } await portalCarregar(); portalRender(); if (j.trocarSenha) { ACT.ptSenha(); toast('Primeiro acesso: crie uma senha só sua.'); } }
+    try { const j = await portalApi('login', { method: 'POST', body: JSON.stringify({ email: v.email, senha: v.senha }) }); lembrar('traxup_portal_email', v.email, !!v.lembrar); PORTAL.token = j.token; try { sessionStorage.setItem('traxup_portal', JSON.stringify({ token: j.token })); } catch (e) { } await portalCarregar(); portalRender(); if (j.trocarSenha) { ACT.ptSenha(); toast('Primeiro acesso: crie uma senha só sua.'); } }
     catch (e) { portalLogin(e.message); }
   },
   async ptSolicitar(v, f) { const j = await portalApi('solicitar', { method: 'POST', body: JSON.stringify({ vendaId: f.dataset.v, parcelaId: f.dataset.p, tipo: 'boleto', obs: v.obs }) }); closeModal(); toast(j.repetida ? 'Você já tinha solicitado este boleto. Aguarde a empresa.' : 'Solicitação enviada. Assim que o boleto for emitido, ele aparece aqui.'); await portalCarregar(); portalRender(); },

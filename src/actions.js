@@ -95,6 +95,8 @@ const ACT = {
   sino: () => $('#sinoPanel') ? fecharSino() : abrirSino(),
   sinoLerTodas: async () => { const ns = naoLidas(); for (const n of ns) { n.lida = true; n.lidaPor = S.user.nome; } atualizarSino(); await Promise.all(ns.map(n => Store.put('notificacoes', n))); },
   sinoAbrir: async el => { const n = Store.get('notificacoes', el.dataset.id); fecharSino(); if (n && !n.lida) { n.lida = true; n.lidaPor = S.user.nome; Store.put('notificacoes', n).catch(() => { }); } const destino = n?.tipo === 'boleto' && pode(S.user, 'boletos') ? 'boletos' : 'clientes'; if (destino === 'clientes') S.f.cq = n?.clienteNome || ''; S.view = destino; render(); },
+  esqueciSenha: el => toast(el.dataset.msg),
+  verSenha: el => { const i = el.parentElement.querySelector('input'); const ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; el.classList.toggle('on', ver); el.title = ver ? 'Ocultar senha' : 'Mostrar senha'; i.focus(); },
   pstSet: el => { S.f.pst = el.dataset.st; renderView(); },
   baixarContrato: async el => { const v = Store.get('vendas', el.dataset.v), m = Store.get('modelos', el.dataset.m); await salvarArquivo(`Contrato_${v.numero}_${norm(cliNome(v.clienteId)).replace(/\W+/g, '_')}.doc`, '\ufeff' + docContrato(v, m).doc, 'application/msword'); Object.assign(v, { contratoGeradoEm: new Date().toISOString(), contratoGeradoPor: S.user.nome, contratoModelo: m.nome, contratoModeloId: m.id }); hist(v, 'Contrato gerado com o modelo ' + m.nome); await Store.put('vendas', v); if (S.view === 'contratos') renderView(); },
 
@@ -160,6 +162,7 @@ async function importarTextoExtrato(txt, nome, filialId) {
 
 const FORMS = {
   async login(v) {
+    lembrar('traxup_ultimo_login', v.login, !!v.lembrar);
     const login = norm(v.login).trim();
     if (Store.mode === 'server') {
       const r = await fetch('api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: v.login, senha: v.senha }) }); const j = await r.json().catch(() => ({}));
