@@ -106,6 +106,7 @@ const ACT = {
     ${vendidos.length ? `<p class="hint">Lotes com venda não podem ser apagados${outros.length ? '; mova-os para outro empreendimento' : '. Cadastre outro empreendimento nesta empresa para movê-los'}.</p>` : `<label class="check"><input type="radio" name="acao" value="apagar" ${outros.length ? '' : 'checked'}> Apagar também os ${ls.length} lote(s) (nenhum tem venda)</label>`}</div>
     <div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="danger" ${!outros.length && vendidos.length ? 'disabled' : ''}>Excluir empreendimento</button></div></form>`, 'narrow');
   },
+  cfgBoleto: el => formCobranca(el.dataset.id),
   verFilial: el => { S.filial = el.dataset.id; S.emp = ''; render(); },
   verEmp: el => { S.emp = el.dataset.id; renderView(); },
   delFilial: el => confirmar('Excluir esta filial? Ela não tem lotes, clientes nem vendas.', async () => { const id = el.dataset.id; await Store.del('filiais', id); for (const u of Store.list('usuarios').filter(u => (u.filiais || []).includes(id))) { u.filiais = u.filiais.filter(x => x !== id); await Store.put('usuarios', u); } if (S.filial === id) S.filial = '*'; await audit('Excluiu filial vazia'); closeModal(); toast('Filial excluída.'); render(); }, 'Excluir'),
@@ -202,7 +203,8 @@ const FORMS = {
   },
   async filial(v, f) {
     const fl = Store.get('filiais', f.dataset.id) || {}; if (v.bb_convenio && !/^\d{7}$/.test(v.bb_convenio)) throw Error('O convênio deve ter 7 dígitos.');
-    Object.assign(fl, { nome: v.nome, razao: v.razao, cnpj: v.cnpj, telefone: v.telefone, cidade: v.cidade, uf: v.uf.toUpperCase(), endereco: v.endereco, multa: parseFloat(String(v.multa).replace(',', '.')) || 0, jurosMes: parseFloat(String(v.jurosMes).replace(',', '.')) || 0, bb: { agencia: v.bb_agencia, conta: v.bb_conta, convenio: v.bb_convenio, carteira: v.bb_carteira, variacao: v.bb_variacao, beneficiario: v.bb_beneficiario, cnpj: v.bb_cnpj } });
+    Object.assign(fl, { nome: v.nome, razao: v.razao, cnpj: v.cnpj, telefone: v.telefone, cidade: v.cidade, uf: v.uf.toUpperCase(), endereco: v.endereco });
+    if (!fl.bb) fl.bb = { ...cfgBoleto(fl), razao: v.razao || v.nome, cnpj: v.cnpj };
     await Store.put('filiais', fl); await audit('Filial salva: ' + fl.nome); closeModal(); toast('Filial salva.'); render();
   },
   async delEmp(v, f) {
@@ -212,6 +214,16 @@ const FORMS = {
     else throw Error('Escolha o que fazer com os lotes.');
     await Store.del('empreendimentos', e.id); if (Store.get('plantas', e.id)) await Store.del('plantas', e.id);
     await audit(`Excluiu empreendimento ${e.nome} (${ls.length} lotes ${v.acao === 'mover' ? 'movidos' : 'apagados'})`); closeModal(); toast('Empreendimento excluído.'); S.emp = ''; render();
+  },
+  async cobranca(v, f) {
+    const fl = Store.get('filiais', f.dataset.id); const num = k => { const n = parseFloat(String(v[k] ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : 0; };
+    if (v.banco === '001' && onlyDigits(v.convenio).length !== 7) throw Error('No Banco do Brasil (carteira 17) o convênio deve ter 7 dígitos.');
+    if (![11, 14].includes(onlyDigits(v.cnpj).length)) throw Error('Informe um CNPJ (ou CPF) válido do cedente.');
+    if (num('multa') > 2) { if (!FORMS.cobranca.okMulta) { FORMS.cobranca.okMulta = true; throw Error('Atenção: multa acima de 2% pode ser abusiva para pessoa física (CDC). Clique em salvar de novo para manter.'); } }
+    FORMS.cobranca.okMulta = false;
+    const bb = { banco: v.banco, tipoConta: v.tipoConta, agencia: onlyDigits(v.agencia), agenciaDv: v.agenciaDv.trim().toUpperCase(), conta: onlyDigits(v.conta), contaDv: v.contaDv.trim().toUpperCase(), codigoBeneficiario: v.codigoBeneficiario.trim(), convenio: onlyDigits(v.convenio), convenioDv: (v.convenioDv || '0').trim() || '0', carteira: v.carteira.trim().toUpperCase(), variacao: onlyDigits(v.variacao), layout: v.layout, especie: v.especie, multa: num('multa'), multaDias: Math.round(num('multaDias')), jurosMes: num('jurosMes'), jurosDias: Math.round(num('jurosDias')), protestoDias: Math.round(num('protestoDias')), negativacaoDias: Math.round(num('negativacaoDias')), nossoNumeroInicial: Math.max(1, Math.round(num('nossoNumeroInicial'))), localPagamento: v.localPagamento.trim() || 'Pagável em qualquer banco até o vencimento', instrucoes: v.instrucoes.trim(), razao: v.razao.trim(), cnpj: onlyDigits(v.cnpj), ie: v.ie.trim(), cep: onlyDigits(v.cep), logradouro: v.logradouro.trim(), numero: v.numero.trim(), complemento: v.complemento.trim(), bairro: v.bairro.trim(), cidade: v.cidade.trim(), uf: v.uf.trim().toUpperCase() };
+    fl.bb = bb; fl.multa = bb.multa; fl.jurosMes = bb.jurosMes; await Store.put('filiais', fl); await audit('Configuração de boleto salva: ' + fl.nome);
+    const pend = pendenciasBoleto(fl); closeModal(); toast(pend.length ? `Configuração salva. Ainda falta: ${pend.join(', ')}.` : 'Configuração de boleto completa.', !!pend.length); render();
   },
   async emp(v, f) { const e = Store.get('empreendimentos', f.dataset.id) || {}; Object.assign(e, v); await Store.put('empreendimentos', e); for (const l of Store.list('lotes').filter(l => l.empId === e.id && l.filialId !== e.filialId)) { l.filialId = e.filialId; await Store.put('lotes', l); } closeModal(); toast('Empreendimento salvo.'); renderView(); },
   async minhaSenha(v, f) {

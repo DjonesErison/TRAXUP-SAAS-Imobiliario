@@ -154,6 +154,7 @@ tfoot td{font-weight:700;background:var(--surface-2)}
 .empSub button.on .icon{color:var(--orange-2)}
 .dataBaixa{font-size:14px;font-weight:700;color:var(--text);padding:12px 14px;border:2px solid var(--orange);border-radius:12px;background:var(--orange-3);margin-top:4px}.dataBaixa input{font-size:16px;font-weight:600;max-width:240px}
 .detailList .destaque{background:var(--blue-3);border-radius:8px;padding:8px 10px;border-bottom:0}.detailList .destaque b{font-size:16px}
+.nnInfo{grid-column:span 1;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;font-size:12px;padding:8px 10px;border:1px dashed var(--line);border-radius:9px;color:var(--muted)}.nnInfo b{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--text)}
 /* receita projetada */
 .ipcaBox{flex-direction:row;align-items:center;gap:8px}.ipcaBox span{display:flex;align-items:center;gap:8px;white-space:nowrap;color:var(--muted)}.ipcaBox input{width:90px}
 .fcTotal{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:12px;background:var(--surface-2);margin-bottom:16px}

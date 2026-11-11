@@ -150,8 +150,35 @@ function serieParcelas(tipo, total, qtd, primeiro, intervalo = 1) {
 function encargos(p, dataPag, filial) {
   const dias = Math.max(0, diasEntre(p.venc, dataPag)); if (!dias) return { dias, juros: 0, multa: 0 };
   const base = saldoParcela({ ...p, juros: 0, multa: 0 }) || p.valor;
-  const multaPct = filial?.multa ?? 2, jurosMes = filial?.jurosMes ?? 1;
-  return { dias, multa: Math.round(base * multaPct / 100), juros: Math.round(base * (jurosMes / 100) / 30 * dias) };
+  const cb = filial?.bb || {}; const multaPct = +(cb.multa ?? filial?.multa ?? 2), jurosMes = +(cb.jurosMes ?? filial?.jurosMes ?? 1);
+  const multa = dias > (+cb.multaDias || 0) ? Math.round(base * multaPct / 100) : 0, juros = dias > (+cb.jurosDias || 0) ? Math.round(base * (jurosMes / 100) / 30 * dias) : 0;
+  return { dias, multa, juros };
+}
+
+/* ---------- configuração de cobrança (por empresa) ---------- */
+const BANCOS = [['001', '001 · Banco do Brasil'], ['104', '104 · Caixa Econômica Federal'], ['237', '237 · Bradesco'], ['341', '341 · Itaú'], ['033', '033 · Santander'], ['756', '756 · Sicoob'], ['748', '748 · Sicredi'], ['077', '077 · Inter'], ['260', '260 · Nubank'], ['000', 'Outro']];
+const ESPECIES = [['02', '02 · DM – Duplicata Mercantil'], ['04', '04 · DS – Duplicata de Serviço'], ['12', '12 · NP – Nota Promissória'], ['17', '17 · RC – Recibo'], ['99', '99 · Outros']];
+const SIGLA_ESPECIE = { '02': 'DM', '04': 'DS', '12': 'NP', '17': 'RC', '99': 'OU' };
+function cfgBoleto(fil) {
+  const b = fil?.bb || {};
+  return { banco: '001', tipoConta: 'Corrente', agencia: '', agenciaDv: '', conta: '', contaDv: '', codigoBeneficiario: '', convenio: '', convenioDv: '0', carteira: '17', variacao: '35', layout: 'CNAB 240', especie: '02', multa: fil?.multa ?? 2, multaDias: 0, jurosMes: fil?.jurosMes ?? 1, jurosDias: 0, protestoDias: 0, negativacaoDias: 0, nossoNumeroInicial: 1, localPagamento: 'Pagável em qualquer banco até o vencimento', instrucoes: '', razao: fil?.razao || fil?.nome || '', cnpj: fil?.cnpj || '', ie: '', cep: '', logradouro: fil?.endereco || '', numero: '', complemento: '', bairro: '', cidade: fil?.cidade || '', uf: fil?.uf || '', ...b,
+    ...(b.agencia && b.agencia.includes('-') && !b.agenciaDv ? { agencia: b.agencia.split('-')[0], agenciaDv: b.agencia.split('-')[1] } : {}), ...(b.conta && b.conta.includes('-') && !b.contaDv ? { conta: b.conta.split('-')[0], contaDv: b.conta.split('-')[1] } : {}), ...(b.beneficiario && !b.razao ? { razao: b.beneficiario } : {}) };
+}
+function pendenciasBoleto(fil) {
+  const c = cfgBoleto(fil), f = [];
+  if (!c.banco) f.push('banco'); if (!onlyDigits(c.agencia)) f.push('agência'); if (!onlyDigits(c.conta)) f.push('conta'); if (!onlyDigits(c.convenio)) f.push('convênio'); if (!c.carteira) f.push('carteira');
+  if (c.banco === '001' && !c.variacao) f.push('variação da carteira'); if (!c.razao) f.push('razão social'); if (onlyDigits(c.cnpj).length !== 14 && onlyDigits(c.cnpj).length !== 11) f.push('CNPJ');
+  if (!onlyDigits(c.cep) || !c.logradouro || !c.cidade || !c.uf) f.push('endereço do cedente');
+  return f;
+}
+function instrucoesBoleto(c, extra = '') {
+  const t = [];
+  if (+c.multa) t.push(`Após ${+c.multaDias ? (+c.multaDias + ' dia(s) do vencimento') : 'o vencimento'}, cobrar multa de ${String(c.multa).replace('.', ',')}%.`);
+  if (+c.jurosMes) t.push(`Juros de mora de ${String(c.jurosMes).replace('.', ',')}% ao mês${+c.jurosDias ? ` após ${c.jurosDias} dia(s) do vencimento` : ''}.`);
+  if (+c.protestoDias) t.push(`Sujeito a protesto após ${c.protestoDias} dias do vencimento.`);
+  if (+c.negativacaoDias) t.push(`Sujeito a negativação após ${c.negativacaoDias} dias do vencimento.`);
+  if (c.instrucoes) t.push(c.instrucoes); if (extra) t.push(extra);
+  return t.join(' ');
 }
 
 /* ---------- boleto Banco do Brasil (convênio de 7 dígitos, carteira 17) ---------- */

@@ -90,18 +90,19 @@ async function registrarBoleto(id) {
   const b = db.boletos[id]; if (!b) throw Object.assign(Error('Boleto não encontrado.'), { status: 404 });
   if (b.status !== 'Emitido') throw Object.assign(Error('Somente boletos com situação Emitido podem ser registrados.'), { status: 400 });
   const fil = db.filiais[b.filialId] || {}; const cfg = fil.bb || {}; const venda = db.vendas[b.vendaId] || {};
+  if (cfg.banco && cfg.banco !== '001') throw Object.assign(Error('O registro automático está disponível só para o Banco do Brasil.'), { status: 400 });
   if (!/^\d{7}$/.test(cfg.convenio || '')) throw Object.assign(Error('Convênio BB da filial inválido.'), { status: 400 });
   const doc = dig(b.pagador?.cpf); if (![11, 14].includes(doc.length)) throw Object.assign(Error('CPF/CNPJ do pagador inválido. Corrija o cadastro do cliente e emita o boleto novamente.'), { status: 400 });
   const venc = b.venc < new Date().toISOString().slice(0, 10) ? new Date().toISOString().slice(0, 10) : b.venc;
   const corpo = {
     numeroConvenio: +cfg.convenio, numeroCarteira: +(cfg.carteira || 17), numeroVariacaoCarteira: +(cfg.variacao || 35), codigoModalidade: 1,
     dataEmissao: dBB(new Date().toISOString().slice(0, 10)), dataVencimento: dBB(venc), valorOriginal: +(b.valor / 100).toFixed(2), valorAbatimento: 0,
-    quantidadeDiasProtesto: 0, quantidadeDiasNegativacao: 0, orgaoNegativador: 0, indicadorAceiteTituloVencido: 'S', numeroDiasLimiteRecebimento: +(process.env.BB_DIAS_LIMITE || 60),
-    codigoAceite: 'N', codigoTipoTitulo: 2, descricaoTipoTitulo: 'DM', indicadorPermissaoRecebimentoParcial: 'N',
+    quantidadeDiasProtesto: +cfg.protestoDias || 0, ...(+cfg.negativacaoDias ? { quantidadeDiasNegativacao: +cfg.negativacaoDias, orgaoNegativador: 10 } : { quantidadeDiasNegativacao: 0, orgaoNegativador: 0 }), indicadorAceiteTituloVencido: 'S', numeroDiasLimiteRecebimento: +(process.env.BB_DIAS_LIMITE || 60),
+    codigoAceite: 'N', codigoTipoTitulo: +(cfg.especie || 2), descricaoTipoTitulo: ({ '02': 'DM', '04': 'DS', '12': 'NP', '17': 'RC', '99': 'OU' })[cfg.especie] || 'DM', indicadorPermissaoRecebimentoParcial: 'N',
     numeroTituloBeneficiario: String(venda.numero || b.seq).slice(0, 15), campoUtilizacaoBeneficiario: String(b.id).slice(0, 25).toUpperCase().replace(/[^A-Z0-9]/g, ''),
     numeroTituloCliente: '000' + cfg.convenio + String(b.seq).padStart(10, '0'), mensagemBloquetoOcorrencia: String(b.instrucoes || '').slice(0, 165),
-    jurosMora: fil.jurosMes ? { tipo: 2, porcentagem: +fil.jurosMes } : { tipo: 0 },
-    multa: fil.multa ? { tipo: 2, data: dBB(new Date(Date.parse(venc) + 864e5).toISOString().slice(0, 10)), porcentagem: +fil.multa } : { tipo: 0 },
+    jurosMora: +(cfg.jurosMes ?? fil.jurosMes) ? { tipo: 2, porcentagem: +(cfg.jurosMes ?? fil.jurosMes) } : { tipo: 0 },
+    multa: +(cfg.multa ?? fil.multa) ? { tipo: 2, data: dBB(new Date(Date.parse(venc) + (1 + (+cfg.multaDias || 0)) * 864e5).toISOString().slice(0, 10)), porcentagem: +(cfg.multa ?? fil.multa) } : { tipo: 0 },
     pagador: { tipoInscricao: doc.length === 11 ? 1 : 2, numeroInscricao: +doc, nome: String(b.pagador.nome || '').slice(0, 60), endereco: String(b.pagador.endereco || '').slice(0, 60), cep: +dig(b.pagador.cep) || 0, cidade: String(b.pagador.cidade || '').slice(0, 20), bairro: String(b.pagador.bairro || '').slice(0, 20), uf: String(b.pagador.uf || '').slice(0, 2).toUpperCase(), telefone: dig(b.pagador.telefone).slice(0, 15) },
     indicadorPix: process.env.BB_PIX === 'N' ? 'N' : 'S'
   };
