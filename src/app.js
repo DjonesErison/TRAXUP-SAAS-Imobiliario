@@ -258,25 +258,27 @@ const num = (v, casas = 2) => v == null || isNaN(v) ? '—' : v.toLocaleString('
 const mesAno = iso => { if (!iso) return ''; const [a, m] = iso.split('-'); return ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][+m - 1] + '/' + a; };
 function spark(serie, cor) { const v = (serie || []).filter(x => x != null); if (v.length < 2) return ''; const mn = Math.min(...v), mx = Math.max(...v), r = mx - mn || 1; const pts = v.map((y, i) => `${(i / (v.length - 1) * 100).toFixed(1)},${(30 - (y - mn) / r * 26 - 2).toFixed(1)}`).join(' '); return `<svg class="mSpark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${cor}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`; }
 async function carregarMercado(forcar = false) {
-  if (Store.mode !== 'server' || MERC.carregando) return; MERC.carregando = true; MERC.erro = '';
-  try { const r = await fetch('api/mercado' + (forcar ? '?forcar=1' : ''), { headers: Store.authH(), cache: 'no-store' }); if (!r.ok) throw Error(); MERC.dados = await r.json(); MERC.carregadoEm = Date.now(); }
+  if ((Store.mode !== 'server' && Store.mode !== 'portal') || MERC.carregando) return; MERC.carregando = true; MERC.erro = '';
+  try { const portal = Store.mode === 'portal'; const r = await fetch(portal ? '/api/portal/mercado' : 'api/mercado' + (forcar ? '?forcar=1' : ''), { headers: portal ? { Authorization: 'Bearer ' + PORTAL.token } : Store.authH(), cache: 'no-store' }); if (!r.ok) throw Error(); MERC.dados = await r.json(); MERC.carregadoEm = Date.now(); }
   catch (e) { MERC.erro = 'Não foi possível buscar as cotações agora.'; }
   MERC.carregando = false; const box = $('#mercadoCard'); if (box) box.outerHTML = box.dataset.resumo ? cardMercadoResumo() : cardMercado();
 }
-function cardMercadoResumo() {
-  if (Store.mode !== 'server') return '';
+function cardMercadoResumo(destaque = MERC.destaque || '') {
+  MERC.destaque = destaque;
+  if (Store.mode !== 'server' && Store.mode !== 'portal') return '';
   if (!MERC.dados && !MERC.carregando && !MERC.erro) setTimeout(() => carregarMercado(), 0);
   else if (MERC.dados && Date.now() - (MERC.carregadoEm || 0) > 10 * 60e3 && !MERC.carregando) setTimeout(() => carregarMercado(), 0);
   const d = MERC.dados; const ix = id => (d?.indices || []).find(x => x.id === id && !x.erro);
-  const mini = [['ipca', '12 meses'], ['igpm', '12 meses'], ['incc', '12 meses'], ['selic', 'ao ano']].map(([id, rot]) => { const x = ix(id); return x ? `<div class="mQ mI"><div class="mQh"><span class="mQi">%</span><span>${esc(x.nome)}</span><b>${x.taxa ? '' : pct(x.valor)}</b></div><strong>${x.taxa === 'aa' ? num(x.valor) + '%' : pct(x.ac12)}</strong><small>${rot} · ${x.taxa ? dataBR(x.ref) : mesAno(x.ref)}</small></div>` : ''; }).join('');
-  return `<div class="card" id="mercadoCard" data-resumo="1"><div class="cardHead"><div><h2>Mercado e índices</h2><p>Câmbio, bolsa e índices de reajuste${d ? ` · cotações de ${new Date(d.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}</p></div><button class="sm" data-act="go" data-v="mercado">${ic('trend')}Ver todos os índices</button></div><div class="cardBody">${!d ? `<div class="mVazio">${MERC.erro ? esc(MERC.erro) : 'Buscando cotações e índices…'}</div>` : `<div class="mQuotes mResumo">${quotesHTML(d)}${mini}</div>`}</div></div>`;
+  const dId = (d?.indices || []).find(x => norm(x.nome).replace(/[^a-z]/g, '') === norm(destaque).replace(/[^a-z]/g, ''))?.id; const lista = [['ipca', '12 meses'], ['igpm', '12 meses'], ['incc', '12 meses'], ['selic', 'ao ano']]; if (dId && !lista.some(l => l[0] === dId)) lista.unshift([dId, '12 meses']);
+  const mini = lista.map(([id, rot]) => { const x = ix(id); return x ? `<div class="mQ mI ${id === dId ? 'mSeu' : ''}">${id === dId ? '<span class="mTag">Índice do seu contrato</span>' : ''}<div class="mQh"><span class="mQi">%</span><span>${esc(x.nome)}</span><b>${x.taxa ? '' : pct(x.valor)}</b></div><strong>${x.taxa === 'aa' ? num(x.valor) + '%' : pct(x.ac12)}</strong><small>${rot} · ${x.taxa ? dataBR(x.ref) : mesAno(x.ref)}</small></div>` : ''; }).join('');
+  return `<div class="card" id="mercadoCard" data-resumo="1"><div class="cardHead"><div><h2>Mercado e índices</h2><p>Câmbio, bolsa e índices de reajuste${d ? ` · cotações de ${new Date(d.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}</p></div><button class="sm" data-act="${Store.mode === 'portal' ? 'ptMercado' : 'go'}" data-v="mercado">${ic('trend')}Ver todos os índices</button></div><div class="cardBody">${!d ? `<div class="mVazio">${MERC.erro ? esc(MERC.erro) : 'Buscando cotações e índices…'}</div>` : `<div class="mQuotes mResumo">${quotesHTML(d)}${mini}</div>`}</div></div>`;
 }
 function quotesHTML(d) {
   return [...(d.moedas || []).map(m => ({ nome: m.nome, val: m.id === 'BTCBRL' ? brl(Math.round(m.venda * 100)) : 'R$ ' + num(m.venda, 4), var: m.varPct, sub: `Compra ${m.id === 'BTCBRL' ? num(m.compra, 0) : num(m.compra, 4)} · máx ${num(m.max, m.id === 'BTCBRL' ? 0 : 4)}`, ic: m.id === 'BTCBRL' ? '₿' : m.id === 'EURBRL' ? '€' : m.id === 'GBPBRL' ? '£' : 'US$' })), ...(d.bolsa || []).map(b => ({ nome: b.nome, val: num(b.pontos, b.id === '^GSPC' ? 2 : 0) + ' pts', var: b.varPct, sub: 'Último mês', ic: '📈', serie: b.serie }))].map(q => `<div class="mQ"><div class="mQh"><span class="mQi">${q.ic}</span><span>${esc(q.nome)}</span><b class="${q.var > 0 ? 'up' : q.var < 0 ? 'down' : ''}">${pct(q.var)}</b></div><strong>${q.val}</strong>${q.serie ? spark(q.serie, q.var >= 0 ? '#16A34A' : '#E5484D') : `<small>${esc(q.sub)}</small>`}</div>`).join('');
 }
 VIEWS.mercado = () => `${cardMercado()}<p class="hint" style="margin-top:4px">Cotações: AwesomeAPI e Yahoo Finance, atualizadas a cada 10 minutos. Índices: Banco Central do Brasil (SGS), atualizados a cada 6 horas. Valores informativos; para reajustes oficiais, confira a publicação do IBGE/FGV do mês.</p>`;
 function cardMercado() {
-  if (Store.mode !== 'server') return '';
+  if (Store.mode !== 'server' && Store.mode !== 'portal') return '';
   if (!MERC.dados && !MERC.carregando && !MERC.erro) setTimeout(() => carregarMercado(), 0);
   else if (MERC.dados && Date.now() - (MERC.carregadoEm || 0) > 10 * 60e3 && !MERC.carregando) setTimeout(() => carregarMercado(), 0);
   const d = MERC.dados;

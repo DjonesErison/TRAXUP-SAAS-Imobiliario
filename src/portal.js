@@ -90,6 +90,7 @@ function portalRender() {
     <div class="tableWrap"><table><thead><tr><th>Vencimento</th><th>Parcela</th><th class="num">Valor</th><th class="num">Pago</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(p => `<tr><td>${dataBR(p.venc)}</td><td>${esc(p.tipo)} ${esc(p.ref)}</td><td class="num">${brl(totalParcela(p))}</td><td class="num">${brl(pagoParcela(p))}</td><td>${badgeSit(statusParcela(p, ref))}</td><td class="actions">${acao(p)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma parcela aqui.</td></tr>'}</tbody></table></div>${listaTot.length > 12 ? `<div class="ptMais"><button class="ghost" data-act="ptMais">${PORTAL.mais ? 'Mostrar menos' : `Mostrar todas as ${listaTot.length} parcelas`}</button></div>` : ''}<p class="hint" style="padding:0 18px 14px;margin:0">O boleto pode ser solicitado para parcelas em atraso ou que vencem nos próximos 45 dias.</p></div>
     <div class="ptSide"><div class="card"><div class="cardHead"><div><h2>Seu lote</h2></div></div><div class="cardBody"><dl class="ptDl"><dt>Empreendimento</dt><dd>${esc(e.nome || '—')}</dd><dt>Quadra / lote</dt><dd>${esc(l.quadra || '—')} / ${esc(l.numero || '—')}</dd>${l.area ? `<dt>Área</dt><dd>${String(l.area).replace('.', ',')} m²</dd>` : ''}${l.frente ? `<dt>Frente × fundo</dt><dd>${esc(l.frente)} m × ${esc(l.fundo || '—')} m</dd>` : ''}${l.matricula ? `<dt>Matrícula</dt><dd>${esc(l.matricula)}</dd>` : ''}<dt>Reajuste</dt><dd>${esc(v.indice || '—')}</dd><dt>Empresa</dt><dd>${esc(fil.nome || '')}</dd></dl></div></div>
     <div class="card"><div class="cardHead"><div><h2>Suas solicitações</h2></div></div><div class="cardBody">${sols.length ? `<ul class="ptSols">${sols.map(s => `<li><div><b>${s.tipo === 'boleto' ? 'Boleto' : esc(s.tipo)} ${esc(s.parcelaRef || '')}</b><small>${new Date(s.criadoEm).toLocaleString('pt-BR')}</small></div><span class="badge ${s.status === 'Atendida' ? 'ok' : 'warn'}">${esc(s.status)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Nenhuma solicitação ainda.</p>'}</div></div></div></div>
+  ${cardMercadoResumo(v.indice || '')}
   <p class="ptFoot">TRAXUP Imobiliário · Tecnologia que impulsiona negócios · Este painel é apenas para consulta. Para alterar dados, fale com a empresa.</p>
   </main></div>`;
 }
@@ -117,6 +118,7 @@ function portalContrato(vid) {
 
 Object.assign(ACT, {
   ptSair: () => portalSair(),
+  ptMercado: () => modal(`${mHead('Mercado e índices', 'Câmbio, bolsa e índices de reajuste')}<div class="modalBody">${cardMercado().replace('id="mercadoCard"', '').replace(/<button class="sm" data-act="mercadoAtualizar"[^]*?<\/button>/, '')}<p class="hint">Índices: Banco Central do Brasil. Valores informativos; o reajuste da sua parcela segue o índice e as regras do seu contrato.</p></div>`, 'wide'),
   ptVoltarLogin: () => portalLogin(),
   ptVenda: el => { PORTAL.venda = el.dataset.id; portalRender(); },
   ptAba: el => { PORTAL.aba = el.dataset.k; PORTAL.mais = false; portalRender(); },

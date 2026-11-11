@@ -165,6 +165,7 @@ async function rotaPortal(req, res, p, ip) {
     return send(res, 200, { token: novaSessaoCliente(cid), trocarSenha: !!a.trocarSenha });
   }
   const ses = clienteDa(req); if (!ses) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
+  if (p === '/api/portal/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(false), { 'Cache-Control': 'no-store' });
   if (p === '/api/portal/dados' && req.method === 'GET') return send(res, 200, dadosPortal(ses.c.id), { 'Cache-Control': 'no-store' });
   if (p === '/api/portal/logout') { sessions.delete(ses.t); saveSessions(); return send(res, 200, { ok: true }); }
   if (p === '/api/portal/senha' && req.method === 'POST') {

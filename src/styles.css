@@ -465,3 +465,4 @@ body.dark .lg .loginCard,.lg .loginCard{background:transparent!important;box-sha
 .mIdx td{vertical-align:middle}.mDesc{color:var(--muted);font-size:12.5px;max-width:340px}.mAc{background:rgba(255,159,28,.14);color:#B35F00;padding:3px 8px;border-radius:7px;font-weight:700}
 body.dark .mAc{color:#FFB84D}.mVazio{padding:20px;text-align:center;color:var(--muted)}
 .mResumo{margin-bottom:0;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}.mI .mQi{background:rgba(255,159,28,.16);color:#C46A00}
+.mQ{position:relative}.mSeu{border-color:var(--orange)!important;box-shadow:0 0 0 2px rgba(255,159,28,.25)}.mTag{position:absolute;top:-9px;right:10px;background:var(--orange);color:#0A2463;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.3px}
