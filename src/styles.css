@@ -343,3 +343,4 @@ body.dark .eyebrow{color:#7FA6FF}
   .formGrid{grid-template-columns:1fr}.formGrid .c2,.formGrid .c3{grid-column:auto}
 }
 @media print{aside,.topbar,.noPrint{display:none!important}main{margin:0;width:100%}}
+.nw{white-space:nowrap}

@@ -13,7 +13,7 @@ Derivado das regras de negócio do sistema financeiro Vico (lotes, vendas com en
 | **Mapa de lotes** | Visão por quadras (cores por situação) e visão sobre a **planta** do loteamento (envie a imagem e posicione cada lote). Reservar, liberar e vender direto do mapa. |
 | **Lotes** | Cadastro individual ou em série (ex.: quadras A–F, 20 lotes cada), preço, custo e lucro previsto. |
 | **Clientes** | Ficha completa para contrato (CPF, RG, estado civil, cônjuge, endereço). |
-| **Vendas e contratos** | Plano de pagamento com entrada, mensais e intercaladas (botão de condição padrão: 5% entrada, 30% intercaladas, restante mensal). Gera as parcelas, marca o lote como vendido, registra histórico. Distrato devolve o lote. |
+| **Vendas, Contratos** | Plano de pagamento com entrada, mensais e intercaladas (botão de condição padrão: 5% entrada, 30% intercaladas, restante mensal). Gera as parcelas, marca o lote como vendido, registra histórico. Distrato devolve o lote. |
 | **Contas a Receber** | Baixa com multa e juros pro rata calculados pela filial, estorno, parcelas avulsas, exportação CSV. |
 | **Inadimplência** | Em atraso (1–2 parcelas) e inadimplente (3+ ou marcado manualmente), maior atraso, envio da lista ao Discord. |
 | **Boletos Banco do Brasil** | Nosso número, código de barras e linha digitável no padrão FEBRABAN do BB (convênio de 7 dígitos, carteira 17), ficha de compensação para impressão, emissão em lote do mês e **registro na API de Cobrança v2 do BB** (com PIX) pelo servidor. |

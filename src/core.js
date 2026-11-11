@@ -114,9 +114,9 @@ async function hashSenha(senha, saltHex) {
 }
 const PERFIS = {
   'Administrador': ['*'],
-  'Gerente': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
-  'Financeiro': ['painel', 'clientes', 'vendas', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
-  'Comercial': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'modelos', 'discord', 'config'],
+  'Gerente': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
+  'Financeiro': ['painel', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
+  'Comercial': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'modelos', 'discord', 'config'],
   'Corretor': ['mapa', 'lotes', 'clientes', 'config']
 };
 const pode = (u, mod) => !!u && (PERFIS[u.perfil] || []).some(m => m === '*' || m === mod);
