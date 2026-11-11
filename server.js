@@ -12,6 +12,8 @@ const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const net = require('node:net');
+const tls = require('node:tls');
 
 /* ---------- configuração (.env) ---------- */
 const ROOT = __dirname;
@@ -202,15 +204,94 @@ function rotaPortalAdmin(req, res, p, user) {
   });
   return send(res, 404, { error: 'Rota não encontrada.' });
 }
+
+/* ---------- E-mail (SMTP sem dependências) — usado na redefinição de senha ---------- */
+const SMTP = { host: process.env.SMTP_HOST || '', port: +(process.env.SMTP_PORT || 465), user: process.env.SMTP_USER || '', pass: process.env.SMTP_PASS || '', from: process.env.SMTP_FROM || process.env.SMTP_USER || '', nome: process.env.SMTP_NOME || 'TRAXUP Imobiliário' };
+const smtpOk = () => !!(SMTP.host && SMTP.user && SMTP.pass && SMTP.from);
+const APP_URL = (process.env.APP_URL || '').replace(/\/+$/, '');
+const b64u = s => Buffer.from(String(s), 'utf8').toString('base64');
+const hdr = s => /^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64u(s)}?=`;
+function conexaoSmtp(sock) {
+  // lê respostas SMTP (inclusive multilinha "250-...") e devolve uma por vez
+  let buf = '', linhas = [], espera = null, falha = null;
+  const entregar = () => { if (!espera) return; const i = linhas.findIndex(l => /^\d{3} /.test(l) || /^\d{3}$/.test(l)); if (i < 0) return; const bloco = linhas.splice(0, i + 1); const r = espera; espera = null; r({ cod: +bloco[i].slice(0, 3), texto: bloco.join(' | ') }); };
+  const onData = d => { buf += d.toString('utf8'); let i; while ((i = buf.indexOf('\r\n')) >= 0) { linhas.push(buf.slice(0, i)); buf = buf.slice(i + 2); } entregar(); };
+  const onErr = e => { falha = e; if (espera) { const r = espera; espera = null; r({ cod: 0, texto: e.message }); } };
+  sock.on('data', onData); sock.on('error', onErr);
+  return {
+    ler: () => new Promise(r => { if (falha) return r({ cod: 0, texto: falha.message }); espera = r; entregar(); }),
+    soltar: () => { sock.off('data', onData); sock.off('error', onErr); }
+  };
+}
+async function enviarEmail({ para, assunto, html, texto }) {
+  if (!smtpOk()) throw Object.assign(Error('Envio de e-mail não configurado no servidor (SMTP).'), { status: 503 });
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(para)) throw Object.assign(Error('E-mail do destinatário inválido.'), { status: 400 });
+  const dominio = SMTP.from.split('@')[1] || 'traxup.com.br', fronteira = 'tx' + crypto.randomBytes(8).toString('hex');
+  const corpo = [`From: ${hdr(SMTP.nome)} <${SMTP.from}>`, `To: <${para}>`, `Subject: ${hdr(assunto)}`, `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomBytes(12).toString('hex')}@${dominio}>`, 'MIME-Version: 1.0', 'Auto-Submitted: auto-generated', `Content-Type: multipart/alternative; boundary="${fronteira}"`, '',
+    `--${fronteira}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64u(texto).replace(/.{76}/g, '$&\r\n'), `--${fronteira}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64u(html).replace(/.{76}/g, '$&\r\n'), `--${fronteira}--`, ''].join('\r\n');
+  const modo = (process.env.SMTP_SEGURANCA || (SMTP.port === 465 ? 'ssl' : 'starttls')).toLowerCase(), ssl = modo === 'ssl';
+  let sock = await new Promise((ok, fail) => { const s = ssl ? tls.connect({ host: SMTP.host, port: SMTP.port, servername: SMTP.host }, () => ok(s)) : net.connect({ host: SMTP.host, port: SMTP.port }, () => ok(s)); s.once('error', fail); s.setTimeout(30000, () => s.destroy(Error('Tempo esgotado ao falar com o servidor de e-mail.'))); });
+  let c = conexaoSmtp(sock);
+  const passo = async (linha, esperado) => { if (linha !== null) sock.write(linha + '\r\n'); const r = await c.ler(); if (!esperado.includes(r.cod)) throw Object.assign(Error(`Servidor de e-mail recusou: ${r.texto.slice(0, 200)}`), { status: 502 }); return r; };
+  try {
+    await passo(null, [220]); await passo('EHLO ' + dominio, [250]);
+    if (modo === 'starttls') { await passo('STARTTLS', [220]); c.soltar(); sock = await new Promise((ok, fail) => { const s = tls.connect({ socket: sock, servername: SMTP.host }, () => ok(s)); s.once('error', fail); }); c = conexaoSmtp(sock); await passo('EHLO ' + dominio, [250]); }
+    await passo('AUTH LOGIN', [334]); await passo(b64u(SMTP.user), [334]); await passo(b64u(SMTP.pass), [235]);
+    await passo(`MAIL FROM:<${SMTP.from}>`, [250]); await passo(`RCPT TO:<${para}>`, [250, 251]); await passo('DATA', [354]);
+    await passo(corpo.replace(/\r\n\./g, '\r\n..') + '\r\n.', [250]);
+    sock.write('QUIT\r\n'); return true;
+  } finally { setTimeout(() => { try { sock.destroy(); } catch { } }, 500); }
+}
+function emailRedefinicao({ nome, link, area }) {
+  const logo = (APP_URL || '') + '/email-logo.jpg'; const p0 = String(nome || '').trim().split(/\s+/)[0] || ''; const primeiro = p0 ? p0.charAt(0).toUpperCase() + p0.slice(1).toLowerCase() : 'tudo bem';
+  const html = `<!DOCTYPE html><html lang="pt-BR"><body style="margin:0;background:#EEF2FA;font-family:Arial,Helvetica,sans-serif;color:#0A1A3A"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF2FA;padding:28px 12px"><tr><td align="center">
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(10,36,99,.12)">
+  <tr><td style="background:#0E3FA6;padding:18px 24px" align="left">${APP_URL ? `<img src="${logo}" alt="TRAXUP" height="56" style="display:block;height:56px;border:0">` : '<b style="color:#fff;font-size:22px">TRAX<span style="color:#FF9F1C">UP</span></b>'}</td></tr>
+  <tr><td style="padding:30px 32px 8px"><p style="margin:0 0 6px;font-size:13px;letter-spacing:1.5px;color:#1B4DCC;font-weight:bold;text-transform:uppercase">${area}</p><h1 style="margin:0 0 14px;font-size:24px;color:#0A1A3A">Redefinição de senha</h1>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 14px">Olá, ${primeiro}! Recebemos um pedido para criar uma nova senha de acesso. Clique no botão abaixo para escolher a nova senha:</p>
+  <p style="margin:24px 0" align="center"><a href="${link}" style="display:inline-block;background:#2563FF;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 30px;border-radius:10px">Criar nova senha</a></p>
+  <p style="font-size:13.5px;line-height:1.6;color:#4A5A7A;margin:0 0 10px">O link vale por <b>1 hora</b> e só pode ser usado uma vez. Se você não pediu a troca, ignore este e-mail: a sua senha atual continua valendo.</p>
+  <p style="font-size:12px;line-height:1.5;color:#7A8AA8;margin:16px 0 0;word-break:break-all">Se o botão não abrir, copie e cole no navegador:<br>${link}</p></td></tr>
+  <tr><td style="padding:22px 32px 26px"><hr style="border:0;border-top:1px solid #E3E8F2;margin:0 0 14px"><p style="font-size:11.5px;color:#8A98B4;margin:0">TRAXUP Imobiliário · Tecnologia que impulsiona negócios<br>Mensagem automática — não responda este e-mail.</p></td></tr></table></td></tr></table></body></html>`;
+  const texto = `Olá, ${primeiro}!\n\nRecebemos um pedido para criar uma nova senha de acesso (${area}).\nAbra o link abaixo para escolher a nova senha (vale por 1 hora, uso único):\n\n${link}\n\nSe você não pediu a troca, ignore este e-mail.\n\nTRAXUP Imobiliário — mensagem automática, não responda.`;
+  return { html, texto };
+}
+db.resets ||= {};
+function limparResets() { const n = Date.now(); for (const [k, r] of Object.entries(db.resets)) if (r.exp < n) delete db.resets[k]; }
+async function pedirRedefinicao(req, tipo, email) {
+  const e = String(email || '').trim().toLowerCase(); if (!e) return;
+  let alvo = null, nome = '';
+  if (tipo === 'cliente') { const cid = Object.keys(db.portal).find(k => db.portal[k].email === e); if (cid && db.portal[cid].ativo !== false && db.clientes[cid]) { alvo = cid; nome = db.clientes[cid].nome; } }
+  else { const u = Object.values(db.usuarios).find(x => x.ativo !== false && ((x.email || '').toLowerCase() === e || (x.login || '').toLowerCase() === e)); if (u && u.email) { alvo = u.id; nome = u.nome; } }
+  if (!alvo) return; // não revela se o e-mail existe
+  limparResets(); for (const [k, r] of Object.entries(db.resets)) if (r.tipo === tipo && r.id === alvo) delete db.resets[k];
+  const token = crypto.randomBytes(32).toString('base64url'); db.resets[crypto.createHash('sha256').update(token).digest('hex')] = { tipo, id: alvo, exp: Date.now() + 3600e3 }; persist();
+  const base = APP_URL || ('https://' + String(req.headers.host || '').replace(/[^\w.:-]/g, ''));
+  const link = `${base}${tipo === 'cliente' ? '/painel-cliente' : ''}/redefinir-senha?t=${token}`;
+  const destino = tipo === 'cliente' ? db.portal[alvo].email : db.usuarios[alvo].email;
+  const { html, texto } = emailRedefinicao({ nome, link, area: tipo === 'cliente' ? 'Área do Cliente' : 'TRAXUP Imobiliário' });
+  await enviarEmail({ para: destino, assunto: 'Redefinição de senha — TRAXUP Imobiliário', html, texto });
+}
+function redefinirSenha(token, nova) {
+  limparResets(); const h = crypto.createHash('sha256').update(String(token || '')).digest('hex'); const r = db.resets[h];
+  if (!r) throw Object.assign(Error('Este link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".'), { status: 400 });
+  if (String(nova || '').length < 6) throw Object.assign(Error('A nova senha precisa ter 6 caracteres ou mais.'), { status: 400 });
+  const salt = crypto.randomBytes(16).toString('hex'), hash = pbkdf2(String(nova), salt);
+  if (r.tipo === 'cliente') { const a = db.portal[r.id]; if (!a) throw Object.assign(Error('Acesso não encontrado.'), { status: 400 }); Object.assign(a, { salt, hash }); delete a.trocarSenha; notificar('senha', db.clientes[r.id], 'redefiniu a senha do painel pelo e-mail'); }
+  else { const u = db.usuarios[r.id]; if (!u) throw Object.assign(Error('Usuário não encontrado.'), { status: 400 }); Object.assign(u, { salt, hash }); }
+  delete db.resets[h]; for (const [t, s] of sessions) if ((r.tipo === 'cliente' && s.tipo === 'cliente' && s.clienteId === r.id) || (r.tipo !== 'cliente' && s.userId === r.id)) sessions.delete(t);
+  saveSessions(); persist(); return r.tipo;
+}
 const INDEX = path.join(ROOT, 'public', 'index.html');
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const p = url.pathname; const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
   try {
     if (!p.startsWith('/api/')) {
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Método não permitido.' });
+      if (p === '/email-logo.jpg') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'email-logo.jpg')), { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
       return send(res, 200, fs.readFileSync(INDEX), { 'Cache-Control': 'no-cache' });
     }
-    if (p === '/api/status') return send(res, 200, { app: 'traxup-imob', setupNeeded: !Object.keys(db.usuarios).length, bb: { ambiente: BB.ambiente, configurado: !!(BB.clientId && BB.clientSecret && BB.appKey) } });
+    if (p === '/api/status') return send(res, 200, { app: 'traxup-imob', setupNeeded: !Object.keys(db.usuarios).length, email: smtpOk(), bb: { ambiente: BB.ambiente, configurado: !!(BB.clientId && BB.clientSecret && BB.appKey) } });
     if (p === '/api/setup' && req.method === 'POST') {
       if (Object.keys(db.usuarios).length) return send(res, 403, { error: 'O sistema já foi configurado.' });
       const { filial, usuario, senha } = await readJSON(req);
@@ -227,9 +308,21 @@ const server = http.createServer(async (req, res) => {
       u.ultimoAcesso = new Date().toISOString(); persist(); tentativas.delete(ip);
       return send(res, 200, { token: novaSessao(u.id), userId: u.id });
     }
+    if (p === '/api/senha/esqueci' && req.method === 'POST') {
+      if (limitarLogin('reset:' + ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
+      if (!smtpOk()) return send(res, 503, { error: 'O envio de e-mail ainda não foi configurado. Fale com o administrador.' });
+      const { email, tipo } = await readJSON(req, 1e4);
+      try { await pedirRedefinicao(req, tipo === 'cliente' ? 'cliente' : 'equipe', email); } catch (e) { console.error('[reset]', e.message); return send(res, 502, { error: 'Não foi possível enviar o e-mail agora. Tente de novo em alguns minutos.' }); }
+      return send(res, 200, { ok: true });
+    }
+    if (p === '/api/senha/redefinir' && req.method === 'POST') {
+      if (limitarLogin('reset2:' + ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
+      const { token, nova } = await readJSON(req, 1e4); const tipo = redefinirSenha(token, nova); return send(res, 200, { ok: true, tipo });
+    }
     if (p.startsWith('/api/portal/')) return await rotaPortal(req, res, p, ip);
     const user = usuarioDa(req); if (!user) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
     if (p === '/api/notificacoes' && req.method === 'GET') return send(res, 200, { notificacoes: Object.values(db.notificacoes).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 60), solicitacoes: Object.values(db.solicitacoes).filter(x => x.status === 'Pendente') }, { 'Cache-Control': 'no-store' });
+    if (p === '/api/email/teste' && req.method === 'POST') { if (user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores.' }); const { para } = await readJSON(req, 1e4); await enviarEmail({ para: String(para || user.email || '').trim(), assunto: 'Teste de envio — TRAXUP Imobiliário', html: '<p style="font-family:Arial">Tudo certo! O envio de e-mails do <b>TRAXUP Imobiliário</b> está funcionando.</p>', texto: 'Tudo certo! O envio de e-mails do TRAXUP Imobiliário está funcionando.' }); return send(res, 200, { ok: true }); }
     if (p.startsWith('/api/portal-admin/')) return await rotaPortalAdmin(req, res, p, user);
     if (p === '/api/logout') { sessions.delete((req.headers.authorization || '').replace(/^Bearer\s+/i, '')); saveSessions(); return send(res, 200, { ok: true }); }
     if (p === '/api/data' && req.method === 'GET') { const out = {}; for (const c of COLS) out[c] = Object.values(db[c]).map(o => c === 'usuarios' ? semSegredo(o) : o); return send(res, 200, out, { 'Cache-Control': 'no-store' }); }

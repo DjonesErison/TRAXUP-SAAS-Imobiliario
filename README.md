@@ -124,3 +124,19 @@ Endereço: `https://imob.traxup.com.br/painel-cliente` (mesmo servidor, sem conf
 - A equipe (Administrador, Gerente, Financeiro) libera o acesso em **Clientes → Painel**: e-mail, senha inicial e bloqueio.
 - O cliente vê, somente para consulta, seus contratos, parcelas, 2ª via de boletos registrados ou liberados, o contrato gerado e o extrato. Pode solicitar boleto (aparece em **Boletos → Solicitações do painel do cliente**).
 - As senhas dos clientes ficam apenas no servidor (`data/db.json`, campo `portal`, com PBKDF2) e nunca são enviadas para o sistema da equipe.
+
+## Esqueci minha senha (e-mail)
+
+O servidor envia o link de redefinição por SMTP (sem dependências). Configure no `.env`:
+
+```
+APP_URL=https://imob.traxup.com.br
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_USER=naoresponda@traxup.com.br
+SMTP_PASS=senha-da-caixa
+SMTP_FROM=naoresponda@traxup.com.br
+SMTP_NOME=TRAXUP Imobiliário
+```
+
+O link vale 1 hora, é de uso único e encerra as sessões abertas. A tela não revela se o e-mail existe. Teste em **Configurações → E-mail de envio**.

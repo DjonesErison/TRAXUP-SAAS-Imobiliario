@@ -18,6 +18,8 @@ async function portalBoot() {
   document.title = 'Painel do cliente — TRAXUP Imobiliário';
   $('#app').innerHTML = `<div class="lgLoad"><img src="${LOGO_IMG}" alt="TRAXUP"><div class="lgSpin"></div></div>`;
   Store.mode = 'portal';
+  try { const r = await fetch('/api/status', { cache: 'no-store' }); if (r.ok) Store.serverStatus = await r.json(); } catch (e) { }
+  if (/\/redefinir-senha\/?$/.test(location.pathname)) { const t = tokenDaUrl(); history.replaceState(null, '', '/painel-cliente'); return t ? telaRedefinir('cliente', t) : portalLogin('Link de redefinição inválido.'); }
   try { const s = JSON.parse(sessionStorage.getItem('traxup_portal') || 'null'); if (s?.token) { PORTAL.token = s.token; await portalCarregar(); return portalRender(); } } catch (e) { PORTAL.token = null; }
   portalLogin();
 }
@@ -26,7 +28,7 @@ function portalLogin(erro = '') {
   const ult = lembrado('traxup_portal_email');
   $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="portalLogin"><h1>Acesse a Área<br>do Cliente</h1><p class="sub">Entre com o e-mail e a senha enviados pela empresa.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
   <label>E-mail<span class="lgInput">${ic('mail')}<input name="email" type="email" autocomplete="username" placeholder="seu@email.com" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
-  ${loginAjuda('Lembrar meu e-mail', 'Fale com a empresa onde você comprou o lote para receber uma nova senha.')}
+  ${loginAjuda('Lembrar meu e-mail', 'Fale com a empresa onde você comprou o lote para receber uma nova senha.', 'cliente')}
   <button class="primary lgBtn" type="submit">Entrar ${ic('arrow')}</button>
   <div class="lgHelp"><span>Precisa de ajuda?</span></div><p class="lgHelpTxt">Fale com a empresa onde você comprou o seu lote.</p></form>`, 'cliente');
   if (ult) setTimeout(() => $('input[name=senha]')?.focus(), 30);
@@ -115,6 +117,7 @@ function portalContrato(vid) {
 
 Object.assign(ACT, {
   ptSair: () => portalSair(),
+  ptVoltarLogin: () => portalLogin(),
   ptVenda: el => { PORTAL.venda = el.dataset.id; portalRender(); },
   ptAba: el => { PORTAL.aba = el.dataset.k; PORTAL.mais = false; portalRender(); },
   ptMais: () => { PORTAL.mais = !PORTAL.mais; portalRender(); },

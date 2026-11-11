@@ -449,3 +449,5 @@ body.dark .sinoItem.nova{background:rgba(80,130,255,.1)}
 .logoMark{width:40px;height:auto;border-radius:8px}
 .lgKicker{display:inline-block;font-family:var(--title);font-weight:800;font-size:15px;letter-spacing:.4px;color:#FFB54D;background:rgba(255,159,28,.14);border:1px solid rgba(255,159,28,.35);padding:6px 14px;border-radius:999px;margin-bottom:16px}
 .lgFeat{gap:15px}.lgHero h2{font-size:clamp(32px,3.9vw,54px)}
+.lgOkIc{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;background:rgba(60,123,255,.16);color:#7FB0FF}.lgOkIc svg{width:28px;height:28px}.lgOkIc.ok{background:rgba(22,163,74,.18);color:#4FD69C}
+.lgDica{background:#0B1222;border:1px solid #26324A;border-radius:10px;padding:12px 14px;color:#9AA8C3;font-size:13.5px;line-height:1.5}.lgDica b{color:#D5DDEB}
