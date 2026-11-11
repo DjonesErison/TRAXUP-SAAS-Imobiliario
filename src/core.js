@@ -64,7 +64,7 @@ const Store = {
   async loadAll() {
     this.data = {}; COLS.forEach(c => this.data[c] = {});
     if (this.mode === 'server') {
-      const r = await fetch('api/data', { headers: this.authH(), cache: 'no-store' }); if (r.status === 401) throw Error('Sessão expirada. Entre novamente.'); if (!r.ok) throw Error('Falha ao carregar dados do servidor.');
+      const r = await fetch('api/data', { headers: this.authH(), cache: 'no-store' }); if (r.status === 401) throw Error('Sessão expirada. Entre novamente.'); if (r.status === 403) { const j = await r.json().catch(() => ({})); throw Error(j.error || 'Acesso suspenso.'); } if (!r.ok) throw Error('Falha ao carregar dados do servidor.');
       const j = await r.json(); for (const c of COLS) for (const o of (j[c] || [])) this.data[c][o.id] = o; return;
     }
     if (this.mode === 'db') {

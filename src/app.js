@@ -86,13 +86,15 @@ const campoSenha = (name, label, auto) => `<label>${label}<span class="lgInput">
 const lembrado = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
 const lembrar = (k, val, on) => { try { on ? localStorage.setItem(k, val) : localStorage.removeItem(k); } catch (e) { } };
 const loginAjuda = (ajuda, esqueci, modo = 'equipe') => `<div class="lgRow"><label class="lgCheck"><input type="checkbox" name="lembrar" checked> ${ajuda}</label><button type="button" class="lgLink" data-act="esqueciSenha" data-modo="${modo}" data-msg="${esc(esqueci)}">Esqueci minha senha</button></div>`;
+const campoCodigo = () => Store.mode === 'server' || Store.mode === 'portal' ? `<label>Código da empresa<span class="lgInput">${ic('building')}<input name="codigo" autocomplete="organization" autocapitalize="none" spellcheck="false" placeholder="Informado pela TRAXUP" value="${esc(lembrado('traxup_codigo'))}" pattern="[A-Za-z0-9]{2,20}" title="Letras e números, sem espaços"></span></label>` : '';
+const lembrarCodigo = v => { if (v.codigo !== undefined) lembrar('traxup_codigo', String(v.codigo).trim().toLowerCase(), !!String(v.codigo).trim()); };
 const emailAtivo = () => !!(Store.serverStatus && Store.serverStatus.email);
 function telaEsqueci(modo = 'equipe', enviado = '') {
   const cli = modo === 'cliente', voltar = cli ? 'ptVoltarLogin' : 'voltarLogin';
   $('#app').innerHTML = loginShell(enviado ? `<div class="loginCard"><div class="lgOkIc">${ic('mail')}</div><h1>Confira seu<br>e-mail</h1><p class="sub">Se <b style="color:#fff">${esc(enviado)}</b> estiver cadastrado, você vai receber em instantes um link para criar uma nova senha. O link vale por 1 hora.</p>
   <div class="lgDica">Não chegou? Veja a caixa de spam ou lixo eletrônico. A mensagem vem de <b>naoresponda@traxup.com.br</b>.</div><button class="primary lgBtn" data-act="${voltar}">Voltar para o login</button><button type="button" class="lgLink" style="margin:0 auto" data-act="esqueciSenha" data-modo="${modo}">Enviar de novo</button></div>`
   : `<form class="loginCard" data-form="esqueci" data-modo="${modo}"><h1>Esqueceu a<br>senha?</h1><p class="sub">Informe o e-mail ${cli ? 'de acesso ao painel' : 'cadastrado no seu usuário'}. Vamos enviar um link para você criar uma nova senha.</p>
-  <label>E-mail<span class="lgInput">${ic('mail')}<input name="email" type="email" autocomplete="username" placeholder="seu@email.com" required autofocus value="${esc(lembrado(cli ? 'traxup_portal_email' : 'traxup_ultimo_login').includes('@') ? lembrado(cli ? 'traxup_portal_email' : 'traxup_ultimo_login') : '')}"></span></label>
+  ${campoCodigo()}<label>E-mail<span class="lgInput">${ic('mail')}<input name="email" type="email" autocomplete="username" placeholder="seu@email.com" required autofocus value="${esc(lembrado(cli ? 'traxup_portal_email' : 'traxup_ultimo_login').includes('@') ? lembrado(cli ? 'traxup_portal_email' : 'traxup_ultimo_login') : '')}"></span></label>
   <button class="primary lgBtn" type="submit">Enviar link de redefinição ${ic('arrow')}</button><button type="button" class="lgLink" style="margin:0 auto" data-act="${voltar}">← Voltar para o login</button></form>`, modo);
 }
 function telaRedefinir(modo, token, erro = '') {
@@ -104,11 +106,11 @@ function telaRedefinir(modo, token, erro = '') {
 function telaSenhaRedefinida(modo) {
   $('#app').innerHTML = loginShell(`<div class="loginCard"><div class="lgOkIc ok">${ic('check')}</div><h1>Senha<br>alterada!</h1><p class="sub">Pronto. A sua nova senha já está valendo. Por segurança, encerramos as sessões abertas em outros aparelhos.</p><button class="primary lgBtn" data-act="${modo === 'cliente' ? 'ptVoltarLogin' : 'voltarLogin'}">Entrar agora ${ic('arrow')}</button></div>`, modo);
 }
-const tokenDaUrl = () => { const t = new URLSearchParams(location.search).get('t') || ''; return /^[\w-]{20,100}$/.test(t) ? t : ''; };
+const tokenDaUrl = () => { const t = new URLSearchParams(location.search).get('t') || ''; return /^[\w.-]{20,140}$/.test(t) ? t : ''; };
 function telaLogin(erro = '') {
   const ult = lembrado('traxup_ultimo_login');
-  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="login"><h1>Acesse o TRAXUP<br>Imobiliário</h1><p class="sub">Entre com o login ou e-mail e a senha cadastrados.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
-  <label>Login ou e-mail<span class="lgInput">${ic('mail')}<input name="login" autocomplete="username" placeholder="seu.login ou e-mail" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
+  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="login"><h1>Acesse o TRAXUP<br>Imobiliário</h1><p class="sub">Entre com o código da empresa, o login ou e-mail e a senha cadastrados.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
+  ${campoCodigo()}<label>Login ou e-mail<span class="lgInput">${ic('mail')}<input name="login" autocomplete="username" placeholder="seu.login ou e-mail" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
   ${loginAjuda('Lembrar meu login', 'Peça ao administrador do sistema para redefinir a sua senha em Usuários.')}
   <button class="primary lgBtn" type="submit">Entrar ${ic('arrow')}</button>
   <div class="lgHelp"><span>Precisa de ajuda?</span></div><p class="lgHelpTxt">Fale com o administrador do sistema.</p>${Store.mode !== 'server' ? `<div class="lgMeta">${esc(Store.label())}</div>` : ''}</form>`);
@@ -125,11 +127,21 @@ function telaSetup() {
 }
 async function entrar() {
   try { sessionStorage.setItem('traxup_sess', JSON.stringify({ userId: S.user.id, token: Store.token })); } catch (e) { }
+  if (Store.mode === 'server') { try { const r = await fetch('api/conta', { headers: Store.authH(), cache: 'no-store' }); if (r.ok) S.conta = await r.json(); } catch (e) { } await prepararBase(); }
   const fs = filiaisUsuario(); S.filial = fs.length === 1 ? fs[0].id : '*';
   const h = (location.hash || '').slice(1); S.view = TITULOS[h] && pode(S.user, h) ? h : (pode(S.user, 'painel') ? 'painel' : 'mapa');
   render(); buscarNotificacoes(false);
 }
-function sair() { try { sessionStorage.removeItem('traxup_sess'); } catch (e) { } if (Store.mode === 'server' && Store.token) fetch('api/logout', { method: 'POST', headers: Store.authH() }).catch(() => { }); Store.token = null; S.user = null; telaLogin(); }
+// base criada pelo Painel Gerencial: modelo de contrato padrão e, em demonstração, dados de exemplo
+async function prepararBase() {
+  if (S.user?.perfil !== 'Administrador') return;
+  try {
+    const fil = Store.list('filiais')[0]; if (!fil) return;
+    if (!Store.list('modelos').length) await Store.put('modelos', { tipo: 'contrato', nome: 'Promessa de compra e venda (modelo base)', filialId: fil.id, conteudo: MODELO_PADRAO, criadoEm: new Date().toISOString() });
+    if (S.conta?.demo && !Store.list('lotes').length) { toast('Preparando os dados de demonstração…'); await carregarDemo(fil.id); }
+  } catch (e) { console.error(e); }
+}
+function sair() { S.conta = null; try { sessionStorage.removeItem('traxup_sess'); } catch (e) { } if (Store.mode === 'server' && Store.token) fetch('api/logout', { method: 'POST', headers: Store.authH() }).catch(() => { }); Store.token = null; S.user = null; telaLogin(); }
 
 /* ---------- casca ---------- */
 function render() {
@@ -140,7 +152,7 @@ function render() {
   <main><div class="topbar"><button class="menuToggle ghost" data-act="toggleNav">${ic('menu')}</button><div class="title"><div class="eyebrow">TRAXUP / ${esc(TITULOS[S.view] || '')}</div><h1>${esc(TITULOS[S.view] || '')}</h1></div>
   <div class="filialPick">Empresa ${fs.length > 1 ? `<select id="filialSel">${opt('*', 'Todas as empresas', S.filial)}${fs.map(f => opt(f.id, f.nome, S.filial)).join('')}</select>` : `<b style="padding:6px 8px;color:var(--text)">${esc(fs[0]?.nome || '—')}</b>`}</div>
   ${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}${sinoHTML()}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
-  <div class="content" id="content"></div></main></div>`;
+  ${S.conta?.demo ? `<div class="notice warn" style="margin:0 24px;border-radius:0 0 10px 10px">${ic('alert')}<b>Ambiente de demonstração.</b> Os dados são fictícios e podem ser restaurados a qualquer momento.</div>` : ''}<div class="content" id="content"></div></main></div>`;
   renderView();
 }
 function renderView() {

@@ -140,3 +140,20 @@ SMTP_NOME=TRAXUP Imobiliário
 ```
 
 O link vale 1 hora, é de uso único e encerra as sessões abertas. A tela não revela se o e-mail existe. Teste em **Configurações → E-mail de envio**.
+
+## Painel Gerencial (multiempresa)
+
+Endereço: `https://imob.traxup.com.br/painelgerencial` — acesso só para os gestores da TRAXUP.
+
+- **Clientes do SaaS**: razão social, CNPJ, responsável, contato, filiais, administrador, valor de implantação (à vista ou parcelado), mensalidade, dia de vencimento e início do contrato.
+- **Código do cliente**: cada cliente recebe um código (ex.: `busca`). Na tela de login do sistema e da Área do Cliente o usuário informa **código da empresa + login + senha**.
+- **Base separada por cliente**: ao cadastrar, o painel cria a base zerada do cliente em `data/clientes/<codigo>/` (com backups e contratos próprios), as filiais e o administrador.
+- **Base que já existia**: continua em `data/db.json`, sem mudança, como o cliente `TENANT_PADRAO` (padrão `principal`). Os usuários dela entram com esse código **ou com o campo em branco**.
+- **Status**: Ativo, Trial, Demonstração, Bloqueado e Cancelado. Bloqueado e Cancelado não entram (as sessões abertas são encerradas na hora).
+- **Demonstração (vendas)**: cliente com status Demonstração recebe dados fictícios no primeiro acesso, mostra a faixa "Ambiente de demonstração" e é restaurado todo dia às 3h (ou pelo botão no painel).
+- **Mensalidades**: gera as mensalidades do mês para os clientes ativos, cobranças avulsas e de implantação, baixa, reabertura e cancelamento. Receita recorrente, recebido no mês, a receber e em atraso na visão geral.
+- **Registro de boletos no BB**: as credenciais do `.env` valem só para o cliente padrão. Para os demais, o registro automático fica para a próxima etapa (gateway de cobrança).
+
+Primeiro gestor: preencha `GESTAO_LOGIN` e `GESTAO_SENHA` (mín. 8) no `.env` e reinicie (`sudo systemctl restart traxup-imob`); depois apague a senha do `.env`. Ou, com o serviço parado: `sudo -u traxup node scripts/gestor.mjs --login seu.login --senha 'SenhaForte123'`.
+
+Dados do painel: `data/controle.json` (backup diário em `data/backups-controle/`).

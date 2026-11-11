@@ -26,8 +26,8 @@ async function portalBoot() {
 
 function portalLogin(erro = '') {
   const ult = lembrado('traxup_portal_email');
-  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="portalLogin"><h1>Acesse a Área<br>do Cliente</h1><p class="sub">Entre com o e-mail e a senha enviados pela empresa.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
-  <label>E-mail<span class="lgInput">${ic('mail')}<input name="email" type="email" autocomplete="username" placeholder="seu@email.com" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
+  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="portalLogin"><h1>Acesse a Área<br>do Cliente</h1><p class="sub">Entre com o código da empresa, o e-mail e a senha enviados pela empresa.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
+  ${campoCodigo()}<label>E-mail<span class="lgInput">${ic('mail')}<input name="email" type="email" autocomplete="username" placeholder="seu@email.com" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
   ${loginAjuda('Lembrar meu e-mail', 'Fale com a empresa onde você comprou o lote para receber uma nova senha.', 'cliente')}
   <button class="primary lgBtn" type="submit">Entrar ${ic('arrow')}</button>
   <div class="lgHelp"><span>Precisa de ajuda?</span></div><p class="lgHelpTxt">Fale com a empresa onde você comprou o seu lote.</p></form>`, 'cliente');
@@ -160,7 +160,7 @@ Object.assign(ACT, {
 });
 Object.assign(FORMS, {
   async portalLogin(v) {
-    try { const j = await portalApi('login', { method: 'POST', body: JSON.stringify({ email: v.email, senha: v.senha }) }); lembrar('traxup_portal_email', v.email, !!v.lembrar); PORTAL.token = j.token; try { sessionStorage.setItem('traxup_portal', JSON.stringify({ token: j.token })); } catch (e) { } await portalCarregar(); portalRender(); if (j.trocarSenha) { ACT.ptSenha(); toast('Primeiro acesso: crie uma senha só sua.'); } }
+    try { const j = await portalApi('login', { method: 'POST', body: JSON.stringify({ email: v.email, senha: v.senha, codigo: v.codigo || '' }) }); lembrar('traxup_portal_email', v.email, !!v.lembrar); lembrarCodigo(v); PORTAL.token = j.token; try { sessionStorage.setItem('traxup_portal', JSON.stringify({ token: j.token })); } catch (e) { } await portalCarregar(); portalRender(); if (j.trocarSenha) { ACT.ptSenha(); toast('Primeiro acesso: crie uma senha só sua.'); } }
     catch (e) { portalLogin(e.message); }
   },
   async ptSolicitar(v, f) { const j = await portalApi('solicitar', { method: 'POST', body: JSON.stringify({ vendaId: f.dataset.v, parcelaId: f.dataset.p, tipo: 'boleto', obs: v.obs }) }); closeModal(); toast(j.repetida ? 'Você já tinha solicitado este boleto. Aguarde a empresa.' : 'Solicitação enviada. Assim que o boleto for emitido, ele aparece aqui.'); await portalCarregar(); portalRender(); },

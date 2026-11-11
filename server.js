@@ -32,17 +32,42 @@ BB.api = BB.ambiente === 'producao' ? 'https://api.bb.com.br/cobrancas/v2' : 'ht
 const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes', 'assinaturas'];
 const ADMIN_ONLY = new Set(['usuarios', 'filiais']);
 
-/* ---------- base de dados em arquivo JSON (gravação atômica) ---------- */
+/* ---------- bases por cliente (multiempresa) ----------
+ * Cada cliente da TRAXUP tem um código (ex.: "busca") e uma base própria:
+ *   - cliente padrão (TENANT_PADRAO): continua em DATA_DIR/db.json — a base que já existia, sem mover nada
+ *   - demais clientes: DATA_DIR/clientes/<codigo>/db.json (com backups/ e contratos/ próprios)
+ * A requisição roda "dentro" da base do cliente (AsyncLocalStorage); `db` sempre aponta para ela. */
+const { AsyncLocalStorage } = require('node:async_hooks');
+const ALS = new AsyncLocalStorage();
+const TENANT_PADRAO = String(process.env.TENANT_PADRAO || 'principal').trim().toLowerCase();
+const CODIGO_RE = /^[a-z0-9]{2,20}$/;
 fs.mkdirSync(DATA_DIR, { recursive: true });
-const DB_FILE = path.join(DATA_DIR, 'db.json');
-let db = {}; try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch { db = {}; }
-for (const c of COLS) db[c] ||= {};
-db.portal ||= {}; // acessos do painel do cliente (fica só no servidor, nunca vai para /api/data)
-let saveTimer = null;
-function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { const tmp = DB_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(db)); fs.renameSync(tmp, DB_FILE); }, 150); }
-const BK_DIR = path.join(DATA_DIR, 'backups');
-function backupAgora(sufixo = '') { fs.mkdirSync(BK_DIR, { recursive: true }); const nome = `db_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}${sufixo}.json`; fs.writeFileSync(path.join(BK_DIR, nome), JSON.stringify(db)); return nome; }
-function backupDiario() { const dir = BK_DIR; fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, `db_${new Date().toISOString().slice(0, 10)}.json`); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(db)); const all = fs.readdirSync(dir).filter(x => /^db_\d{4}-\d{2}-\d{2}\.json$/.test(x)).sort(); for (const old of all.slice(0, -30)) fs.unlinkSync(path.join(dir, old)); const man = fs.readdirSync(dir).filter(x => /^db_.*-manual\.json$/.test(x)).sort(); for (const old of man.slice(0, -20)) fs.unlinkSync(path.join(dir, old)); }
+const tenants = new Map();
+function dirDoTenant(codigo) { return codigo === TENANT_PADRAO ? DATA_DIR : path.join(DATA_DIR, 'clientes', codigo); }
+function normalizarBase(b) { for (const c of COLS) b[c] ||= {}; b.portal ||= {}; b.resets ||= {}; return b; }
+function abrirTenant(codigo, criar = false) {
+  codigo = String(codigo || '').trim().toLowerCase(); if (!CODIGO_RE.test(codigo)) return null;
+  if (tenants.has(codigo)) return tenants.get(codigo);
+  const dir = dirDoTenant(codigo), file = path.join(dir, 'db.json');
+  if (!fs.existsSync(file) && !criar && codigo !== TENANT_PADRAO) return null;
+  fs.mkdirSync(dir, { recursive: true });
+  let base = {}; try { base = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { base = {}; }
+  const t = { codigo, dir, file, bkDir: path.join(dir, 'backups'), ctDir: path.join(dir, 'contratos'), db: normalizarBase(base), saveTimer: null };
+  tenants.set(codigo, t); return t;
+}
+const atual = () => ALS.getStore() || abrirTenant(TENANT_PADRAO);
+// `db` continua funcionando em todo o código: aponta para a base do cliente da requisição atual
+const db = new Proxy({}, {
+  get: (_, k) => atual().db[k], set: (_, k, v) => { atual().db[k] = v; return true; }, has: (_, k) => k in atual().db,
+  deleteProperty: (_, k) => delete atual().db[k], ownKeys: () => Reflect.ownKeys(atual().db),
+  getOwnPropertyDescriptor: (_, k) => { const d = Object.getOwnPropertyDescriptor(atual().db, k); if (d) d.configurable = true; return d; }
+});
+function gravarTenant(t) { clearTimeout(t.saveTimer); t.saveTimer = null; const tmp = t.file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(t.db)); fs.renameSync(tmp, t.file); }
+function persist() { const t = atual(); clearTimeout(t.saveTimer); t.saveTimer = setTimeout(() => gravarTenant(t), 150); }
+function backupAgora(sufixo = '') { const t = atual(); fs.mkdirSync(t.bkDir, { recursive: true }); const nome = `db_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}${sufixo}.json`; fs.writeFileSync(path.join(t.bkDir, nome), JSON.stringify(t.db)); return nome; }
+function backupDiarioDe(t) { const dir = t.bkDir; fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, `db_${new Date().toISOString().slice(0, 10)}.json`); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(t.db)); const all = fs.readdirSync(dir).filter(x => /^db_\d{4}-\d{2}-\d{2}\.json$/.test(x)).sort(); for (const old of all.slice(0, -30)) fs.unlinkSync(path.join(dir, old)); const man = fs.readdirSync(dir).filter(x => /^db_.*-manual\.json$/.test(x)).sort(); for (const old of man.slice(0, -20)) fs.unlinkSync(path.join(dir, old)); }
+function backupDiario() { for (const t of tenants.values()) { try { backupDiarioDe(t); } catch (e) { console.error('[backup]', t.codigo, e.message); } } }
+abrirTenant(TENANT_PADRAO);
 setInterval(backupDiario, 3600e3).unref(); backupDiario();
 
 /* ---------- sessões ---------- */
@@ -51,8 +76,8 @@ const sessions = new Map(); try { for (const [t, v] of Object.entries(JSON.parse
 let sessTimer = null; const saveSessions = () => { clearTimeout(sessTimer); sessTimer = setTimeout(() => { try { fs.writeFileSync(SESS_FILE, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 }); } catch { } }, 2000); };
 const pbkdf2 = (senha, salt) => crypto.pbkdf2Sync(String(senha), Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex');
 const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
-function novaSessao(userId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { userId, exp: Date.now() + SESSION_HOURS * 3600e3 }); saveSessions(); return t; }
-function usuarioDa(req) { const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t); if (!s || s.exp < Date.now()) { sessions.delete(t); return null; } if (s.tipo === 'cliente') return null; const u = db.usuarios[s.userId]; if (!u || u.ativo === false) return null; if (s.exp - Date.now() < (SESSION_HOURS - 1) * 3600e3) { s.exp = Date.now() + SESSION_HOURS * 3600e3; saveSessions(); } return u; }
+function novaSessao(userId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { userId, tn: atual().codigo, exp: Date.now() + SESSION_HOURS * 3600e3 }); saveSessions(); return t; }
+function usuarioDa(req) { const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t); if (!s || s.exp < Date.now()) { sessions.delete(t); return null; } if (s.tipo === 'cliente' || s.tipo === 'gestor' || (s.tn || TENANT_PADRAO) !== atual().codigo) return null; const u = db.usuarios[s.userId]; if (!u || u.ativo === false) return null; if (s.exp - Date.now() < (SESSION_HOURS - 1) * 3600e3) { s.exp = Date.now() + SESSION_HOURS * 3600e3; saveSessions(); } return u; }
 const tentativas = new Map();
 function limitarLogin(ip) { const now = Date.now(); const a = (tentativas.get(ip) || []).filter(t => now - t < 15 * 60e3); a.push(now); tentativas.set(ip, a); return a.length > 10; }
 const semSegredo = u => { const { salt, hash, ...rest } = u; return rest; };
@@ -92,6 +117,7 @@ const dBB = iso => iso.split('-').reverse().join('.');
 const dig = s => String(s || '').replace(/\D/g, '');
 function erroBB(r) { const e = r.json?.erros?.[0] || r.json?.errors?.[0] || r.json; return (e?.mensagem || e?.message || e?.textoMensagem || JSON.stringify(r.json).slice(0, 300)); }
 async function registrarBoleto(id) {
+  if (atual().codigo !== TENANT_PADRAO) throw Object.assign(Error('O registro automático no Banco do Brasil ainda não foi configurado para esta empresa. Fale com a TRAXUP.'), { status: 400 });
   const b = db.boletos[id]; if (!b) throw Object.assign(Error('Boleto não encontrado.'), { status: 404 });
   if (b.status !== 'Emitido') throw Object.assign(Error('Somente boletos com situação Emitido podem ser registrados.'), { status: 400 });
   const fil = db.filiais[b.filialId] || {}; const cfg = fil.bb || {}; const venda = db.vendas[b.vendaId] || {};
@@ -129,10 +155,10 @@ async function baixarBoleto(id) {
 
 /* ---------- Painel do cliente (somente leitura) ---------- */
 const PORTAL_STAFF = new Set(['Administrador', 'Gerente', 'Financeiro']);
-function novaSessaoCliente(clienteId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { tipo: 'cliente', clienteId, exp: Date.now() + 4 * 3600e3 }); saveSessions(); return t; }
+function novaSessaoCliente(clienteId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { tipo: 'cliente', clienteId, tn: atual().codigo, exp: Date.now() + 4 * 3600e3 }); saveSessions(); return t; }
 function clienteDa(req) {
   const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t);
-  if (!s || s.tipo !== 'cliente' || s.exp < Date.now()) return null;
+  if (!s || s.tipo !== 'cliente' || s.exp < Date.now() || (s.tn || TENANT_PADRAO) !== atual().codigo) return null;
   const a = db.portal[s.clienteId], c = db.clientes[s.clienteId]; if (!a || a.ativo === false || !c) return null; return { c, a, t };
 }
 function notificar(tipo, cli, texto, extra = {}) {
@@ -158,12 +184,14 @@ function dadosPortal(cid) {
 async function rotaPortal(req, res, p, ip) {
   if (p === '/api/portal/login' && req.method === 'POST') {
     if (limitarLogin('portal:' + ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
-    const { email, senha } = await readJSON(req, 1e4); const e = String(email || '').trim().toLowerCase();
+    const { email, senha, codigo } = await readJSON(req, 1e4); const e = String(email || '').trim().toLowerCase();
+    return naBaseDoCodigo(res, codigo, () => {
     const cid = Object.keys(db.portal).find(k => db.portal[k].email === e); const a = cid && db.portal[cid];
     if (!a || a.ativo === false || !db.clientes[cid] || !safeEq(pbkdf2(String(senha || ''), a.salt), a.hash)) return send(res, 401, { error: 'E-mail ou senha inválidos.' });
     if (!a.ultimoAcesso) notificar('acesso', db.clientes[cid], 'acessou o painel do cliente pela primeira vez');
     a.ultimoAcesso = new Date().toISOString(); persist(); tentativas.delete('portal:' + ip);
     return send(res, 200, { token: novaSessaoCliente(cid), trocarSenha: !!a.trocarSenha });
+    });
   }
   const ses = clienteDa(req); if (!ses) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
   if (p === '/api/portal/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(false), { 'Cache-Control': 'no-store' });
@@ -209,14 +237,14 @@ function rotaPortalAdmin(req, res, p, user) {
   if (p === '/api/portal-admin/acessos' && req.method === 'GET') return send(res, 200, { acessos: Object.entries(db.portal).map(([clienteId, a]) => ({ clienteId, email: a.email, ativo: a.ativo !== false, criadoEm: a.criadoEm, ultimoAcesso: a.ultimoAcesso })) });
   if (p === '/api/portal-admin/acesso' && req.method === 'POST') return readJSON(req, 1e4).then(({ clienteId, email, senha, ativo = true, remover }) => {
     if (!db.clientes[clienteId]) return send(res, 404, { error: 'Cliente não encontrado.' });
-    if (remover) { delete db.portal[clienteId]; for (const [t, s] of sessions) if (s.tipo === 'cliente' && s.clienteId === clienteId) sessions.delete(t); saveSessions(); persist(); return send(res, 200, { ok: true }); }
+    if (remover) { delete db.portal[clienteId]; for (const [t, s] of sessions) if (s.tipo === 'cliente' && s.clienteId === clienteId && (s.tn || TENANT_PADRAO) === atual().codigo) sessions.delete(t); saveSessions(); persist(); return send(res, 200, { ok: true }); }
     const e = String(email || '').trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return send(res, 400, { error: 'Informe um e-mail válido.' });
     const outro = Object.keys(db.portal).find(k => k !== clienteId && db.portal[k].email === e); if (outro) return send(res, 400, { error: 'Este e-mail já dá acesso ao painel de outro cliente (' + (db.clientes[outro]?.nome || outro) + ').' });
     const a = db.portal[clienteId] || { criadoEm: new Date().toISOString() };
     if (senha) { if (String(senha).length < 6) return send(res, 400, { error: 'A senha precisa ter 6 caracteres ou mais.' }); a.salt = crypto.randomBytes(16).toString('hex'); a.hash = pbkdf2(String(senha), a.salt); a.trocarSenha = true; }
     if (!a.hash) return send(res, 400, { error: 'Defina uma senha inicial para o cliente.' });
     Object.assign(a, { email: e, ativo: !!ativo, atualizadoPor: user.nome, atualizadoEm: new Date().toISOString() }); db.portal[clienteId] = a;
-    if (!a.ativo) for (const [t, s] of sessions) if (s.tipo === 'cliente' && s.clienteId === clienteId) sessions.delete(t);
+    if (!a.ativo) for (const [t, s] of sessions) if (s.tipo === 'cliente' && s.clienteId === clienteId && (s.tn || TENANT_PADRAO) === atual().codigo) sessions.delete(t);
     persist(); return send(res, 200, { ok: true });
   });
   return send(res, 404, { error: 'Rota não encontrada.' });
@@ -342,7 +370,6 @@ function emailRedefinicao({ nome, link, area }) {
   const texto = `Olá, ${primeiro}!\n\nRecebemos um pedido para criar uma nova senha de acesso (${area}).\nAbra o link abaixo para escolher a nova senha (vale por 1 hora, uso único):\n\n${link}\n\nSe você não pediu a troca, ignore este e-mail.\n\nTRAXUP Imobiliário — mensagem automática, não responda.`;
   return { html, texto };
 }
-db.resets ||= {};
 function limparResets() { const n = Date.now(); for (const [k, r] of Object.entries(db.resets)) if (r.exp < n) delete db.resets[k]; }
 async function pedirRedefinicao(req, tipo, email) {
   const e = String(email || '').trim().toLowerCase(); if (!e) return;
@@ -351,7 +378,7 @@ async function pedirRedefinicao(req, tipo, email) {
   else { const u = Object.values(db.usuarios).find(x => x.ativo !== false && ((x.email || '').toLowerCase() === e || (x.login || '').toLowerCase() === e)); if (u && u.email) { alvo = u.id; nome = u.nome; } }
   if (!alvo) return; // não revela se o e-mail existe
   limparResets(); for (const [k, r] of Object.entries(db.resets)) if (r.tipo === tipo && r.id === alvo) delete db.resets[k];
-  const token = crypto.randomBytes(32).toString('base64url'); db.resets[crypto.createHash('sha256').update(token).digest('hex')] = { tipo, id: alvo, exp: Date.now() + 3600e3 }; persist();
+  const token = atual().codigo + '.' + crypto.randomBytes(32).toString('base64url'); db.resets[crypto.createHash('sha256').update(token).digest('hex')] = { tipo, id: alvo, exp: Date.now() + 3600e3 }; persist();
   const base = APP_URL || ('https://' + String(req.headers.host || '').replace(/[^\w.:-]/g, ''));
   const link = `${base}${tipo === 'cliente' ? '/painel-cliente' : ''}/redefinir-senha?t=${token}`;
   const destino = tipo === 'cliente' ? db.portal[alvo].email : db.usuarios[alvo].email;
@@ -365,40 +392,222 @@ function redefinirSenha(token, nova) {
   const salt = crypto.randomBytes(16).toString('hex'), hash = pbkdf2(String(nova), salt);
   if (r.tipo === 'cliente') { const a = db.portal[r.id]; if (!a) throw Object.assign(Error('Acesso não encontrado.'), { status: 400 }); Object.assign(a, { salt, hash }); delete a.trocarSenha; notificar('senha', db.clientes[r.id], 'redefiniu a senha do painel pelo e-mail'); }
   else { const u = db.usuarios[r.id]; if (!u) throw Object.assign(Error('Usuário não encontrado.'), { status: 400 }); Object.assign(u, { salt, hash }); }
-  delete db.resets[h]; for (const [t, s] of sessions) if ((r.tipo === 'cliente' && s.tipo === 'cliente' && s.clienteId === r.id) || (r.tipo !== 'cliente' && s.userId === r.id)) sessions.delete(t);
+  delete db.resets[h]; for (const [t, s] of sessions) if ((s.tn || TENANT_PADRAO) === atual().codigo && ((r.tipo === 'cliente' && s.tipo === 'cliente' && s.clienteId === r.id) || (r.tipo !== 'cliente' && s.tipo !== 'cliente' && s.userId === r.id))) sessions.delete(t);
   saveSessions(); persist(); return r.tipo;
 }
 
 /* ---------- Contratos assinados (PDF anexado; assinatura gov.br feita no assinador.iti.br) ---------- */
-const CT_DIR = path.join(DATA_DIR, 'contratos');
 const MAX_PDF = 15 * 1024 * 1024;
 function salvarPdf(vendaId, base64) {
   const buf = Buffer.from(String(base64 || '').replace(/^data:[^,]*,/, ''), 'base64');
   if (!buf.length) throw Object.assign(Error('Arquivo vazio.'), { status: 400 });
   if (buf.length > MAX_PDF) throw Object.assign(Error('O PDF passa de 15 MB.'), { status: 413 });
   if (buf.slice(0, 5).toString() !== '%PDF-') throw Object.assign(Error('Envie o contrato em PDF (o assinador do gov.br devolve o arquivo em PDF).'), { status: 400 });
-  const dir = path.join(CT_DIR, vendaId.replace(/[^\w.-]/g, '_')); fs.mkdirSync(dir, { recursive: true });
+  const dir = path.join(atual().ctDir, vendaId.replace(/[^\w.-]/g, '_')); fs.mkdirSync(dir, { recursive: true });
   const nome = `assinado_${Date.now()}.pdf`; fs.writeFileSync(path.join(dir, nome), buf);
   return { arquivo: nome, tamanho: buf.length, hash: crypto.createHash('sha256').update(buf).digest('hex') };
 }
 function lerPdf(vendaId) {
   const a = db.assinaturas[vendaId]; if (!a?.arquivo) return null;
-  const f = path.join(CT_DIR, vendaId.replace(/[^\w.-]/g, '_'), a.arquivo); return fs.existsSync(f) ? fs.readFileSync(f) : null;
+  const f = path.join(atual().ctDir, vendaId.replace(/[^\w.-]/g, '_'), a.arquivo); return fs.existsSync(f) ? fs.readFileSync(f) : null;
 }
 const enviarPdf = (res, buf, nome) => { res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${nome}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(buf); };
 function historicoAss(a, acao, quem) { (a.historico ||= []).push({ data: new Date().toISOString(), acao, quem }); if (a.historico.length > 50) a.historico = a.historico.slice(-50); }
+/* ==========================================================================
+   Painel Gerencial TRAXUP (/painelgerencial) — clientes do SaaS, contratos e mensalidades.
+   Base própria em DATA_DIR/controle.json; login próprio (gestores), separado dos usuários dos clientes.
+   ========================================================================== */
+const CTRL_FILE = path.join(DATA_DIR, 'controle.json');
+let controle = {}; try { controle = JSON.parse(fs.readFileSync(CTRL_FILE, 'utf8')); } catch { controle = {}; }
+controle.gestores ||= {}; controle.clientes ||= {}; controle.cobrancas ||= {}; controle.logs ||= [];
+let ctrlTimer = null;
+function gravarControle() { clearTimeout(ctrlTimer); ctrlTimer = null; const tmp = CTRL_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(controle), { mode: 0o600 }); fs.renameSync(tmp, CTRL_FILE); }
+function salvarControle() { clearTimeout(ctrlTimer); ctrlTimer = setTimeout(gravarControle, 150); }
+function backupControle() { try { const dir = path.join(DATA_DIR, 'backups-controle'); fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, `controle_${new Date().toISOString().slice(0, 10)}.json`); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(controle)); const all = fs.readdirSync(dir).filter(x => /^controle_.*\.json$/.test(x)).sort(); for (const old of all.slice(0, -60)) fs.unlinkSync(path.join(dir, old)); } catch (e) { console.error('[backup controle]', e.message); } }
+setInterval(backupControle, 3600e3).unref(); backupControle();
+// a base que já existia entra no painel como o cliente padrão (sem mexer nos dados dela)
+if (!controle.clientes[TENANT_PADRAO]) { controle.clientes[TENANT_PADRAO] = { codigo: TENANT_PADRAO, razao: 'Cliente principal (base atual)', fantasia: '', status: 'Ativo', implantacao: 0, mensalidade: 0, diaVenc: 10, inicio: new Date().toISOString().slice(0, 10), funcionalidades: 'todas', criadoEm: new Date().toISOString(), padrao: true }; gravarControle(); }
+
+// primeiro gestor do painel: GESTAO_LOGIN / GESTAO_SENHA no .env (usado só enquanto não existe nenhum gestor)
+if (!Object.keys(controle.gestores).length && process.env.GESTAO_LOGIN && String(process.env.GESTAO_SENHA || '').length >= 8) {
+  const salt = crypto.randomBytes(16).toString('hex'), id = crypto.randomUUID();
+  controle.gestores[id] = { id, nome: process.env.GESTAO_NOME || process.env.GESTAO_LOGIN, login: process.env.GESTAO_LOGIN.trim(), email: '', ativo: true, salt, hash: pbkdf2(process.env.GESTAO_SENHA, salt), criadoEm: new Date().toISOString() };
+  gravarControle(); console.log('[gestão] gestor inicial criado:', process.env.GESTAO_LOGIN, '— apague GESTAO_SENHA do .env');
+}
+const STATUS_CLIENTE = ['Ativo', 'Trial', 'Demonstração', 'Bloqueado', 'Cancelado'];
+const bloqueado = codigo => ['Bloqueado', 'Cancelado'].includes(controle.clientes[codigo]?.status);
+const MSG_BLOQUEIO = 'O acesso desta empresa está suspenso. Fale com a TRAXUP para regularizar.';
+function logGestao(gestor, acao, codigo = '') { controle.logs.unshift({ data: new Date().toISOString(), gestor: gestor?.nome || '', acao, codigo }); controle.logs = controle.logs.slice(0, 1000); }
+function gestorDa(req) {
+  const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t);
+  if (!s || s.tipo !== 'gestor' || s.exp < Date.now()) return null; const g = controle.gestores[s.gestorId]; if (!g || g.ativo === false) return null; return { g, t };
+}
+const cents = v => { if (typeof v === 'number') return Math.round(v); const s = String(v ?? '').replace(/[^\d,.-]/g, ''); const n = s.includes(',') ? +s.replace(/\./g, '').replace(',', '.') : +s; return Number.isFinite(n) ? Math.round(n * 100) : 0; };
+const txt = (v, n = 200) => String(v ?? '').trim().slice(0, n);
+const dataOk = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+function novaFilial(f) { return { id: crypto.randomUUID(), nome: txt(f.nome, 120), razao: txt(f.razao || f.nome, 160), cnpj: txt(f.cnpj, 20), cidade: txt(f.cidade, 80), uf: txt(f.uf, 2).toUpperCase(), telefone: txt(f.telefone, 30), email: txt(f.email, 120), multa: 2, jurosMes: 1, bb: { carteira: '17', variacao: '35' }, criadoEm: new Date().toISOString() }; }
+function usuarioAdmin({ nome, login, email, senha }) { const salt = crypto.randomBytes(16).toString('hex'); return { id: crypto.randomUUID(), nome: txt(nome, 120) || txt(login, 60), login: txt(login, 60), email: txt(email, 120).toLowerCase(), perfil: 'Administrador', filiais: ['*'], ativo: true, salt, hash: pbkdf2(String(senha), salt), criadoEm: new Date().toISOString() }; }
+function resumoTenant(codigo) {
+  const t = abrirTenant(codigo); if (!t) return { semBase: true };
+  const b = t.db, us = Object.values(b.usuarios || {});
+  const ult = us.map(u => u.ultimoAcesso || '').sort().pop() || '';
+  return { filiais: Object.values(b.filiais || {}).map(f => ({ id: f.id, nome: f.nome, cnpj: f.cnpj, cidade: f.cidade, uf: f.uf })), usuarios: us.length, admins: us.filter(u => u.perfil === 'Administrador').map(u => ({ id: u.id, nome: u.nome, login: u.login, email: u.email, ativo: u.ativo !== false, ultimoAcesso: u.ultimoAcesso || '' })), lotes: Object.keys(b.lotes || {}).length, vendas: Object.keys(b.vendas || {}).length, clientes: Object.keys(b.clientes || {}).length, ultimoAcesso: ult };
+}
+function encerrarSessoesDo(codigo) { for (const [t, s] of sessions) if (s.tipo !== 'gestor' && (s.tn || TENANT_PADRAO) === codigo) sessions.delete(t); saveSessions(); }
+// Demonstração: limpa os dados (mantém filiais e usuários); no próximo acesso o sistema recarrega os dados de exemplo
+function restaurarDemo(codigo) {
+  const t = abrirTenant(codigo); if (!t) return;
+  for (const c of COLS) if (!['filiais', 'usuarios', 'config'].includes(c)) t.db[c] = {};
+  t.db.portal = {}; t.db.resets = {}; gravarTenant(t);
+  for (const [k, s] of sessions) if (s.tipo === 'cliente' && (s.tn || TENANT_PADRAO) === codigo) sessions.delete(k); saveSessions();
+}
+let ultimoResetDemo = '';
+setInterval(() => { // 03h (horário de Brasília): restaura as demonstrações com reset diário
+  const agora = new Date(Date.now() - 3 * 3600e3), dia = agora.toISOString().slice(0, 10);
+  if (agora.getUTCHours() !== 3 || ultimoResetDemo === dia) return; ultimoResetDemo = dia;
+  for (const c of Object.values(controle.clientes)) if (c.status === 'Demonstração' && c.resetDiario !== false && c.codigo !== TENANT_PADRAO) { try { restaurarDemo(c.codigo); encerrarSessoesDo(c.codigo); console.log('[demo] restaurada', c.codigo); } catch (e) { console.error('[demo]', c.codigo, e.message); } }
+}, 10 * 60e3).unref();
+
+function situacaoCobranca(c) { if (c.status === 'Paga' || c.status === 'Cancelada') return c.status; return c.venc < new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10) ? 'Atrasada' : 'Aberta'; }
+function dadosGestao() {
+  const clientes = Object.values(controle.clientes).map(c => ({ ...c, base: resumoTenant(c.codigo) })).sort((a, b) => (a.padrao ? -1 : b.padrao ? 1 : (a.razao || '').localeCompare(b.razao || '')));
+  const cobrancas = Object.values(controle.cobrancas).map(c => ({ ...c, situacao: situacaoCobranca(c) })).sort((a, b) => (b.venc || '').localeCompare(a.venc || ''));
+  return { clientes, cobrancas, gestores: Object.values(controle.gestores).map(semSegredo), logs: controle.logs.slice(0, 200), padrao: TENANT_PADRAO, statusOpcoes: STATUS_CLIENTE };
+}
+function gerarMensalidades(comp, gestor) {
+  if (!/^\d{4}-\d{2}$/.test(comp)) throw Object.assign(Error('Informe o mês no formato AAAA-MM.'), { status: 400 });
+  const [a, m] = comp.split('-').map(Number), ultimoDia = new Date(Date.UTC(a, m, 0)).getUTCDate(); let n = 0;
+  for (const c of Object.values(controle.clientes)) {
+    if (!['Ativo', 'Bloqueado'].includes(c.status) || !(c.mensalidade > 0)) continue;
+    if (c.inicio && c.inicio.slice(0, 7) > comp) continue;
+    if (Object.values(controle.cobrancas).some(x => x.codigo === c.codigo && x.tipo === 'Mensalidade' && x.competencia === comp && x.status !== 'Cancelada')) continue;
+    const dia = Math.min(Math.max(+c.diaVenc || 10, 1), ultimoDia); const id = 'cb_' + crypto.randomBytes(6).toString('hex');
+    controle.cobrancas[id] = { id, codigo: c.codigo, cliente: c.fantasia || c.razao, tipo: 'Mensalidade', competencia: comp, descricao: `Mensalidade ${String(m).padStart(2, '0')}/${a}`, valor: c.mensalidade, venc: `${comp}-${String(dia).padStart(2, '0')}`, status: 'Aberta', criadoEm: new Date().toISOString(), criadoPor: gestor.nome }; n++;
+  }
+  logGestao(gestor, `Gerou ${n} mensalidade(s) de ${comp}`); salvarControle(); return n;
+}
+async function rotaGestao(req, res, p, ip) {
+  if (p === '/api/gestao/status') return send(res, 200, { setupNeeded: !Object.keys(controle.gestores).length });
+  if (p === '/api/gestao/login' && req.method === 'POST') {
+    if (limitarLogin('gestao:' + ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
+    const { login, senha } = await readJSON(req, 1e4); const l = String(login || '').trim().toLowerCase();
+    const g = Object.values(controle.gestores).find(x => x.login.toLowerCase() === l || (x.email && x.email.toLowerCase() === l));
+    if (!g || g.ativo === false || !safeEq(pbkdf2(String(senha || ''), g.salt), g.hash)) return send(res, 401, { error: 'Login ou senha inválidos.' });
+    const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { tipo: 'gestor', gestorId: g.id, exp: Date.now() + 8 * 3600e3 }); saveSessions();
+    g.ultimoAcesso = new Date().toISOString(); salvarControle(); tentativas.delete('gestao:' + ip); return send(res, 200, { token: t, gestor: semSegredo(g) });
+  }
+  const ses = gestorDa(req); if (!ses) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' }); const G = ses.g;
+  if (p === '/api/gestao/logout') { sessions.delete(ses.t); saveSessions(); return send(res, 200, { ok: true }); }
+  if (p === '/api/gestao/dados' && req.method === 'GET') return send(res, 200, { ...dadosGestao(), eu: semSegredo(G) }, { 'Cache-Control': 'no-store' });
+  if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido.' });
+  const body = await readJSON(req, 1e5);
+
+  if (p === '/api/gestao/cliente') { // criar ou editar cliente
+    const codigo = String(body.codigo || '').trim().toLowerCase(); const existe = controle.clientes[codigo];
+    if (!CODIGO_RE.test(codigo)) return send(res, 400, { error: 'Código inválido: use de 2 a 20 letras minúsculas ou números, sem espaço (ex.: busca, lft2).' });
+    if (body.novo && (existe || fs.existsSync(path.join(dirDoTenant(codigo), 'db.json')))) return send(res, 400, { error: `O código "${codigo}" já está em uso.` });
+    if (!body.novo && !existe) return send(res, 404, { error: 'Cliente não encontrado.' });
+    if (!txt(body.razao)) return send(res, 400, { error: 'Informe a razão social ou nome do cliente.' });
+    const status = STATUS_CLIENTE.includes(body.status) ? body.status : (existe?.status || 'Ativo');
+    if (codigo === TENANT_PADRAO && ['Bloqueado', 'Cancelado', 'Demonstração'].includes(status)) return send(res, 400, { error: 'O cliente principal não pode ser bloqueado, cancelado nem virar demonstração por aqui.' });
+    const dados = { codigo, razao: txt(body.razao, 160), fantasia: txt(body.fantasia, 120), cnpj: txt(body.cnpj, 20), responsavel: txt(body.responsavel, 120), email: txt(body.email, 120).toLowerCase(), telefone: txt(body.telefone, 30), cidade: txt(body.cidade, 80), uf: txt(body.uf, 2).toUpperCase(), status,
+      implantacao: cents(body.implantacao), implantacaoParcelas: Math.min(Math.max(+body.implantacaoParcelas || 1, 1), 24), mensalidade: cents(body.mensalidade), diaVenc: Math.min(Math.max(+body.diaVenc || 10, 1), 31), inicio: dataOk(body.inicio) ? body.inicio : (existe?.inicio || new Date().toISOString().slice(0, 10)),
+      funcionalidades: 'todas', resetDiario: body.resetDiario !== false, obs: txt(body.obs, 1000), motivoBloqueio: ['Bloqueado', 'Cancelado'].includes(status) ? txt(body.motivoBloqueio, 300) : '' };
+    if (body.novo) {
+      const adm = body.admin || {}; const filiais = (Array.isArray(body.filiais) ? body.filiais : []).filter(f => txt(f?.nome));
+      if (!filiais.length) return send(res, 400, { error: 'Cadastre pelo menos uma filial.' });
+      if (!txt(adm.login) || String(adm.senha || '').length < 6) return send(res, 400, { error: 'Informe o login do administrador e uma senha inicial com 6 caracteres ou mais.' });
+      const t = abrirTenant(codigo, true);
+      for (const f of filiais) { const fil = novaFilial(f); t.db.filiais[fil.id] = fil; }
+      const u = usuarioAdmin(adm); t.db.usuarios[u.id] = u; gravarTenant(t);
+      controle.clientes[codigo] = { ...dados, criadoEm: new Date().toISOString(), criadoPor: G.nome };
+      if (dados.implantacao > 0 && body.gerarImplantacao !== false) { // implantação (à vista ou parcelada)
+        const n = dados.implantacaoParcelas, base = Math.floor(dados.implantacao / n), resto = dados.implantacao - base * n; const ini = dataOk(body.vencImplantacao) ? body.vencImplantacao : dados.inicio;
+        for (let i = 0; i < n; i++) { const d = new Date(ini + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + i); const id = 'cb_' + crypto.randomBytes(6).toString('hex');
+          controle.cobrancas[id] = { id, codigo, cliente: dados.fantasia || dados.razao, tipo: 'Implantação', descricao: n > 1 ? `Implantação ${i + 1}/${n}` : 'Implantação', valor: base + (i === 0 ? resto : 0), venc: d.toISOString().slice(0, 10), status: 'Aberta', criadoEm: new Date().toISOString(), criadoPor: G.nome }; }
+      }
+      logGestao(G, `Cadastrou o cliente ${dados.razao} (${filiais.length} filial(is), admin ${u.login})`, codigo);
+    } else {
+      const antes = existe.status; Object.assign(existe, dados, { atualizadoEm: new Date().toISOString(), atualizadoPor: G.nome });
+      if (antes !== status) { logGestao(G, `Status: ${antes} → ${status}`, codigo); if (bloqueado(codigo)) encerrarSessoesDo(codigo); }
+      else logGestao(G, 'Editou o cadastro', codigo);
+    }
+    gravarControle(); return send(res, 200, { ok: true });
+  }
+  const mC = p.match(/^\/api\/gestao\/cliente\/([a-z0-9]{2,20})\/(filial|admin|demo-restaurar)$/);
+  if (mC) {
+    const [, codigo, acao] = mC; const c = controle.clientes[codigo]; if (!c) return send(res, 404, { error: 'Cliente não encontrado.' });
+    const t = abrirTenant(codigo, true);
+    if (acao === 'filial') { if (!txt(body.nome)) return send(res, 400, { error: 'Informe o nome da filial.' }); const fil = novaFilial(body); t.db.filiais[fil.id] = fil; gravarTenant(t); logGestao(G, `Adicionou a filial ${fil.nome}`, codigo); salvarControle(); return send(res, 200, { ok: true }); }
+    if (acao === 'admin') { // cria um administrador ou redefine a senha de um existente
+      if (String(body.senha || '').length < 6) return send(res, 400, { error: 'A senha precisa ter 6 caracteres ou mais.' });
+      const l = txt(body.login, 60).toLowerCase(); if (!l) return send(res, 400, { error: 'Informe o login.' });
+      let u = Object.values(t.db.usuarios).find(x => (x.login || '').toLowerCase() === l);
+      if (u) { u.salt = crypto.randomBytes(16).toString('hex'); u.hash = pbkdf2(String(body.senha), u.salt); u.ativo = true; for (const [k, s] of sessions) if (s.userId === u.id && (s.tn || TENANT_PADRAO) === codigo) sessions.delete(k); saveSessions(); logGestao(G, `Redefiniu a senha de ${u.login}`, codigo); }
+      else { u = usuarioAdmin({ nome: body.nome, login: body.login, email: body.email, senha: body.senha }); t.db.usuarios[u.id] = u; logGestao(G, `Criou o administrador ${u.login}`, codigo); }
+      gravarTenant(t); salvarControle(); return send(res, 200, { ok: true });
+    }
+    if (acao === 'demo-restaurar') { if (c.status !== 'Demonstração') return send(res, 400, { error: 'Só é possível restaurar clientes com status Demonstração.' }); restaurarDemo(codigo); logGestao(G, 'Restaurou a demonstração', codigo); salvarControle(); return send(res, 200, { ok: true }); }
+  }
+  if (p === '/api/gestao/cobranca') { // criar ou editar cobrança avulsa
+    const c = controle.clientes[body.codigo]; if (!c) return send(res, 404, { error: 'Cliente não encontrado.' });
+    if (!dataOk(body.venc)) return send(res, 400, { error: 'Informe o vencimento.' }); const valor = cents(body.valor); if (valor <= 0) return send(res, 400, { error: 'Informe o valor.' });
+    const id = controle.cobrancas[body.id] ? body.id : 'cb_' + crypto.randomBytes(6).toString('hex'); const old = controle.cobrancas[id] || { criadoEm: new Date().toISOString(), criadoPor: G.nome, status: 'Aberta' };
+    controle.cobrancas[id] = { ...old, id, codigo: c.codigo, cliente: c.fantasia || c.razao, tipo: ['Mensalidade', 'Implantação', 'Avulsa'].includes(body.tipo) ? body.tipo : 'Avulsa', descricao: txt(body.descricao, 120) || body.tipo || 'Cobrança', valor, venc: body.venc, obs: txt(body.obs, 300) };
+    logGestao(G, `${old.id ? 'Editou' : 'Lançou'} cobrança ${controle.cobrancas[id].descricao}`, c.codigo); salvarControle(); return send(res, 200, { ok: true });
+  }
+  const mB = p.match(/^\/api\/gestao\/cobranca\/(cb_[a-f0-9]{12})\/(pagar|reabrir|cancelar)$/);
+  if (mB) {
+    const [, id, acao] = mB; const cb = controle.cobrancas[id]; if (!cb) return send(res, 404, { error: 'Cobrança não encontrada.' });
+    if (acao === 'pagar') Object.assign(cb, { status: 'Paga', pagoEm: dataOk(body.data) ? body.data : new Date().toISOString().slice(0, 10), valorPago: body.valor != null && body.valor !== '' ? cents(body.valor) : cb.valor, forma: txt(body.forma, 40), baixaPor: G.nome });
+    if (acao === 'reabrir') { cb.status = 'Aberta'; delete cb.pagoEm; delete cb.valorPago; delete cb.forma; }
+    if (acao === 'cancelar') cb.status = 'Cancelada';
+    logGestao(G, `Cobrança ${cb.descricao}: ${acao}`, cb.codigo); salvarControle(); return send(res, 200, { ok: true });
+  }
+  if (p === '/api/gestao/mensalidades') { const n = gerarMensalidades(String(body.competencia || ''), G); return send(res, 200, { ok: true, geradas: n }); }
+  if (p === '/api/gestao/gestor') {
+    const l = txt(body.login, 60); if (!l) return send(res, 400, { error: 'Informe o login.' });
+    let g = controle.gestores[body.id] || Object.values(controle.gestores).find(x => x.login.toLowerCase() === l.toLowerCase());
+    if (!g) { if (String(body.senha || '').length < 8) return send(res, 400, { error: 'A senha do gestor precisa ter 8 caracteres ou mais.' }); g = { id: crypto.randomUUID(), criadoEm: new Date().toISOString() }; }
+    if (g.id === G.id && body.ativo === false) return send(res, 400, { error: 'Você não pode desativar o próprio acesso.' });
+    Object.assign(g, { nome: txt(body.nome, 120) || l, login: l, email: txt(body.email, 120).toLowerCase(), ativo: body.ativo !== false });
+    if (body.senha) { if (String(body.senha).length < 8) return send(res, 400, { error: 'A senha do gestor precisa ter 8 caracteres ou mais.' }); g.salt = crypto.randomBytes(16).toString('hex'); g.hash = pbkdf2(String(body.senha), g.salt); }
+    controle.gestores[g.id] = g; if (g.ativo === false) for (const [k, s] of sessions) if (s.gestorId === g.id) sessions.delete(k);
+    logGestao(G, `Salvou o gestor ${g.login}`); gravarControle(); return send(res, 200, { ok: true });
+  }
+  return send(res, 404, { error: 'Rota não encontrada.' });
+}
+
 const INDEX = path.join(ROOT, 'public', 'index.html');
+const GESTAO = path.join(ROOT, 'public', 'gestao.html');
+// escolhe a base do cliente: pela sessão (requisições autenticadas) ou pelo código informado no login
+function tenantPorCodigo(codigo) { const c = String(codigo || '').trim().toLowerCase(); if (!c) return abrirTenant(TENANT_PADRAO); return controle.clientes[c] ? abrirTenant(c, true) : null; }
+function naBaseDoCodigo(res, codigo, fn) {
+  const t = tenantPorCodigo(codigo); if (!t) return send(res, 401, { error: 'Código da empresa não encontrado. Confira o código informado pela TRAXUP.' });
+  if (bloqueado(t.codigo)) return send(res, 403, { error: MSG_BLOQUEIO, bloqueado: true });
+  return ALS.run(t, fn);
+}
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const p = url.pathname; const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
   try {
     if (!p.startsWith('/api/')) {
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Método não permitido.' });
       if (p === '/email-logo.jpg') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'email-logo.jpg')), { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
+      if (/^\/painelgerencial\/?$/.test(p)) return send(res, 200, fs.readFileSync(GESTAO), { 'Cache-Control': 'no-cache', 'X-Frame-Options': 'DENY', 'X-Robots-Tag': 'noindex' });
       return send(res, 200, fs.readFileSync(INDEX), { 'Cache-Control': 'no-cache' });
     }
+    if (p.startsWith('/api/gestao/')) return await rotaGestao(req, res, p, ip);
+    const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const ses = tok && sessions.get(tok);
+    let t = abrirTenant(TENANT_PADRAO);
+    if (ses && ses.tipo !== 'gestor') { t = abrirTenant(ses.tn || TENANT_PADRAO); if (!t) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' }); if (bloqueado(t.codigo)) { sessions.delete(tok); saveSessions(); return send(res, 403, { error: MSG_BLOQUEIO, bloqueado: true }); } }
+    return await ALS.run(t, () => rotas(req, res, url, p, ip));
+  } catch (e) { console.error(new Date().toISOString(), p, e.message); return send(res, e.status || 500, { error: e.status ? e.message : 'Erro interno no servidor.' }); }
+});
+async function rotas(req, res, url, p, ip) {
+  try {
     if (p === '/api/status') return send(res, 200, { app: 'traxup-imob', setupNeeded: !Object.keys(db.usuarios).length, email: smtpOk(), bb: { ambiente: BB.ambiente, configurado: !!(BB.clientId && BB.clientSecret && BB.appKey) } });
     if (p === '/api/setup' && req.method === 'POST') {
-      if (Object.keys(db.usuarios).length) return send(res, 403, { error: 'O sistema já foi configurado.' });
+      if (atual().codigo !== TENANT_PADRAO || Object.keys(db.usuarios).length) return send(res, 403, { error: 'O sistema já foi configurado.' });
       const { filial, usuario, senha } = await readJSON(req);
       if (!filial?.id || !usuario?.id || !usuario.salt || !usuario.hash || !senha) return send(res, 400, { error: 'Dados incompletos.' });
       if (!safeEq(pbkdf2(senha, usuario.salt), usuario.hash)) return send(res, 400, { error: 'Falha na verificação da senha.' });
@@ -407,25 +616,31 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/login' && req.method === 'POST') {
       if (limitarLogin(ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
-      const { login, senha } = await readJSON(req); const l = String(login || '').trim().toLowerCase();
+      const { login, senha, codigo } = await readJSON(req); const l = String(login || '').trim().toLowerCase();
+      return naBaseDoCodigo(res, codigo, () => {
       const u = Object.values(db.usuarios).find(x => x.login?.toLowerCase() === l || (x.email && x.email.toLowerCase() === l));
       if (!u || u.ativo === false || !u.salt || !safeEq(pbkdf2(senha, u.salt), u.hash)) return send(res, 401, { error: 'Login ou senha inválidos.' });
       u.ultimoAcesso = new Date().toISOString(); persist(); tentativas.delete(ip);
       return send(res, 200, { token: novaSessao(u.id), userId: u.id });
+      });
     }
     if (p === '/api/senha/esqueci' && req.method === 'POST') {
       if (limitarLogin('reset:' + ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
       if (!smtpOk()) return send(res, 503, { error: 'O envio de e-mail ainda não foi configurado. Fale com o administrador.' });
-      const { email, tipo } = await readJSON(req, 1e4);
+      const { email, tipo, codigo } = await readJSON(req, 1e4);
+      return naBaseDoCodigo(res, codigo, async () => {
       try { await pedirRedefinicao(req, tipo === 'cliente' ? 'cliente' : 'equipe', email); } catch (e) { console.error('[reset]', e.message); return send(res, 502, { error: 'Não foi possível enviar o e-mail agora. Tente de novo em alguns minutos.' }); }
       return send(res, 200, { ok: true });
+      });
     }
     if (p === '/api/senha/redefinir' && req.method === 'POST') {
       if (limitarLogin('reset2:' + ip)) return send(res, 429, { error: 'Muitas tentativas. Aguarde 15 minutos.' });
-      const { token, nova } = await readJSON(req, 1e4); const tipo = redefinirSenha(token, nova); return send(res, 200, { ok: true, tipo });
+      const { token, nova } = await readJSON(req, 1e4); const cod = String(token || '').includes('.') ? String(token).split('.')[0] : '';
+      return naBaseDoCodigo(res, cod, () => { const tipo = redefinirSenha(token, nova); return send(res, 200, { ok: true, tipo }); });
     }
     if (p.startsWith('/api/portal/')) return await rotaPortal(req, res, p, ip);
     const user = usuarioDa(req); if (!user) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' });
+    if (p === '/api/conta' && req.method === 'GET') { const c = controle.clientes[atual().codigo] || {}; return send(res, 200, { codigo: atual().codigo, nome: c.fantasia || c.razao || '', status: c.status || 'Ativo', demo: c.status === 'Demonstração', padrao: atual().codigo === TENANT_PADRAO }, { 'Cache-Control': 'no-store' }); }
     { const mA = p.match(/^\/api\/assinaturas\/([A-Za-z0-9_.:@+~-]{1,120})(\/pdf)?$/);
       if (mA) {
         const [, vid, pdf] = mA; const v = db.vendas[vid]; if (!v) return send(res, 404, { error: 'Venda não encontrada.' });
@@ -462,9 +677,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/backups' || p.startsWith('/api/backups/')) {
       if (user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores.' });
-      if (p === '/api/backups' && req.method === 'GET') { fs.mkdirSync(BK_DIR, { recursive: true }); const list = fs.readdirSync(BK_DIR).filter(x => x.endsWith('.json')).map(n => { const st = fs.statSync(path.join(BK_DIR, n)); return { nome: n, data: st.mtime.toISOString(), tamanho: st.size }; }).sort((a, b) => b.data.localeCompare(a.data)); return send(res, 200, { backups: list }); }
-      if (p === '/api/backups' && req.method === 'POST') { clearTimeout(saveTimer); fs.writeFileSync(DB_FILE, JSON.stringify(db)); return send(res, 200, { nome: backupAgora('-manual') }); }
-      const nome = decodeURIComponent(p.slice('/api/backups/'.length)); if (!/^db_[\w.-]+\.json$/.test(nome) || !fs.existsSync(path.join(BK_DIR, nome))) return send(res, 404, { error: 'Backup não encontrado.' });
+      if (p === '/api/backups' && req.method === 'GET') { const BK_DIR = atual().bkDir; fs.mkdirSync(BK_DIR, { recursive: true }); const list = fs.readdirSync(BK_DIR).filter(x => x.endsWith('.json')).map(n => { const st = fs.statSync(path.join(BK_DIR, n)); return { nome: n, data: st.mtime.toISOString(), tamanho: st.size }; }).sort((a, b) => b.data.localeCompare(a.data)); return send(res, 200, { backups: list }); }
+      if (p === '/api/backups' && req.method === 'POST') { gravarTenant(atual()); return send(res, 200, { nome: backupAgora('-manual') }); }
+      const nome = decodeURIComponent(p.slice('/api/backups/'.length)); const BK_DIR = atual().bkDir; if (!/^db_[\w.-]+\.json$/.test(nome) || !fs.existsSync(path.join(BK_DIR, nome))) return send(res, 404, { error: 'Backup não encontrado.' });
       return send(res, 200, fs.readFileSync(path.join(BK_DIR, nome)), { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="${nome}"` });
     }
     if (p === '/api/senha' && req.method === 'POST') { const { atual, nova } = await readJSON(req); if (!safeEq(pbkdf2(atual, user.salt), user.hash)) return send(res, 400, { error: 'Senha atual incorreta.' }); if (String(nova || '').length < 6) return send(res, 400, { error: 'A nova senha precisa ter 6 caracteres ou mais.' }); user.salt = crypto.randomBytes(16).toString('hex'); user.hash = pbkdf2(nova, user.salt); persist(); return send(res, 200, { ok: true }); }
@@ -473,6 +688,6 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/bb/baixar' && req.method === 'POST') { const { boletoId } = await readJSON(req); await baixarBoleto(boletoId); return send(res, 200, { ok: true }); }
     return send(res, 404, { error: 'Rota não encontrada.' });
   } catch (e) { console.error(new Date().toISOString(), p, e.message); return send(res, e.status || 500, { error: e.status ? e.message : 'Erro interno no servidor.' }); }
-});
+}
 server.listen(PORT, HOST, () => console.log(`TRAXUP Imobiliário em http://${HOST}:${PORT}  ·  dados em ${DATA_DIR}  ·  BB ${BB.ambiente}${BB.clientId ? '' : ' (sem credenciais)'}`));
-process.on('SIGTERM', () => { clearTimeout(saveTimer); fs.writeFileSync(DB_FILE, JSON.stringify(db)); try { fs.writeFileSync(SESS_FILE, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 }); } catch { } process.exit(0); });
+process.on('SIGTERM', () => { for (const t of tenants.values()) { try { gravarTenant(t); } catch (e) { console.error('[sigterm]', t.codigo, e.message); } } try { gravarControle(); } catch { } try { fs.writeFileSync(SESS_FILE, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 }); } catch { } process.exit(0); });

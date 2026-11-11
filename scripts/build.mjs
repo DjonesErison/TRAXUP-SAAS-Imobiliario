@@ -22,3 +22,17 @@ const html = `<!DOCTYPE html>
 fs.mkdirSync(path.join(root, 'public'), { recursive: true });
 fs.writeFileSync(path.join(root, 'public/index.html'), html);
 console.log('public/index.html', (html.length / 1024).toFixed(0) + ' KB');
+
+// Painel Gerencial (/painelgerencial)
+const gestao = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>Painel Gerencial — TRAXUP Imobiliário</title><link rel="icon" href="${icon}">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+<style>${r('src/gestao.css')}</style></head>
+<body><div style="min-height:100vh;display:grid;place-items:center;background:#0A2463"><div class="spin"></div></div>
+<script>const LOGO_H=${JSON.stringify(horiz)};</script>
+<script>${r('src/gestao.js')}</script>
+</body></html>`;
+fs.writeFileSync(path.join(root, 'public/gestao.html'), gestao);
+console.log('public/gestao.html', (gestao.length / 1024).toFixed(0) + ' KB');

@@ -171,10 +171,10 @@ async function importarTextoExtrato(txt, nome, filialId) {
 
 const FORMS = {
   async login(v) {
-    lembrar('traxup_ultimo_login', v.login, !!v.lembrar);
+    lembrar('traxup_ultimo_login', v.login, !!v.lembrar); lembrarCodigo(v);
     const login = norm(v.login).trim();
     if (Store.mode === 'server') {
-      const r = await fetch('api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: v.login, senha: v.senha }) }); const j = await r.json().catch(() => ({}));
+      const r = await fetch('api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: v.login, senha: v.senha, codigo: v.codigo || '' }) }); const j = await r.json().catch(() => ({}));
       if (!r.ok) return telaLogin(j.error || 'Login ou senha inválidos.'); Store.token = j.token; await Store.loadAll(); S.user = Store.get('usuarios', j.userId); return entrar();
     }
     const u = Store.list('usuarios').find(x => norm(x.login) === login || (x.email && norm(x.email) === login));
@@ -235,7 +235,7 @@ const FORMS = {
   async concManual(v, f) { const { e, t } = acharTx(f.dataset.tx); const [vid, pid] = v.alvo.split('|'); await conciliarTx(e, t, vid, pid); await Store.put('extratos', e); closeModal(); toast('Conciliado.'); renderView(); },
   async comissao(v, f) { const venda = Store.get('vendas', f.dataset.id); (venda.comissoesPagas ||= []).push({ valor: toCents(v.valor), data: v.data, obs: v.obs, usuario: S.user.nome }); hist(venda, `Comissão paga: ${brl(toCents(v.valor))}`); await Store.put('vendas', venda); closeModal(); toast('Pagamento de comissão registrado.'); renderView(); },
   async emailTeste(v) { const r = await fetch('api/email/teste', { method: 'POST', headers: { 'Content-Type': 'application/json', ...Store.authH() }, body: JSON.stringify({ para: v.para }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Falha no envio.'); toast('E-mail de teste enviado para ' + v.para + '.'); },
-  async esqueci(v, f) { const r = await fetch('/api/senha/esqueci', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: v.email, tipo: f.dataset.modo }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Não foi possível enviar agora.'); telaEsqueci(f.dataset.modo, v.email); },
+  async esqueci(v, f) { const r = await fetch('/api/senha/esqueci', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: v.email, tipo: f.dataset.modo, codigo: v.codigo || '' }) }); lembrarCodigo(v); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Não foi possível enviar agora.'); telaEsqueci(f.dataset.modo, v.email); },
   async redefinir(v, f) { if (v.nova !== v.nova2) throw Error('As duas senhas não são iguais.'); if (v.nova.length < 6) throw Error('A senha precisa ter 6 caracteres ou mais.'); const r = await fetch('/api/senha/redefinir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: f.dataset.t, nova: v.nova }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return telaRedefinir(f.dataset.modo, f.dataset.t, j.error || 'Não foi possível salvar.'); telaSenhaRedefinida(f.dataset.modo); },
   async portalAcesso(v, f) { const r = await fetch('api/portal-admin/acesso', { method: 'POST', headers: { 'Content-Type': 'application/json', ...Store.authH() }, body: JSON.stringify({ clienteId: f.dataset.id, email: v.email, senha: v.senha, ativo: !!v.ativo }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Não foi possível salvar.'); closeModal(); toast('Acesso ao painel salvo.'); },
   async hook(v, f) { if (!/^https:\/\/(discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+/.test(v.url.trim())) throw Error('URL de webhook do Discord inválida.'); const h = Store.get('webhooks', f.dataset.id) || {}; Object.assign(h, { nome: v.nome, filialId: v.filialId, url: v.url.trim(), avisosPortal: !!v.avisosPortal }); await Store.put('webhooks', h); closeModal(); toast('Canal salvo.'); renderView(); },
