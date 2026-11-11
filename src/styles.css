@@ -344,3 +344,16 @@ body.dark .eyebrow{color:#7FA6FF}
 }
 @media print{aside,.topbar,.noPrint{display:none!important}main{margin:0;width:100%}}
 .nw{white-space:nowrap}
+
+.stTabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.stTab{all:unset;box-sizing:border-box;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden;transition:.15s;min-width:0}
+.stTab::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--line)}
+.stTab.bl::before{background:var(--blue)}.stTab.rd::before{background:#dc2626}.stTab.gr::before{background:#16a34a}
+.stTab span{display:block;font-size:13px;font-weight:600;color:var(--muted)}
+.stTab strong{display:block;font-size:18px;margin:7px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.3px}
+.stTab small{display:block;font-size:11.5px;color:var(--muted)}
+.stTab:hover{border-color:var(--blue);transform:translateY(-1px)}
+.stTab.on{background:var(--blue);border-color:var(--blue);box-shadow:0 6px 18px rgba(29,78,216,.28)}
+.stTab.on span,.stTab.on small,.stTab.on strong{color:#fff}
+.stTab.on::before{background:var(--orange)}
+@media(max-width:1200px){.stTabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
