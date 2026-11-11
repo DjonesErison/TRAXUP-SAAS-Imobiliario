@@ -44,7 +44,7 @@ function extenso(cents) {
 }
 
 /* ---------- armazenamento (3 modos: servidor próprio, base do artefato, navegador) ---------- */
-const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes'];
+const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes'];
 const Store = {
   mode: 'local', data: {}, db: null, token: null, downloads: null, queue: {},
   async init() {

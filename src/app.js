@@ -3,7 +3,7 @@
 
 const S = { user: null, filial: '*', view: 'painel', f: {}, sel: {}, busy: false };
 const ICON = {
-  key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0', key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zm0 0v14m6-12v14', layers: 'm12 3 9 5-9 5-9-5 9-5zm-9 9 9 5 9-5M3 16l9 5 9-5',
   users: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8', file: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zm0 0v6h6M8 13h8M8 17h6',
   wallet: 'M3 7h18v12H3zM3 7l3-4h12l3 4M16 13h2', alert: 'M12 3 2 20h20L12 3zm0 6v5m0 3v.5', barcode: 'M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14', bank: 'M3 10h18M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18M12 3l9 5H3l9-5z',
@@ -82,7 +82,7 @@ async function entrar() {
   try { sessionStorage.setItem('traxup_sess', JSON.stringify({ userId: S.user.id, token: Store.token })); } catch (e) { }
   const fs = filiaisUsuario(); S.filial = fs.length === 1 ? fs[0].id : '*';
   const h = (location.hash || '').slice(1); S.view = TITULOS[h] && pode(S.user, h) ? h : (pode(S.user, 'painel') ? 'painel' : 'mapa');
-  render();
+  render(); buscarNotificacoes(false);
 }
 function sair() { try { sessionStorage.removeItem('traxup_sess'); } catch (e) { } if (Store.mode === 'server' && Store.token) fetch('api/logout', { method: 'POST', headers: Store.authH() }).catch(() => { }); Store.token = null; S.user = null; telaLogin(); }
 
@@ -94,7 +94,7 @@ function render() {
   $('#app').innerHTML = `<div class="shell"><aside><div class="brand">${LOGO_MARK}<div><div class="brandText">TRAX<b>UP</b></div><div class="brandSub">IMOBILIÁRIO</div></div></div><div class="brandLine"></div><nav>${nav}</nav><div class="asideFoot">Tecnologia que impulsiona negócios<br>${esc(Store.label())}</div></aside>
   <main><div class="topbar"><button class="menuToggle ghost" data-act="toggleNav">${ic('menu')}</button><div class="title"><div class="eyebrow">TRAXUP / ${esc(TITULOS[S.view] || '')}</div><h1>${esc(TITULOS[S.view] || '')}</h1></div>
   <div class="filialPick">Empresa ${fs.length > 1 ? `<select id="filialSel">${opt('*', 'Todas as empresas', S.filial)}${fs.map(f => opt(f.id, f.nome, S.filial)).join('')}</select>` : `<b style="padding:6px 8px;color:var(--text)">${esc(fs[0]?.nome || '—')}</b>`}</div>
-  ${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
+  ${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}${sinoHTML()}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
   <div class="content" id="content"></div></main></div>`;
   renderView();
 }
@@ -657,6 +657,42 @@ function verBoleto(id) {
   <div style="border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto">${htmlBoleto(b)}</div></div>`, 'wide');
 }
 function docBoleto(b) { return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Boleto ${esc(b.nossoNumero)}</title><style>${$('#appStyles').textContent}body{background:#fff;padding:20px}</style></head><body>${htmlBoleto(b)}</body></html>`; }
+
+/* ---------- Notificações (sininho) ---------- */
+const NOT_ICONE = { boleto: 'barcode', acesso: 'user', senha: 'key' };
+const verNotificacoes = () => podePortal() || ['Administrador', 'Gerente', 'Financeiro'].includes(S.user?.perfil);
+const notifsVisiveis = () => { const fs = new Set(filiaisUsuario().map(f => f.id)); return Store.list('notificacoes').filter(n => !n.filialId || fs.has(n.filialId)).sort((a, b) => (b.criadoEm || '').localeCompare(a.criadoEm || '')); };
+const naoLidas = () => notifsVisiveis().filter(n => !n.lida);
+function sinoHTML() {
+  if (!verNotificacoes()) return '';
+  const n = naoLidas().length;
+  return `<div class="sinoWrap"><button class="themeBtn sino ${n ? 'tem' : ''}" data-act="sino" title="Notificações" aria-label="Notificações">${ic('bell')}${n ? `<span class="sinoBadge">${n > 99 ? '99+' : n}</span>` : ''}</button></div>`;
+}
+const quando = iso => { const d = (Date.now() - new Date(iso)) / 60e3; return d < 1 ? 'agora' : d < 60 ? `há ${Math.floor(d)} min` : d < 1440 ? `há ${Math.floor(d / 60)} h` : new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+function abrirSino() {
+  fecharSino(); const lista = notifsVisiveis().slice(0, 30); const n = lista.filter(x => !x.lida).length;
+  const box = document.createElement('div'); box.className = 'sinoPanel'; box.id = 'sinoPanel';
+  box.innerHTML = `<div class="sinoHead"><div><b>Notificações</b><small>${n ? n + ' não lida' + (n > 1 ? 's' : '') : 'Tudo em dia'}</small></div>${n ? '<button class="sm ghost" data-act="sinoLerTodas">Marcar todas como lidas</button>' : ''}</div>
+  <div class="sinoList">${lista.map(x => `<button class="sinoItem ${x.lida ? '' : 'nova'}" data-act="sinoAbrir" data-id="${x.id}"><span class="sinoIc t-${esc(x.tipo)}">${ic(NOT_ICONE[x.tipo] || 'bell')}</span><span class="sinoTxt"><b>${esc(x.clienteNome || 'Cliente')}</b> ${esc(x.texto)}${x.obs ? `<em>“${esc(x.obs)}”</em>` : ''}<small>${quando(x.criadoEm)}</small></span>${x.lida ? '' : '<i class="sinoDot"></i>'}</button>`).join('') || '<div class="sinoVazio">Nenhuma notificação ainda. Quando um cliente pedir boleto ou acessar o painel, aparece aqui.</div>'}</div>`;
+  $('.sinoWrap').append(box);
+}
+function fecharSino() { $('#sinoPanel')?.remove(); }
+function atualizarSino() { const w = $('.sinoWrap'); if (!w) return; const aberto = !!$('#sinoPanel'); w.outerHTML = sinoHTML(); if (aberto) abrirSino(); }
+async function buscarNotificacoes(avisar = true) {
+  if (Store.mode !== 'server' || !S.user || !verNotificacoes()) return;
+  try {
+    const r = await fetch('api/notificacoes', { headers: Store.authH(), cache: 'no-store' }); if (!r.ok) return; const j = await r.json();
+    const antes = new Set(Store.list('notificacoes').map(x => x.id));
+    Store.data.notificacoes = {}; for (const x of j.notificacoes) Store.data.notificacoes[x.id] = x;
+    for (const x of j.solicitacoes) Store.data.solicitacoes[x.id] = x;
+    const novas = notifsVisiveis().filter(x => !x.lida && !antes.has(x.id));
+    if (avisar && novas.length) { toast(novas.length === 1 ? `🔔 ${novas[0].clienteNome} ${novas[0].texto}` : `🔔 ${novas.length} novas notificações do painel do cliente`); if (S.view === 'boletos' && novas.some(x => x.tipo === 'boleto')) renderView(); }
+    atualizarSino();
+  } catch (e) { /* sem conexão: tenta na próxima */ }
+}
+setInterval(() => { if (!document.hidden) buscarNotificacoes(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) buscarNotificacoes(); });
+document.addEventListener('click', e => { if ($('#sinoPanel') && !e.target.closest('.sinoWrap')) fecharSino(); });
 
 /* ---------- Painel do cliente: acesso (equipe) ---------- */
 const podePortal = () => Store.mode === 'server' && ['Administrador', 'Gerente', 'Financeiro'].includes(S.user?.perfil);
