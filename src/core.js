@@ -114,8 +114,8 @@ async function hashSenha(senha, saltHex) {
 }
 const PERFIS = {
   'Administrador': ['*'],
-  'Gerente': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
-  'Financeiro': ['painel', 'clientes', 'vendas', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
+  'Gerente': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
+  'Financeiro': ['painel', 'clientes', 'vendas', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
   'Comercial': ['painel', 'mapa', 'lotes', 'clientes', 'vendas', 'modelos', 'discord', 'config'],
   'Corretor': ['mapa', 'lotes', 'clientes', 'config']
 };

@@ -106,6 +106,18 @@ const ACT = {
     ${vendidos.length ? `<p class="hint">Lotes com venda não podem ser apagados${outros.length ? '; mova-os para outro empreendimento' : '. Cadastre outro empreendimento nesta empresa para movê-los'}.</p>` : `<label class="check"><input type="radio" name="acao" value="apagar" ${outros.length ? '' : 'checked'}> Apagar também os ${ls.length} lote(s) (nenhum tem venda)</label>`}</div>
     <div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="danger" ${!outros.length && vendidos.length ? 'disabled' : ''}>Excluir empreendimento</button></div></form>`, 'narrow');
   },
+  corrigirCadastro: el => formCorrigirCadastro(el.dataset.id),
+  corrigirTotais: el => formCorrigirTotais(el.dataset.id),
+  lancarParcelas: el => formLancarParcelas(el.dataset.id),
+  historicoLote: el => { const l = Store.get('lotes', el.dataset.id); const vs = Store.list('vendas').filter(v => v.loteId === l.id); const itens = [...(l.historico || []).map(h => ({ ...h, de: 'Lote' })), ...vs.flatMap(v => (v.historico || []).map(h => ({ ...h, de: v.numero + (v.status === 'Distratado' ? ' (distratada)' : '') })))].sort((a, b) => String(b.data).localeCompare(String(a.data)));
+    modal(`${mHead(nomeFilial(l.filialId), 'Histórico — ' + l.quadra + '-' + l.numero)}<div class="modalBody">${itens.length ? `<div class="tableWrap" style="max-height:480px;overflow:auto"><table><thead><tr><th>Data</th><th>Origem</th><th>Usuário</th><th>Alteração</th></tr></thead><tbody>${itens.map(h => `<tr><td style="white-space:nowrap">${h.data && h.data.length > 10 ? new Date(h.data).toLocaleString('pt-BR') : dataBR(h.data)}</td><td>${esc(h.de)}</td><td>${esc(h.usuario || '')}</td><td>${esc(h.acao)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Sem histórico registrado.</div>'}</div>`, 'wide'); },
+  excluirCadastro: el => { const l = Store.get('lotes', el.dataset.id); const v = Store.list('vendas').find(x => x.loteId === l.id && vendaAtiva(x)); const pag = v ? soma(v.parcelas || [], pagoParcela) : 0;
+    modal(`${mHead('Excluir cadastro', l.quadra + '-' + l.numero + ' · ' + nomeFilial(l.filialId))}<form class="modalBody" data-form="excluirCadastro" data-id="${l.id}" data-v="${v?.id || ''}">${v ? `<div class="notice bad">Este lote tem a venda <b>${esc(v.numero)}</b> de <b>${esc(cliNome(v.clienteId))}</b>, com ${(v.parcelas || []).length} parcelas${pag ? ` e <b>${brl(pag)}</b> já recebidos` : ''}. Excluir apaga a venda, as parcelas, os pagamentos e os boletos dela, e o lote volta a ficar disponível. Para cancelar mantendo o histórico, use <b>Distratar</b>.</div>
+    <label class="check"><input type="radio" name="o" value="venda" checked> Excluir só a venda (o lote continua cadastrado, disponível)</label><label class="check" style="margin-top:6px"><input type="radio" name="o" value="tudo"> Excluir a venda e também o lote</label>` : `<div class="notice warn">O lote será excluído definitivamente.</div><input type="hidden" name="o" value="lote">`}
+    <label style="margin-top:12px">Para confirmar, digite <b>EXCLUIR</b><input name="conf" autocomplete="off" required></label><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="danger">Excluir definitivamente</button></div></form>`); },
+  custosExcel: async () => { const rows = linhasCustos(); await salvarArquivo(`custo_venda_lucro_${hoje()}.xls`, '﻿' + docCustos(rows), 'application/vnd.ms-excel'); },
+  custosPdf: async () => { const html = docCustos(linhasCustos()); if (Store.mode !== 'db') { const w = window.open('', '_blank'); if (w) { w.document.write(html + '<script>setTimeout(()=>print(),300)<\/script>'); w.document.close(); return; } } await salvarArquivo(`custo_venda_lucro_${hoje()}.html`, html, 'text/html'); },
+  importarCustos: () => modal(`${mHead('Custo, venda e lucro', 'Importar custos dos lotes')}<form class="modalBody" data-form="importarCustos"><p class="hint">Arquivo CSV com as colunas <b>empresa;lote;custo</b> (ex.: <code class="k">Busca;B-10;57059,59</code>). O lote é localizado pela empresa e por quadra-número. Custos existentes são substituídos.</p><label style="margin-top:12px">Arquivo (.csv)<input type="file" name="arq" accept=".csv,.txt" required></label><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Importar</button></div></form>`, 'narrow'),
   cfgBoleto: el => formCobranca(el.dataset.id),
   verFilial: el => { S.filial = el.dataset.id; S.emp = ''; render(); },
   verEmp: el => { S.emp = el.dataset.id; renderView(); },
@@ -214,6 +226,42 @@ const FORMS = {
     else throw Error('Escolha o que fazer com os lotes.');
     await Store.del('empreendimentos', e.id); if (Store.get('plantas', e.id)) await Store.del('plantas', e.id);
     await audit(`Excluiu empreendimento ${e.nome} (${ls.length} lotes ${v.acao === 'mover' ? 'movidos' : 'apagados'})`); closeModal(); toast('Empreendimento excluído.'); S.emp = ''; render();
+  },
+  async corrigirCadastro(v, f) {
+    const l = Store.get('lotes', f.dataset.id); const antes = `${l.quadra}-${l.numero} preço ${brl(l.preco)} custo ${l.custo ? brl(l.custo) : '—'}`;
+    Object.assign(l, { quadra: v.quadra.trim().toUpperCase(), numero: v.numero.trim(), area: v.area, status: v.status, preco: toCents(v.preco), matricula: v.matricula }); if (v.custo.trim()) l.custo = toCents(v.custo); else delete l.custo;
+    (l.historico ||= []).push({ data: new Date().toISOString(), usuario: S.user.nome, acao: `Lote corrigido (${antes} → ${l.quadra}-${l.numero} preço ${brl(l.preco)} custo ${l.custo ? brl(l.custo) : '—'}). Motivo: ${v.motivo}` }); await Store.put('lotes', l);
+    if (f.dataset.v) { const vd = Store.get('vendas', f.dataset.v); const mud = []; const nv = toCents(v.valor); if (nv !== vd.valor) mud.push(`valor ${brl(vd.valor)} → ${brl(nv)}`); if (v.clienteId !== vd.clienteId) mud.push(`cliente ${cliNome(vd.clienteId)} → ${cliNome(v.clienteId)}`); if ((v.data || '') !== (vd.data || '')) mud.push(`data ${dataBR(vd.data)} → ${dataBR(v.data)}`); if ((v.corretor || '') !== (vd.corretor || '')) mud.push(`corretor ${vd.corretor || '—'} → ${v.corretor || '—'}`);
+      Object.assign(vd, { valor: nv, clienteId: v.clienteId, data: v.data, corretor: v.corretor.trim(), comissaoPct: parseFloat(String(v.comissaoPct).replace(',', '.')) || 0, reajuste: v.reajuste }); hist(vd, `Cadastro corrigido${mud.length ? ': ' + mud.join('; ') : ''}. Motivo: ${v.motivo}`); await Store.put('vendas', vd); }
+    await audit(`Corrigiu cadastro ${l.quadra}-${l.numero} (${nomeFilial(l.filialId)})`); closeModal(); toast('Cadastro corrigido.'); renderView();
+  },
+  async corrigirTotais(v, f) {
+    const vd = Store.get('vendas', f.dataset.id); const mud = [];
+    for (const t of ['Entrada', 'Mensal', 'Intercalada', 'Avulsa']) { const k = 't_' + t; if (!(k in v)) continue; const novo = toCents(v[k]); const ps = vd.parcelas.filter(p => p.tipo === t); const atual = soma(ps, p => p.valor); if (novo === atual) continue;
+      const abertas = ps.filter(p => !pagoParcela(p)).sort((a, b) => a.venc.localeCompare(b.venc)); if (!abertas.length) throw Error(`${t}: não há parcelas sem baixa para redistribuir.`);
+      const alvo = novo - soma(ps.filter(p => pagoParcela(p) > 0), p => p.valor); if (alvo < 0) throw Error(`${t}: o novo total é menor que o já recebido nas parcelas com baixa.`);
+      const reg = Math.floor(alvo / abertas.length); abertas.forEach((p, i) => { p.valor = i === abertas.length - 1 ? alvo - reg * (abertas.length - 1) : reg; }); mud.push(`${t}: ${brl(atual)} → ${brl(novo)}`); }
+    if (!mud.length) throw Error('Nenhum total foi alterado.');
+    hist(vd, `Totais das parcelas corrigidos (${mud.join('; ')}). Motivo: ${v.motivo}`); await Store.put('vendas', vd); await audit(`Corrigiu totais das parcelas de ${vd.numero}`); closeModal(); toast('Totais corrigidos.'); renderView();
+  },
+  async lancarParcelas(v, f) {
+    const vd = Store.get('vendas', f.dataset.id); const q = Math.round(+v.qtd), t = toCents(v.total); if (!(q > 0) || t <= 0) throw Error('Informe quantidade e valor total.');
+    const doTipo = vd.parcelas.filter(p => p.tipo === v.tipo).length; const novas = serieParcelas(v.tipo, t, q, v.venc, +v.int || 1); const n0 = doTipo; novas.forEach((p, i) => { p.ref = `${n0 + i + 1}/${n0 + q}`; });
+    for (const p of vd.parcelas.filter(p => p.tipo === v.tipo)) { const m = String(p.ref).match(/^(\d+)\/\d+$/); if (m) p.ref = `${m[1]}/${n0 + q}`; }
+    vd.parcelas.push(...novas); hist(vd, `${q} parcela(s) ${v.tipo} lançada(s), total ${brl(t)}, a partir de ${dataBR(v.venc)}. Motivo: ${v.motivo}`); await Store.put('vendas', vd); await audit(`Lançou ${q} parcelas em ${vd.numero}`); closeModal(); toast(`${q} parcela(s) lançada(s).`); renderView();
+  },
+  async excluirCadastro(v, f) {
+    if (v.conf.trim().toUpperCase() !== 'EXCLUIR') throw Error('Digite EXCLUIR para confirmar.'); const l = Store.get('lotes', f.dataset.id); const vd = f.dataset.v ? Store.get('vendas', f.dataset.v) : null;
+    if (vd) { for (const b of Store.list('boletos').filter(b => b.vendaId === vd.id)) await Store.del('boletos', b.id); await Store.del('vendas', vd.id); }
+    if (v.o === 'tudo' || v.o === 'lote') { await Store.del('lotes', l.id); } else { l.status = 'Disponível'; (l.historico ||= []).push({ data: new Date().toISOString(), usuario: S.user.nome, acao: `Venda ${vd?.numero} excluída; lote liberado` }); await Store.put('lotes', l); }
+    await audit(`Excluiu cadastro ${l.quadra}-${l.numero} (${nomeFilial(l.filialId)})${vd ? ' com a venda ' + vd.numero : ''}`); closeModal(); toast('Cadastro excluído.'); renderView();
+  },
+  async importarCustos(v, f) {
+    const file = f.arq.files[0]; if (!file) throw Error('Selecione o arquivo.'); const linhas = (await file.text()).split(/\r?\n/).map(x => x.trim()).filter(Boolean); let ok = 0; const nao = [];
+    for (const ln of linhas) { const c = ln.split(/[;\t]/).map(x => x.trim().replace(/^"|"$/g, '')); if (c.length < 3 || /empresa/i.test(c[0])) continue; const m = c[1].toUpperCase().match(/^([A-Z]+)\s*-?\s*0*(\d+\w*)$/); const fil = Store.list('filiais').find(x => norm(x.nome) === norm(c[0]));
+      const l = m && fil && Store.list('lotes').find(x => x.filialId === fil.id && norm(x.quadra) === norm(m[1]) && String(x.numero).replace(/^0+/, '') === m[2]); if (!l) { nao.push(c[0] + ' ' + c[1]); continue; }
+      const custo = toCents(c[2]); if (l.custo !== custo) { (l.historico ||= []).push({ data: new Date().toISOString(), usuario: S.user.nome, acao: `Custo importado: ${l.custo ? brl(l.custo) : '—'} → ${brl(custo)}` }); l.custo = custo; await Store.put('lotes', l); } ok++; }
+    await audit(`Importou custos de ${ok} lotes`); closeModal(); toast(`${ok} custo(s) importado(s)${nao.length ? `; não encontrados: ${nao.slice(0, 5).join(', ')}${nao.length > 5 ? '…' : ''}` : ''}.`, !!nao.length); renderView();
   },
   async cobranca(v, f) {
     const fl = Store.get('filiais', f.dataset.id); const num = k => { const n = parseFloat(String(v[k] ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : 0; };
