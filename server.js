@@ -37,7 +37,9 @@ let db = {}; try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch { 
 for (const c of COLS) db[c] ||= {};
 let saveTimer = null;
 function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { const tmp = DB_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(db)); fs.renameSync(tmp, DB_FILE); }, 150); }
-function backupDiario() { const dir = path.join(DATA_DIR, 'backups'); fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, `db_${new Date().toISOString().slice(0, 10)}.json`); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(db)); const all = fs.readdirSync(dir).filter(x => x.endsWith('.json')).sort(); for (const old of all.slice(0, -30)) fs.unlinkSync(path.join(dir, old)); }
+const BK_DIR = path.join(DATA_DIR, 'backups');
+function backupAgora(sufixo = '') { fs.mkdirSync(BK_DIR, { recursive: true }); const nome = `db_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}${sufixo}.json`; fs.writeFileSync(path.join(BK_DIR, nome), JSON.stringify(db)); return nome; }
+function backupDiario() { const dir = BK_DIR; fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, `db_${new Date().toISOString().slice(0, 10)}.json`); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(db)); const all = fs.readdirSync(dir).filter(x => /^db_\d{4}-\d{2}-\d{2}\.json$/.test(x)).sort(); for (const old of all.slice(0, -30)) fs.unlinkSync(path.join(dir, old)); const man = fs.readdirSync(dir).filter(x => /^db_.*-manual\.json$/.test(x)).sort(); for (const old of man.slice(0, -20)) fs.unlinkSync(path.join(dir, old)); }
 setInterval(backupDiario, 3600e3).unref(); backupDiario();
 
 /* ---------- sessões ---------- */
@@ -160,6 +162,13 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'DELETE') { if (col === 'usuarios' && id === user.id) return send(res, 400, { error: 'Você não pode excluir o próprio usuário.' }); delete db[col][id]; persist(); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: 'Método não permitido.' });
+    }
+    if (p === '/api/backups' || p.startsWith('/api/backups/')) {
+      if (user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores.' });
+      if (p === '/api/backups' && req.method === 'GET') { fs.mkdirSync(BK_DIR, { recursive: true }); const list = fs.readdirSync(BK_DIR).filter(x => x.endsWith('.json')).map(n => { const st = fs.statSync(path.join(BK_DIR, n)); return { nome: n, data: st.mtime.toISOString(), tamanho: st.size }; }).sort((a, b) => b.data.localeCompare(a.data)); return send(res, 200, { backups: list }); }
+      if (p === '/api/backups' && req.method === 'POST') { clearTimeout(saveTimer); fs.writeFileSync(DB_FILE, JSON.stringify(db)); return send(res, 200, { nome: backupAgora('-manual') }); }
+      const nome = decodeURIComponent(p.slice('/api/backups/'.length)); if (!/^db_[\w.-]+\.json$/.test(nome) || !fs.existsSync(path.join(BK_DIR, nome))) return send(res, 404, { error: 'Backup não encontrado.' });
+      return send(res, 200, fs.readFileSync(path.join(BK_DIR, nome)), { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="${nome}"` });
     }
     if (p === '/api/senha' && req.method === 'POST') { const { atual, nova } = await readJSON(req); if (!safeEq(pbkdf2(atual, user.salt), user.hash)) return send(res, 400, { error: 'Senha atual incorreta.' }); if (String(nova || '').length < 6) return send(res, 400, { error: 'A nova senha precisa ter 6 caracteres ou mais.' }); user.salt = crypto.randomBytes(16).toString('hex'); user.hash = pbkdf2(nova, user.salt); persist(); return send(res, 200, { ok: true }); }
     if (p === '/api/discord' && req.method === 'POST') { const { webhookId, content } = await readJSON(req); await enviarDiscord(webhookId, content); return send(res, 200, { ok: true }); }
