@@ -451,3 +451,4 @@ body.dark .sinoItem.nova{background:rgba(80,130,255,.1)}
 .lgFeat{gap:15px}.lgHero h2{font-size:clamp(32px,3.9vw,54px)}
 .lgOkIc{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;background:rgba(60,123,255,.16);color:#7FB0FF}.lgOkIc svg{width:28px;height:28px}.lgOkIc.ok{background:rgba(22,163,74,.18);color:#4FD69C}
 .lgDica{background:#0B1222;border:1px solid #26324A;border-radius:10px;padding:12px 14px;color:#9AA8C3;font-size:13.5px;line-height:1.5}.lgDica b{color:#D5DDEB}
+body.dark .lg .loginCard,.lg .loginCard{background:transparent!important;box-shadow:none!important;border:0!important}

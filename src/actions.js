@@ -95,7 +95,7 @@ const ACT = {
   sino: () => $('#sinoPanel') ? fecharSino() : abrirSino(),
   sinoLerTodas: async () => { const ns = naoLidas(); for (const n of ns) { n.lida = true; n.lidaPor = S.user.nome; } atualizarSino(); await Promise.all(ns.map(n => Store.put('notificacoes', n))); },
   sinoAbrir: async el => { const n = Store.get('notificacoes', el.dataset.id); fecharSino(); if (n && !n.lida) { n.lida = true; n.lidaPor = S.user.nome; Store.put('notificacoes', n).catch(() => { }); } const destino = n?.tipo === 'boleto' && pode(S.user, 'boletos') ? 'boletos' : 'clientes'; if (destino === 'clientes') S.f.cq = n?.clienteNome || ''; S.view = destino; render(); },
-  esqueciSenha: el => { if (!emailAtivo()) return toast(el.dataset.msg || 'Fale com o administrador para redefinir a sua senha.'); telaEsqueci(el.dataset.modo || 'equipe'); },
+  esqueciSenha: async el => { if (!Store.serverStatus) { try { const r = await fetch('/api/status', { cache: 'no-store' }); if (r.ok) Store.serverStatus = await r.json(); } catch (e) { } } if (!emailAtivo()) return toast(el.dataset.msg || 'Fale com o administrador para redefinir a sua senha.'); telaEsqueci(el.dataset.modo || 'equipe'); },
   voltarLogin: () => telaLogin(),
   verSenha: el => { const i = el.parentElement.querySelector('input'); const ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; el.classList.toggle('on', ver); el.title = ver ? 'Ocultar senha' : 'Mostrar senha'; i.focus(); },
   pstSet: el => { S.f.pst = el.dataset.st; renderView(); },
