@@ -158,6 +158,8 @@ tfoot td{font-weight:700;background:var(--surface-2)}
 .empSub button.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:inset 0 -2px 0 var(--orange)}
 .empSub button.on .icon{color:var(--orange-2)}
 /* gráficos do painel */
+.bigNum{font-family:var(--title);font-weight:800;font-size:30px;letter-spacing:-.5px;margin-top:4px}
+.previsao .vLabels span{font-size:11.5px;white-space:nowrap}
 .previsao .vBar i{background:linear-gradient(180deg,#FFD27A,var(--orange-2))}.previsao .vBar.on i{background:linear-gradient(180deg,var(--blue-2),var(--blue));box-shadow:0 4px 14px rgba(18,70,178,.35)}.previsao .vLabels .on{color:var(--blue)}
 
 .vchart{display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
@@ -815,6 +817,7 @@ VIEWS.painel = () => {
    <div class="kpi"><span>Boletos em aberto</span><strong>${bolAbertos.length}</strong><small>${brl(soma(bolAbertos, b => b.valor))}${P.ativo ? ' · vencimento no período' : ''}</small></div>
    <div class="kpi"><span>Inadimplência</span><strong class="${nInad ? 'red' : ''}">${nInad}</strong><small>contratos com 3+ parcelas vencidas${P.ativo ? ' (no período)' : ''}</small></div></div>
   <div class="two">${graf}${rosca}</div>
+  ${proximos12(ps)}
   ${resultadosPorEmpresa(todas, lotes)}${comissoesPorEmpresa(vendasPer)}
   <div class="two"><div class="card"><div class="cardHead"><div><h2>Maiores saldos vencidos</h2>${P.ativo ? `<p>Parcelas vencidas em ${esc(P.label)}</p>` : ''}</div><button class="sm" data-act="go" data-v="inadimplencia">Ver inadimplência</button></div><div class="cardBody">${devedores.length ? `<div class="list">${devedores.map(x => `<div class="listRow"><span><b>${esc(cliNome(x.v.clienteId))}</b><br><small class="muted">${esc(loteDesc(x.v.loteId))} · ${x.n} parcela(s)</small></span><b class="red">${brl(x.val)}</b></div>`).join('')}</div>` : '<div class="empty">Nenhum saldo vencido. 🎉</div>'}</div></div>
   <div class="card"><div class="cardHead"><h2>Vencem nos próximos 7 dias</h2></div><div class="cardBody">${prox.length ? `<div class="list">${prox.map(x => `<div class="listRow"><span>${esc(cliNome(x.v.clienteId))}<br><small class="muted">${esc(x.p.tipo)} ${esc(x.p.ref)} · ${dataBR(x.p.venc)}</small></span><b>${brl(saldoParcela(x.p))}</b></div>`).join('')}</div>` : '<div class="empty">Nada vencendo nesta semana.</div>'}</div></div></div>`;
@@ -842,6 +845,20 @@ function graficoRecebimentos(ps) {
   return `<div class="card chartCard ${futuro ? 'previsao' : ''}"><div class="cardHead"><div><h2>${futuro ? 'Previsão de recebimento por mês' : 'Recebimentos por mês'}</h2><p>${futuro ? `A receber em ${ano}` : `Total recebido em ${ano}`}: <b>${brl(totalAno)}</b>${P.ano ? '' : ' · escolha outro ano no Período'}</p></div><button class="sm" data-act="recDetalhes" data-ini="${ini}" data-fim="${fim}" data-prev="${futuro ? 1 : ''}">Ver detalhes</button></div>
   <div class="cardBody"><div class="vchart"><div class="vAxis">${ticks.map(t => `<span>${intBR(t)}</span>`).join('')}</div><div class="vPlot" style="height:${H}px">${ticks.map((t, i) => `<i class="vGrid" style="top:${i / 4 * 100}%"></i>`).join('')}<div class="vBars">${porMes.map((m, i) => `<button class="vBar ${i + 1 === mes ? 'on' : ''} ${ano === anoAtual && i + 1 === mesAtual ? 'now' : ''}" data-act="recMes" data-m="${i + 1}" data-a="${ano}" title="${MES_CURTO[i]}/${ano}: ${brl(m.total)} — clique para filtrar o painel por este mês"><i style="height:${m.total / 100 / top * 100}%"></i></button>`).join('')}</div></div><div></div><div class="vLabels">${MES_CURTO.map((n, i) => `<span class="${i + 1 === mes ? 'on' : ''}">${n}</span>`).join('')}</div></div>
   <div class="mesBox"><h3>${nomeMes} de ${ano}${futuro ? ' · previsão' : ''}</h3><div class="mesGrid"><div><span>${futuro ? 'Total a receber' : 'Total recebido'}</span><b>${brl(sel.total)}</b></div><div><span>Entrada</span><b>${brl(sel.Entrada)}</b></div><div><span>Mensal</span><b>${brl(sel.Mensal)}</b></div><div><span>Intercalada</span><b>${brl(sel.Intercalada)}</b></div>${sel.Avulsa ? `<div><span>Avulsa</span><b>${brl(sel.Avulsa)}</b></div>` : ''}</div><small class="muted">${sel.n} ${futuro ? 'parcela(s) a vencer' : 'pagamento(s) registrados'} no mês · clique numa barra para filtrar o painel pelo mês</small></div></div></div>`;
+}
+function proximos12(ps) {
+  const base = hoje().slice(0, 7) + '-01'; const meses = Array.from({ length: 12 }, (_, i) => addMeses(base, i).slice(0, 7));
+  const abertas = ps.filter(x => saldoParcela(x.p) > 0);
+  const porMes = meses.map(m => { const it = abertas.filter(x => x.p.venc.startsWith(m)); const t = tp => soma(it.filter(x => x.p.tipo === tp), x => saldoParcela(x.p)); return { m, total: soma(it, x => saldoParcela(x.p)), Entrada: t('Entrada'), Mensal: t('Mensal'), Intercalada: t('Intercalada'), Avulsa: t('Avulsa'), n: it.length }; });
+  const idx = Math.min(11, Math.max(0, +S.f.p12 || 0)); const sel = porMes[idx]; const total = soma(porMes, m => m.total);
+  const { top, step } = escalaBonita(Math.max(...porMes.map(m => m.total)) / 100); const ticks = [4, 3, 2, 1, 0].map(k => k * step);
+  const rot = m => `${MES_CURTO[+m.slice(5) - 1].toLowerCase()}. de ${m.slice(2, 4)}`;
+  const ini = sel.m + '-01', fim = addDias(addMeses(ini, 1), -1);
+  return `<div class="card chartCard previsao"><div class="cardHead"><div><h2>Próximos 12 meses a receber</h2><p>Saldo das parcelas futuras cadastradas</p></div><button class="sm" data-act="recDetalhes" data-prev="1" data-ini="${ini}" data-fim="${fim}">Ver detalhes</button></div>
+  <div class="cardBody"><div style="margin-bottom:14px"><span class="muted" style="font-size:13px">Total previsto nos 12 meses</span><div class="bigNum">${brl(total)}</div></div>
+  <div class="vchart"><div class="vAxis">${ticks.map(t => `<span>${intBR(t)}</span>`).join('')}</div><div class="vPlot" style="height:230px">${ticks.map((t, i) => `<i class="vGrid" style="top:${i / 4 * 100}%"></i>`).join('')}<div class="vBars">${porMes.map((m, i) => `<button class="vBar ${i === idx ? 'on' : ''}" data-act="p12" data-i="${i}" title="${rot(m.m)}: ${brl(m.total)}"><i style="height:${m.total / 100 / top * 100}%"></i></button>`).join('')}</div></div><div></div><div class="vLabels">${porMes.map((m, i) => `<span class="${i === idx ? 'on' : ''}">${rot(m.m)}</span>`).join('')}</div></div>
+  <div class="mesBox"><h3>${MESES[+sel.m.slice(5) - 1][0].toUpperCase() + MESES[+sel.m.slice(5) - 1].slice(1)} de ${sel.m.slice(0, 4)}</h3><div class="mesGrid"><div><span>Total a receber</span><b>${brl(sel.total)}</b></div><div><span>Entrada</span><b>${brl(sel.Entrada)}</b></div><div><span>Mensal</span><b>${brl(sel.Mensal)}</b></div><div><span>Intercalada</span><b>${brl(sel.Intercalada)}</b></div>${sel.Avulsa ? `<div><span>Avulsa</span><b>${brl(sel.Avulsa)}</b></div>` : ''}</div><small class="muted">${sel.n} parcela(s) em aberto no mês</small></div>
+  <p class="hint" style="margin-top:12px">Não inclui parcelas vencidas de meses anteriores nem reajustes futuros. Segue a empresa e o empreendimento selecionados.</p></div></div>`;
 }
 function empresasNoEscopo() { return filiaisUsuario().filter(f => S.filial === '*' || f.id === S.filial); }
 function resultadosPorEmpresa(vendas, lotes) {
@@ -1467,6 +1484,7 @@ const ACT = {
   editFilial: el => formFilial(Store.get('filiais', el.dataset.id)),
   editEmp: el => formEmp(Store.get('empreendimentos', el.dataset.id)),
   recMes: el => { const same = +S.f.pMes === +el.dataset.m && String(S.f.pAno) === el.dataset.a; S.f.pMes = same ? '' : el.dataset.m; S.f.pAno = el.dataset.a; renderView(); },
+  p12: el => { S.f.p12 = +el.dataset.i; renderView(); },
   limparPeriodo: () => { S.f.pAno = ''; S.f.pMes = ''; renderView(); },
   recDetalhes: el => { if (el.dataset.prev) Object.assign(S.f, { pst: 'Em aberto', pini: el.dataset.ini, pfim: el.dataset.fim, ppini: '', ppfim: '' }); else Object.assign(S.f, { pst: 'Todas', ppini: el.dataset.ini, ppfim: el.dataset.fim, pini: '', pfim: '' }); S.view = 'financeiro'; render(); },
   delEmp: el => {
