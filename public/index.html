@@ -1326,12 +1326,12 @@ function layDados() {
   return LAY.dados;
 }
 function layGravar() { try { localStorage.setItem(layKey(), JSON.stringify(LAY.dados)); } catch (e) { } if (Store.mode === 'server') fetch('api/layout', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...Store.authH() }, body: JSON.stringify({ layout: LAY.dados }) }).catch(() => { }); }
-const LAY_GRUPOS = '.kpis, .atrasoCards, .two, .mGrid, .ptKpis';
+const LAY_GRUPOS = '.kpis, .atrasoCards, .two, .mGrid, .ptKpis, .biGrid';
 const LAY_TOPO = ':scope > .card, :scope > .kpis, :scope > .atrasoCards, :scope > .two';
 const chaveCard = el => el.dataset.lay || (el.dataset.lay = norm((el.querySelector('h2, h3, .atHead b, span, strong')?.textContent || el.textContent || '').trim()).replace(/[^a-z0-9]+/g, '-').slice(0, 40) || 'x');
 function gruposLayout() {
   const c = $('#content'); if (!c) return [];
-  const filhos = g => [...g.children].filter(x => !x.matches('.layOlho, .layAlca, .layBanner'));
+  const filhos = g => [...g.children].filter(x => !x.matches('.layOlho, .layAlca, .layBanner, .biAdd'));
   const gs = [...c.querySelectorAll(LAY_GRUPOS)].filter(g => !g.closest('.modal')).map(g => [g, filhos(g)]);
   if (S.view === 'painel') gs.push([c, [...c.querySelectorAll(LAY_TOPO)]]);
   return gs.filter(([, it]) => it.length > 1).map(([g, it]) => { const ks = it.map(chaveCard); g.dataset.layg = (g === c ? 'topo' : 'g') + ':' + [...ks].sort().join('|').slice(0, 120); return [g, it]; });
@@ -1339,6 +1339,7 @@ function gruposLayout() {
 function aplicarLayout() {
   const d = layDados()[S.view] || {}; const c = $('#content'); if (!c) return;
   for (const [g, itens] of gruposLayout()) {
+    if (g.classList.contains('biGrid')) { const ws = biPainel().widgets; for (const el of itens) { el.classList.add('layItem'); el.classList.toggle('layOculto', !!ws.find(w => w.id === el.dataset.wid)?.oculto); } continue; } // no BI a ordem fica nos próprios visuais
     const cfg = d[g.dataset.layg] || {};
     if (cfg.ordem?.length) { const pos = k => { const i = cfg.ordem.indexOf(k); return i < 0 ? 999 : i; }; const ord = itens.slice().sort((a, b) => pos(chaveCard(a)) - pos(chaveCard(b))); const ancora = document.createComment('lay'); g.insertBefore(ancora, itens[0]); let ref = ancora; for (const el of ord) { ref.after(el); ref = el; } ancora.remove(); }
     for (const el of itens) { el.classList.add('layItem'); el.classList.toggle('layOculto', (cfg.ocultos || []).includes(chaveCard(el))); }
@@ -1351,6 +1352,7 @@ function aplicarLayout() {
   } else document.body.classList.remove('orgMode');
 }
 function laySalvarGrupo(g) {
+  if (g.classList.contains('biGrid')) { const p = biPainel(); const ord = [...g.children].filter(x => x.dataset.wid).map(x => x.dataset.wid); p.widgets.sort((a, b) => ord.indexOf(a.id) - ord.indexOf(b.id)); for (const w of p.widgets) w.oculto = !!g.querySelector(`[data-wid="${w.id}"]`)?.classList.contains('layOculto'); layGravar(); return; }
   const d = layDados(); const v = (d[S.view] ||= {}); const itens = [...g.children].filter(x => x.classList.contains('layItem'));
   v[g.dataset.layg] = { ordem: itens.map(chaveCard), ocultos: itens.filter(x => x.classList.contains('layOculto')).map(chaveCard) }; layGravar();
 }
@@ -2867,7 +2869,7 @@ function biForm() {
 VIEWS.bi = () => {
   const b = biDados(), p = biPainel();
   const abas = `<div class="biAbas">${b.paineis.map(x => `<button type="button" class="${x.id === p.id ? 'on' : ''}" data-act="biAba" data-id="${x.id}">${esc(x.nome)}</button>`).join('')}<button type="button" data-act="biNovoPainel">${ic('plus')}Novo painel</button></div>`;
-  const ws = p.widgets.map((w, n) => { const c = biCalcular(w); return `<div class="biW t${w.tam} ${BI.edit === w.id ? 'emEdicao' : ''}"><div class="biWH"><h4>${esc(biTitulo(w, c))}</h4><span class="biAc"><button type="button" title="Mover para trás" data-act="biMover" data-id="${w.id}" data-d="-1" ${n ? '' : 'disabled'}>‹</button><button type="button" title="Mover para frente" data-act="biMover" data-id="${w.id}" data-d="1" ${n < p.widgets.length - 1 ? '' : 'disabled'}>›</button><button type="button" title="Editar" data-act="biEditar" data-id="${w.id}">${ic('edit')}</button><button type="button" title="Remover" data-act="biRemover" data-id="${w.id}">${ic('x')}</button></span></div>${biVisual(w, c)}</div>`; }).join('');
+  const ws = p.widgets.map((w, n) => { const c = biCalcular(w); return `<div class="biW t${w.tam} ${BI.edit === w.id ? 'emEdicao' : ''}" data-wid="${w.id}"><div class="biWH"><h4>${esc(biTitulo(w, c))}</h4><span class="biAc"><button type="button" title="Editar" data-act="biEditar" data-id="${w.id}">${ic('edit')}</button><button type="button" title="Remover" data-act="biRemover" data-id="${w.id}">${ic('x')}</button></span></div>${biVisual(w, c)}</div>`; }).join('');
   return `<div class="biTopo">${abas}<span class="spacer"></span><button type="button" class="sm" data-act="biRenomear">${ic('edit')}Renomear</button>${b.paineis.length > 1 ? `<button type="button" class="sm danger" data-act="biExcluirPainel">${ic('trash')}Excluir painel</button>` : ''}<button type="button" class="sm" data-act="biRestaurar">${ic('refresh')}Painéis padrão</button></div>
   <div class="biLayout">${biForm()}<div class="biGrid">${ws || ''}<button type="button" class="biAdd t4" data-act="biNovo">${ic('plus')}Adicionar visual</button></div></div>`;
 };
