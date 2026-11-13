@@ -657,3 +657,49 @@ th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{
 @media (max-width:800px){.cesPartes{grid-template-columns:1fr}.cesSeta{height:auto;transform:rotate(90deg)}}
 .cesChk{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;font-size:14px;color:var(--text)!important}.cesChk input{width:18px;height:18px}
 .cesAviso{display:flex;gap:10px;align-items:flex-start;margin-top:12px}.cesAviso>.icon{flex:none;margin-top:2px}
+
+/* BI */
+.biTopo{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.biAbas{display:flex;gap:6px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:5px}
+.biAbas button{border:0;box-shadow:none;background:none;border-radius:8px;padding:7px 14px;font-weight:700;font-size:13px;height:auto}
+.biAbas button.on{background:var(--navy);color:#fff;box-shadow:inset 0 -2px 0 var(--orange)}
+.biLayout{display:grid;grid-template-columns:290px 1fr;gap:16px;align-items:start}
+@media (max-width:1100px){.biLayout{grid-template-columns:1fr}}
+.biForm{padding:14px 16px;position:sticky;top:84px;display:flex;flex-direction:column;gap:8px}
+.biForm h3{margin:0 0 4px;font-size:15px}.biForm label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);font-weight:600}
+.biForm select,.biForm input{height:36px}.biLbl{font-size:12.5px;color:var(--muted);font-weight:600}
+.biChips{display:flex!important;flex-wrap:wrap;gap:6px}.biChips label{flex-direction:row!important;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12.5px;cursor:pointer;color:var(--text)}
+.biChips label input{display:none}.biChips label.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.biGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+@media (max-width:1300px){.biGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.biGrid .t3,.biGrid .t4{grid-column:span 2}}
+.biW{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);min-width:0}
+.biW.t2{grid-column:span 2}.biW.t3{grid-column:span 3}.biW.t4,.biAdd.t4{grid-column:1/-1}.biW.emEdicao{outline:2px solid var(--orange);outline-offset:2px}
+.biWH{display:flex;gap:8px;align-items:flex-start}.biWH h4{margin:0;font-size:13px;color:var(--muted);font-weight:600;flex:1}
+.biAc{display:flex;gap:3px;opacity:.35;transition:opacity .15s}.biW:hover .biAc{opacity:1}
+.biAc button{width:24px;height:24px;padding:0;display:grid;place-items:center;border-radius:7px;font-size:15px;box-shadow:none}.biAc .icon{width:13px;height:13px;margin:0}
+.biNum{font:800 26px var(--title);margin-top:8px;letter-spacing:-.5px}.biNum.red{color:#E5484D}.biNum.green{color:var(--ok,#16A34A)}
+.biVazio{color:var(--muted);font-size:13px;padding:24px 0;text-align:center}
+.biBarras{display:flex;align-items:flex-end;gap:6px;height:190px;margin-top:14px;padding-bottom:22px}
+.biBar{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative;min-width:0}
+.biBar i{width:100%;border-radius:5px 5px 0 0;display:block;background:linear-gradient(180deg,var(--blue-2),var(--blue))}.biBar b{position:absolute;bottom:-20px;font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;max-width:100%;text-overflow:ellipsis}
+.biBarV{font-size:9.5px;color:var(--muted);white-space:nowrap;margin-bottom:2px;writing-mode:vertical-rl;transform:rotate(180deg);max-height:70px;overflow:hidden}
+.biLinha{width:100%;height:200px;margin-top:10px}.biLinha text{font-size:10px;fill:var(--muted)}
+.biRosca{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.biDonut{width:150px;height:150px;border-radius:50%;position:relative;flex:none}.biDonut::after{content:"";position:absolute;inset:30px;background:var(--surface);border-radius:50%}
+.biDonut span{position:absolute;inset:0;display:grid;place-items:center;z-index:1;font-size:11px;font-weight:800;text-align:center;padding:36px}
+.biLeg{display:grid;gap:5px;font-size:12px;flex:1;min-width:150px}.biLeg b{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}.biLeg span{display:block;color:var(--muted);margin-left:16px;font-size:11.5px}
+.biRank{display:grid;gap:8px;margin-top:10px}.biRank>div{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;font-size:13px;position:relative;padding-bottom:6px}
+.biRank em{font-style:normal;font-weight:800;color:var(--orange)}.biRank span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.biRank i{position:absolute;left:30px;bottom:0;height:3px;border-radius:3px;background:var(--blue-2);max-width:calc(100% - 30px)}
+.biAdd{border:2px dashed var(--line);border-radius:14px;background:none;box-shadow:none;min-height:80px;color:var(--muted);font-weight:700;display:flex;gap:8px;align-items:center;justify-content:center}
+.biAdd:hover{border-color:var(--blue-2);color:var(--blue-2)}
+
+.biW{position:relative}.biWH h4{padding-right:4px}
+.biAc{position:absolute;top:8px;right:8px;background:var(--surface);border-radius:9px;padding:2px;opacity:0;box-shadow:0 2px 10px rgba(10,36,99,.15)}
+.biW:hover .biAc,.biW.emEdicao .biAc{opacity:1}
+.biNum{font-size:clamp(18px,1.55vw,26px);white-space:nowrap}
+.biRank>div{grid-template-columns:22px 1fr!important;align-items:start!important}
+.biRank>div>div{display:flex;flex-direction:column;gap:2px;position:relative;padding-bottom:6px;min-width:0}
+.biRank>div>div b{font-size:13px}.biRank>div>div i{left:0!important;max-width:100%!important}
+.biDonut span{font-size:10px;padding:34px 30px;word-break:break-word}
+.biNum{font-size:clamp(16px,1.3vw,24px)}.biBarV{max-height:96px}.biW{overflow:hidden}
+.biBarras.h .biBarV{writing-mode:horizontal-tb;transform:none;max-height:none;font-size:11.5px;font-weight:700;color:var(--text)}

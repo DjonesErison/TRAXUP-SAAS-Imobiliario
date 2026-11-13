@@ -19,7 +19,7 @@ const LOGO_MARK = `<img class="logoMark" src="${LOGO_ICON}" alt="">`;
 const LOGO_MARCA = (sub = 'IMOBILIÁRIO', h = false) => `<div class="brand3d"><img src="${h ? LOGO_H : LOGO_WORD}" alt="TRAXUP"><span>${sub}</span></div>`;
 
 const MENU = [
-  ['Gestão', [['corretor', 'Painel do corretor', 'trend'], ['painel', 'Painel', 'grid'], ['mercado', 'Mercado e índices', 'trend'], ['mapa', 'Mapa de lotes', 'map'], ['lotes', 'Lotes', 'layers'], ['clientes', 'Clientes', 'users'], ['vendas', 'Vendas', 'file'], ['corretores', 'Corretores', 'users'], ['contratos', 'Contratos', 'doc'], ['custos', 'Custo, venda e lucro', 'wallet']]],
+  ['Gestão', [['corretor', 'Painel do corretor', 'trend'], ['painel', 'Painel', 'grid'], ['bi', 'BI (Business Intelligence)', 'trend'], ['mercado', 'Mercado e índices', 'trend'], ['mapa', 'Mapa de lotes', 'map'], ['lotes', 'Lotes', 'layers'], ['clientes', 'Clientes', 'users'], ['vendas', 'Vendas', 'file'], ['corretores', 'Corretores', 'users'], ['contratos', 'Contratos', 'doc'], ['custos', 'Custo, venda e lucro', 'wallet']]],
   ['Financeiro', [['financeiro', 'Contas a Receber', 'wallet'], ['inadimplencia', 'Inadimplência', 'alert'], ['boletos', 'Boletos Banco do Brasil', 'barcode'], ['conciliacao', 'Conciliação bancária', 'bank'], ['comissoes', 'Comissões', 'hand']]],
   ['Comunicação', [['discord', 'Mensagens Discord', 'send'], ['modelos', 'Modelos de contrato', 'doc']]],
   ['Administração', [['usuarios', 'Usuários', 'user'], ['filiais', 'Filiais e empreendimentos', 'building'], ['config', 'Configurações', 'gear']]]
@@ -1649,3 +1649,104 @@ async function desfazerCessao(vendaId, cid) {
   toast('Cessão desfeita.'); verVenda(v.id); renderView();
 }
 const cessoesDoCliente = c => Store.list('vendas').flatMap(v => (v.cessoes || []).filter(x => x.de === c.id || x.para === c.id).map(x => ({ v, x })));
+
+/* ---------- BI (Business Intelligence): painéis montados pelo usuário ---------- */
+const BI = { edit: null }; // widget em edição (id) ou null = novo
+const BI_MEDIDAS = {
+  vendido: { nome: 'Valor vendido', fonte: 'vendas', moeda: true, val: x => x.v.valor, data: x => x.v.data },
+  nvendas: { nome: 'Nº de vendas', fonte: 'vendas', val: () => 1, data: x => x.v.data },
+  recebido: { nome: 'Recebido', fonte: 'pagamentos', moeda: true, val: x => x.q.valor, data: x => x.q.data },
+  areceber: { nome: 'A receber (saldo das parcelas)', fonte: 'parcelas', moeda: true, val: x => saldoParcela(x.p), data: x => x.p.venc, filtro: x => saldoParcela(x.p) > 0 },
+  vencido: { nome: 'Vencido (em atraso)', fonte: 'parcelas', moeda: true, val: x => saldoParcela(x.p), data: x => x.p.venc, filtro: x => vencida(x.p) && situacaoVenda(x.v) !== 'Inadimplente' },
+  inadimplente: { nome: 'Inadimplente', fonte: 'parcelas', moeda: true, val: x => saldoParcela(x.p), data: x => x.p.venc, filtro: x => vencida(x.p) && situacaoVenda(x.v) === 'Inadimplente' },
+  nparcelas: { nome: 'Nº de parcelas em aberto', fonte: 'parcelas', val: () => 1, data: x => x.p.venc, filtro: x => saldoParcela(x.p) > 0 },
+  comissao: { nome: 'Comissão total', fonte: 'vendas', moeda: true, val: x => comissaoTotal(x.v), data: x => x.v.data },
+  comissaoPaga: { nome: 'Comissão paga', fonte: 'vendas', moeda: true, val: x => comissaoPaga(x.v), data: x => x.v.data },
+  comissaoAPagar: { nome: 'Comissão a pagar', fonte: 'vendas', moeda: true, val: x => Math.max(0, comissaoTotal(x.v) - comissaoPaga(x.v)), data: x => x.v.data },
+  lotes: { nome: 'Nº de lotes', fonte: 'lotes', val: () => 1 },
+  lotesVendidos: { nome: 'Nº de lotes vendidos', fonte: 'lotes', val: () => 1, filtro: x => x.l.status === 'Vendido' },
+  custo: { nome: 'Custo dos lotes', fonte: 'lotes', moeda: true, val: x => x.l.custo || 0 },
+  lucro: { nome: 'Lucro bruto (vendidos)', fonte: 'vendas', moeda: true, val: x => x.l?.custo ? x.v.valor - x.l.custo : 0, data: x => x.v.data }
+};
+const BI_GRUPOS = { nenhum: 'Sem agrupar (total)', mes: 'Mês', ano: 'Ano', empresa: 'Empresa', emp: 'Empreendimento', corretor: 'Corretor', quadra: 'Quadra', situacao: 'Situação', tipo: 'Tipo de parcela', cliente: 'Cliente' };
+const BI_VISUAIS = [['numero', 'Número'], ['barras', 'Barras'], ['linha', 'Linha'], ['rosca', 'Rosca'], ['tabela', 'Tabela'], ['ranking', 'Ranking']];
+const BI_CORES = ['#1246B2', '#F59E0B', '#16A34A', '#8B5CF6', '#EF4444', '#0891B2', '#DB2777', '#65A30D', '#64748B', '#F97316'];
+const MESES_C = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const anoAtual = () => hoje().slice(0, 4);
+function biPadrao() {
+  const a = anoAtual(), w = (medida, grupo, visual, tam, extra = {}) => ({ id: uid(), medida, grupo, visual, tam, periodo: '', empresa: '', ...extra });
+  return { ativo: 'p1', paineis: [
+    { id: 'p1', nome: 'Visão geral', widgets: [w('vendido', 'nenhum', 'numero', 1), w('recebido', 'nenhum', 'numero', 1, { periodo: a }), w('inadimplente', 'nenhum', 'numero', 1), w('lotesVendidos', 'nenhum', 'numero', 1), w('recebido', 'mes', 'barras', 2, { periodo: a }), w('vendido', 'empresa', 'rosca', 1), w('vendido', 'corretor', 'ranking', 1)] },
+    { id: 'p2', nome: 'Cobrança', widgets: [w('vencido', 'nenhum', 'numero', 1), w('inadimplente', 'nenhum', 'numero', 1), w('areceber', 'nenhum', 'numero', 1), w('nparcelas', 'nenhum', 'numero', 1), w('vencido', 'empresa', 'barras', 2), w('inadimplente', 'cliente', 'ranking', 2), w('areceber', 'mes', 'linha', 4, { periodo: String(+a + 1) })] },
+    { id: 'p3', nome: 'Comercial', widgets: [w('nvendas', 'nenhum', 'numero', 1), w('vendido', 'nenhum', 'numero', 1), w('comissaoAPagar', 'nenhum', 'numero', 1), w('lucro', 'nenhum', 'numero', 1), w('nvendas', 'mes', 'barras', 2, { periodo: a }), w('lotes', 'situacao', 'rosca', 1), w('vendido', 'empresa', 'tabela', 1)] }
+  ] };
+}
+function biDados() { const d = layDados(); if (!d.__bi?.paineis?.length) d.__bi = biPadrao(); return d.__bi; }
+const biPainel = () => { const b = biDados(); return b.paineis.find(p => p.id === b.ativo) || b.paineis[0]; };
+function biFatos(m, w) {
+  const vendas = L('vendas').filter(vendaAtiva), filtroEmp = x => !w.empresa || x === w.empresa;
+  let rows;
+  if (m.fonte === 'vendas') rows = vendas.filter(v => filtroEmp(v.filialId)).map(v => ({ v, l: Store.get('lotes', v.loteId) }));
+  else if (m.fonte === 'parcelas') rows = vendas.filter(v => filtroEmp(v.filialId)).flatMap(v => (v.parcelas || []).map(p => ({ v, p, l: Store.get('lotes', v.loteId) })));
+  else if (m.fonte === 'pagamentos') rows = vendas.filter(v => filtroEmp(v.filialId)).flatMap(v => (v.parcelas || []).flatMap(p => (p.pagamentos || []).map(q => ({ v, p, q, l: Store.get('lotes', v.loteId) }))));
+  else rows = L('lotes').filter(l => filtroEmp(l.filialId)).map(l => ({ l, v: Store.list('vendas').find(v => v.loteId === l.id && vendaAtiva(v)) }));
+  if (m.filtro) rows = rows.filter(m.filtro);
+  if (w.periodo && m.data) rows = rows.filter(x => (m.data(x) || '').startsWith(w.periodo));
+  return rows;
+}
+function biChave(g, m, x) {
+  const d = m.data ? (m.data(x) || '') : '';
+  switch (g) {
+    case 'mes': return d.slice(0, 7) || '—'; case 'ano': return d.slice(0, 4) || '—';
+    case 'empresa': return nomeFilial((x.v || x.l)?.filialId); case 'emp': return Store.get('empreendimentos', x.l?.empId)?.nome || '—';
+    case 'corretor': return x.v?.corretor || '—'; case 'quadra': return x.l?.quadra ? 'Quadra ' + x.l.quadra : '—';
+    case 'situacao': return m.fonte === 'lotes' ? (x.l.status || '—') : situacaoVenda(x.v); case 'tipo': return x.p?.tipo || '—';
+    case 'cliente': return x.v ? cliNome(x.v.clienteId) : '—'; default: return 'Total';
+  }
+}
+function biCalcular(w) {
+  const m = BI_MEDIDAS[w.medida] || BI_MEDIDAS.vendido; const g = (!m.data && ['mes', 'ano'].includes(w.grupo)) || (w.grupo === 'tipo' && !['parcelas', 'pagamentos'].includes(m.fonte)) ? 'nenhum' : w.grupo;
+  const acc = new Map(); for (const x of biFatos(m, w)) { const k = biChave(g, m, x); acc.set(k, (acc.get(k) || 0) + (m.val(x) || 0)); }
+  let itens = [...acc].map(([k, v]) => ({ k, v }));
+  if (g === 'mes' || g === 'ano') itens.sort((a, b) => a.k.localeCompare(b.k)); else itens.sort((a, b) => b.v - a.v);
+  if (g === 'mes' && w.periodo && w.periodo.length === 4) { const mp = new Map(itens.map(i => [i.k, i.v])); itens = MESES_C.map((_, i) => { const k = `${w.periodo}-${String(i + 1).padStart(2, '0')}`; return { k, v: mp.get(k) || 0 }; }); }
+  const total = soma(itens, i => i.v); const rot = k => g === 'mes' && /^\d{4}-\d{2}$/.test(k) ? (w.periodo.length === 4 ? MESES_C[+k.slice(5) - 1] : `${MESES_C[+k.slice(5) - 1]}/${k.slice(2, 4)}`) : k;
+  return { m, g, itens: itens.map(i => ({ ...i, r: rot(i.k) })), total, fmt: v => m.moeda ? brl(Math.round(v)) : Math.round(v).toLocaleString('pt-BR') };
+}
+function biTitulo(w, c) { const per = w.periodo ? ` · ${w.periodo}` : ''; const emp = w.empresa ? ` · ${nomeFilial(w.empresa)}` : ''; return w.titulo || `${c.m.nome}${c.g !== 'nenhum' ? ' por ' + BI_GRUPOS[c.g].toLowerCase() : ''}${per}${emp}`; }
+function biVisual(w, c) {
+  const it = c.itens; if (!it.length) return '<div class="biVazio">Sem dados para este filtro.</div>';
+  const max = Math.max(...it.map(i => Math.abs(i.v)), 1);
+  switch (w.visual) {
+    case 'numero': return `<div class="biNum ${['vencido', 'inadimplente'].includes(w.medida) ? 'red' : w.medida === 'recebido' ? 'green' : ''}">${c.fmt(c.total)}</div>${c.g !== 'nenhum' ? `<small class="muted">${it.length} ${BI_GRUPOS[c.g].toLowerCase()}(s)</small>` : ''}`;
+    case 'barras': return `<div class="biBarras ${it.length <= 6 ? 'h' : ''}">${it.slice(0, 24).map((i, n) => `<div class="biBar" title="${esc(i.r)}: ${c.fmt(i.v)}"><span class="biBarV">${it.length <= 12 ? c.fmt(i.v).replace('R$ ', '') : ''}</span><i style="height:${Math.max(2, i.v / max * 100)}%;background:${c.g === 'mes' ? 'var(--blue)' : BI_CORES[n % 10]}"></i><b>${esc(i.r)}</b></div>`).join('')}</div>`;
+    case 'linha': { const W = 600, H = 170, n = it.length, px = i => n > 1 ? 20 + i * (W - 40) / (n - 1) : W / 2, py = v => H - 20 - (v / max) * (H - 40); const pts = it.map((i, k) => `${px(k).toFixed(1)},${py(i.v).toFixed(1)}`).join(' ');
+      return `<svg class="biLinha" viewBox="0 0 ${W} ${H + 20}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--blue-2)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>${it.map((i, k) => `<circle cx="${px(k)}" cy="${py(i.v)}" r="3.5" fill="var(--orange)"><title>${esc(i.r)}: ${c.fmt(i.v)}</title></circle><text x="${px(k)}" y="${H + 14}" text-anchor="middle">${esc(i.r)}</text>`).join('')}</svg>`; }
+    case 'rosca': { const top = it.slice(0, 7), resto = soma(it.slice(7), i => i.v), fat = [...top, ...(resto ? [{ r: 'Outros', v: resto }] : [])]; let ac = 0; const tot = soma(fat, i => Math.max(0, i.v)) || 1;
+      const grad = fat.map((i, n) => { const a = ac / tot * 100; ac += Math.max(0, i.v); return `${BI_CORES[n % 10]} ${a}% ${ac / tot * 100}%`; }).join(',');
+      return `<div class="biRosca"><div class="biDonut" style="background:conic-gradient(${grad})"><span>${c.fmt(c.total)}</span></div><div class="biLeg">${fat.map((i, n) => `<div><b style="background:${BI_CORES[n % 10]}"></b>${esc(i.r)}<span>${c.fmt(i.v)} · ${(i.v / tot * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span></div>`).join('')}</div></div>`; }
+    case 'ranking': return `<div class="biRank">${it.slice(0, 10).map((i, n) => `<div><em>${n + 1}</em><div><span title="${esc(i.r)}">${esc(i.r)}</span><b>${c.fmt(i.v)}</b><i style="width:${Math.max(2, i.v / max * 100)}%"></i></div></div>`).join('')}</div>`;
+    default: return `<div class="tableWrap" style="max-height:300px"><table class="tCompact"><thead><tr><th>${esc(BI_GRUPOS[c.g])}</th><th class="num">${esc(c.m.nome)}</th><th class="num">%</th></tr></thead><tbody>${it.map(i => `<tr><td>${esc(i.r)}</td><td class="num">${c.fmt(i.v)}</td><td class="num">${c.total ? (i.v / c.total * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '—'}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="num">${c.fmt(c.total)}</td><td></td></tr></tfoot></table></div>`;
+  }
+}
+function biForm() {
+  const p = biPainel(); const w = p.widgets.find(x => x.id === BI.edit) || { medida: 'recebido', grupo: 'mes', visual: 'barras', tam: 2, periodo: anoAtual(), empresa: '' };
+  const anos = [...new Set(Store.list('vendas').flatMap(v => [(v.data || '').slice(0, 4), ...(v.parcelas || []).map(x => x.venc.slice(0, 4))]).filter(Boolean))].sort().reverse();
+  return `<form class="biForm card" data-form="biWidget"><h3>${BI.edit ? 'Editar visual' : 'Novo visual'}</h3>
+   <label>O que medir<select name="medida">${Object.entries(BI_MEDIDAS).map(([k, m]) => opt(k, m.nome, w.medida)).join('')}</select></label>
+   <label>Agrupar por<select name="grupo">${Object.entries(BI_GRUPOS).map(([k, t]) => opt(k, t, w.grupo)).join('')}</select></label>
+   <div class="biLbl">Tipo de visual</div><div class="biChips">${BI_VISUAIS.map(([k, t]) => `<label class="${w.visual === k ? 'on' : ''}"><input type="radio" name="visual" value="${k}" ${w.visual === k ? 'checked' : ''}>${t}</label>`).join('')}</div>
+   <label>Período<select name="periodo">${opt('', 'Todo o período', w.periodo)}${anos.map(a => opt(a, a, w.periodo)).join('')}</select></label>
+   <label>Empresa<select name="empresa">${opt('', 'Todas (segue os botões de empresa)', w.empresa)}${Store.list('filiais').map(f => opt(f.id, f.nome, w.empresa)).join('')}</select></label>
+   <label>Tamanho<select name="tam">${[[1, 'Pequeno (1 coluna)'], [2, 'Médio (2 colunas)'], [3, 'Grande (3 colunas)'], [4, 'Largura total']].map(([k, t]) => opt(k, t, String(w.tam))).join('')}</select></label>
+   <label>Título (opcional)<input name="titulo" value="${esc(w.titulo || '')}" placeholder="Automático"></label>
+   <div class="formActions" style="margin-top:6px">${BI.edit ? `<button type="button" data-act="biCancelar">Cancelar</button>` : ''}<button class="primary" style="flex:1">${ic(BI.edit ? 'check' : 'plus')}${BI.edit ? 'Salvar visual' : 'Adicionar ao painel'}</button></div></form>`;
+}
+VIEWS.bi = () => {
+  const b = biDados(), p = biPainel();
+  const abas = `<div class="biAbas">${b.paineis.map(x => `<button type="button" class="${x.id === p.id ? 'on' : ''}" data-act="biAba" data-id="${x.id}">${esc(x.nome)}</button>`).join('')}<button type="button" data-act="biNovoPainel">${ic('plus')}Novo painel</button></div>`;
+  const ws = p.widgets.map((w, n) => { const c = biCalcular(w); return `<div class="biW t${w.tam} ${BI.edit === w.id ? 'emEdicao' : ''}"><div class="biWH"><h4>${esc(biTitulo(w, c))}</h4><span class="biAc"><button type="button" title="Mover para trás" data-act="biMover" data-id="${w.id}" data-d="-1" ${n ? '' : 'disabled'}>‹</button><button type="button" title="Mover para frente" data-act="biMover" data-id="${w.id}" data-d="1" ${n < p.widgets.length - 1 ? '' : 'disabled'}>›</button><button type="button" title="Editar" data-act="biEditar" data-id="${w.id}">${ic('edit')}</button><button type="button" title="Remover" data-act="biRemover" data-id="${w.id}">${ic('x')}</button></span></div>${biVisual(w, c)}</div>`; }).join('');
+  return `<div class="biTopo">${abas}<span class="spacer"></span><button type="button" class="sm" data-act="biRenomear">${ic('edit')}Renomear</button>${b.paineis.length > 1 ? `<button type="button" class="sm danger" data-act="biExcluirPainel">${ic('trash')}Excluir painel</button>` : ''}<button type="button" class="sm" data-act="biRestaurar">${ic('refresh')}Painéis padrão</button></div>
+  <div class="biLayout">${biForm()}<div class="biGrid">${ws || ''}<button type="button" class="biAdd t4" data-act="biNovo">${ic('plus')}Adicionar visual</button></div></div>`;
+};
+AFTER.bi = () => { $('.biForm')?.addEventListener('change', e => { if (e.target.name === 'visual') $$('.biChips label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked)); }); };

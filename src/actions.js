@@ -19,6 +19,16 @@ const ACT = {
   cesDesfazer: el => { const v = Store.get('vendas', el.dataset.v), c = v.cessoes.find(x => x.id === el.dataset.c); confirmar(`Desfazer a cessão de <b>${esc(c.deNome)}</b> para <b>${esc(c.paraNome)}</b>?<br><small>A venda volta para ${esc(c.deNome)}${c.taxa ? ' e a parcela da taxa de cessão é excluída' : ''}. O registro da cessão fica no histórico como desfeito.</small>`, () => desfazerCessao(v.id, c.id), 'Desfazer'); },
   cesVerTermo: el => { const u = `api/cessao/termo?vendaId=${encodeURIComponent(el.dataset.v)}&arquivo=${encodeURIComponent(el.dataset.arq)}`; abrirPdfAssinado(u, Store.authH()); },
   cesAnexar: el => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/pdf,image/jpeg,image/png'; i.onchange = async () => { const f = i.files[0]; if (!f) return; const v = Store.get('vendas', el.dataset.v), c = v.cessoes.find(x => x.id === el.dataset.c); try { await enviarTermoCessao(v, c, f); hist(v, 'Termo de cessão anexado'); await Store.put('vendas', v); toast('Termo guardado.'); verVenda(v.id); } catch (e) { toast(e.message, true); } }; i.click(); },
+  biAba: el => { biDados().ativo = el.dataset.id; BI.edit = null; layGravar(); renderView(); },
+  biNovo: () => { BI.edit = null; renderView(); $('.biForm select')?.focus(); },
+  biEditar: el => { BI.edit = el.dataset.id; renderView(); $('.biForm')?.scrollIntoView({ block: 'nearest' }); },
+  biCancelar: () => { BI.edit = null; renderView(); },
+  biRemover: el => { const p = biPainel(); p.widgets = p.widgets.filter(w => w.id !== el.dataset.id); if (BI.edit === el.dataset.id) BI.edit = null; layGravar(); renderView(); },
+  biMover: el => { const p = biPainel(), i = p.widgets.findIndex(w => w.id === el.dataset.id), j = i + +el.dataset.d; if (j < 0 || j >= p.widgets.length) return; [p.widgets[i], p.widgets[j]] = [p.widgets[j], p.widgets[i]]; layGravar(); renderView(); },
+  biNovoPainel: () => { const b = biDados(); const n = prompt('Nome do novo painel:', 'Novo painel'); if (!n?.trim()) return; const id = uid(); b.paineis.push({ id, nome: n.trim(), widgets: [] }); b.ativo = id; BI.edit = null; layGravar(); renderView(); },
+  biRenomear: () => { const p = biPainel(); const n = prompt('Novo nome do painel:', p.nome); if (!n?.trim()) return; p.nome = n.trim(); layGravar(); renderView(); },
+  biExcluirPainel: () => { const b = biDados(), p = biPainel(); confirmar(`Excluir o painel <b>${esc(p.nome)}</b> e os visuais dele?`, async () => { b.paineis = b.paineis.filter(x => x.id !== p.id); b.ativo = b.paineis[0]?.id; layGravar(); renderView(); }, 'Excluir'); },
+  biRestaurar: () => confirmar('Voltar aos painéis padrão (Visão geral, Cobrança e Comercial)? Os painéis que você montou serão substituídos.', async () => { layDados().__bi = biPadrao(); BI.edit = null; layGravar(); renderView(); }, 'Restaurar'),
   rjVoltar: () => { RJ.conf = null; rjRender(); },
   rjConfirmar: async () => { const c = RJ.conf; RJ.conf = null; try { c.tipo === 'aplicar' ? await rjAplicar() : await rjDesfazer(c.lote); } catch (e) { toast(e.message, true); rjRender(); } },
   tema: () => { const t = document.body.classList.contains('dark') ? 'light' : 'dark'; aplicarTema(t); try { localStorage.setItem('traxup_tema', t); } catch (e) { } Store.mode === 'portal' ? portalRender() : render(); },
@@ -264,6 +274,8 @@ const FORMS = {
     closeModal(); toast('Venda registrada com ' + parcelas.length + ' parcelas.'); renderView(); verVenda(venda.id);
   },
   async parcelaAvulsa(v, f) { const venda = Store.get('vendas', f.dataset.v); venda.parcelas.push({ id: uid(), tipo: v.tipo, ref: v.ref || 'avulsa', venc: v.venc, valor: toCents(v.valor), juros: 0, multa: 0, pagamentos: [] }); hist(venda, `Parcela incluída: ${v.tipo} ${dataBR(v.venc)} ${brl(toCents(v.valor))}`); await Store.put('vendas', venda); closeModal(); verVenda(venda.id); renderView(); },
+  async biWidget(v) { const p = biPainel(); const dados = { medida: v.medida, grupo: v.grupo, visual: v.visual || 'barras', periodo: v.periodo || '', empresa: v.empresa || '', tam: +v.tam || 2, titulo: (v.titulo || '').trim() };
+    const w = p.widgets.find(x => x.id === BI.edit); if (w) Object.assign(w, dados); else p.widgets.push({ id: uid(), ...dados }); BI.edit = null; layGravar(); renderView(); toast(w ? 'Visual atualizado.' : 'Visual adicionado.'); },
   async cessao(v, f) { await registrarCessao(v, f); },
   async editParcela(v, f) { const venda = Store.get('vendas', f.dataset.v), p = venda.parcelas.find(x => x.id === f.dataset.p); const antes = `${p.tipo} ${dataBR(p.venc)} ${brl(p.valor)}`; Object.assign(p, { tipo: v.tipo, venc: v.venc, valor: toCents(v.valor) }); hist(venda, `Parcela corrigida (${antes} → ${p.tipo} ${dataBR(p.venc)} ${brl(p.valor)}). Motivo: ${v.motivo}`); await Store.put('vendas', venda); closeModal(); if (f.dataset.lista) toast('Parcela atualizada.'); else verVenda(venda.id); renderView(); },
   async baixa(v, f) {
