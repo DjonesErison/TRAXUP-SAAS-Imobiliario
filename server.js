@@ -680,6 +680,10 @@ const server = http.createServer(async (req, res) => {
   try {
     if (!p.startsWith('/api/')) {
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Método não permitido.' });
+      // ícones e manifesto para "Adicionar à Tela de Início" (iPhone/Android)
+      const ICONES = { '/apple-touch-icon.png': 'icon-180.png', '/apple-touch-icon-precomposed.png': 'icon-180.png', '/icon-192.png': 'icon-192.png', '/icon-512.png': 'icon-512.png' };
+      if (ICONES[p]) return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', ICONES[p])), { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' });
+      if (p === '/manifest.webmanifest' || p === '/painel-cliente/manifest.webmanifest') { const cli = p.startsWith('/painel-cliente'); return send(res, 200, JSON.stringify({ name: cli ? 'TRAXUP · Painel do Cliente' : 'TRAXUP Imobiliário', short_name: cli ? 'Meu Lote' : 'TRAXUP Imob', start_url: cli ? '/painel-cliente' : '/', scope: '/', display: 'standalone', background_color: '#0A2463', theme_color: '#0A2463', lang: 'pt-BR', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }] }), { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=86400' }); }
       if (p === '/email-logo.jpg') return send(res, 200, fs.readFileSync(path.join(ROOT, 'assets', 'email-logo.jpg')), { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
       if (/^\/painelgerencial\/?$/.test(p)) return send(res, 200, fs.readFileSync(GESTAO), { 'Cache-Control': 'no-cache', 'X-Frame-Options': 'DENY', 'X-Robots-Tag': 'noindex' });
       return send(res, 200, fs.readFileSync(INDEX), { 'Cache-Control': 'no-cache' });
