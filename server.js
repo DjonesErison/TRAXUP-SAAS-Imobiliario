@@ -29,7 +29,7 @@ const BB = {
 };
 BB.oauth = BB.ambiente === 'producao' ? 'https://oauth.bb.com.br/oauth/token' : 'https://oauth.sandbox.bb.com.br/oauth/token';
 BB.api = BB.ambiente === 'producao' ? 'https://api.bb.com.br/cobrancas/v2' : 'https://api.hm.bb.com.br/cobrancas/v2';
-const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes', 'assinaturas'];
+const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes', 'assinaturas', 'corretores'];
 const ADMIN_ONLY = new Set(['usuarios', 'filiais']);
 
 /* ---------- bases por cliente (multiempresa) ----------
@@ -79,6 +79,60 @@ const pbkdf2 = (senha, salt) => crypto.pbkdf2Sync(String(senha), Buffer.from(sal
 const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 function novaSessao(userId) { const t = crypto.randomBytes(32).toString('hex'); sessions.set(t, { userId, tn: atual().codigo, exp: Date.now() + SESSION_HOURS * 3600e3 }); saveSessions(); return t; }
 function usuarioDa(req) { const t = (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const s = sessions.get(t); if (!s || s.exp < Date.now()) { sessions.delete(t); return null; } if (s.tipo === 'cliente' || s.tipo === 'gestor' || (s.tn || TENANT_PADRAO) !== atual().codigo) return null; const u = db.usuarios[s.userId]; if (!u || u.ativo === false) return null; if (s.exp - Date.now() < (SESSION_HOURS - 1) * 3600e3) { s.exp = Date.now() + SESSION_HOURS * 3600e3; saveSessions(); } return u; }
+/* ---------- Corretores: dados e gravações limitados ao que é do corretor ---------- */
+const normCor = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+function escopoCorretor(u) {
+  const c = db.corretores[u.corretorId] || null; const todos = !c || (c.empreendimentos || []).includes('*');
+  const emps = new Set(Object.values(db.empreendimentos).filter(e => todos ? (u.filiais || []).includes('*') || (u.filiais || []).includes(e.filialId) : (c.empreendimentos || []).includes(e.id)).map(e => e.id));
+  const nome = normCor(c?.nome || u.corretorNome || u.nome);
+  const vendas = Object.values(db.vendas).filter(v => (c && v.corretorId === c.id) || (!v.corretorId && normCor(v.corretor) === nome));
+  const cli = new Set([...vendas.map(v => v.clienteId), ...Object.values(db.clientes).filter(x => x.criadoPor === u.id).map(x => x.id)]);
+  return { c, emps, vendas, cli };
+}
+function dadosCorretor(u) {
+  const { c, emps, vendas, cli } = escopoCorretor(u); const out = {}; for (const col of COLS) out[col] = [];
+  out.empreendimentos = Object.values(db.empreendimentos).filter(e => emps.has(e.id));
+  const fils = new Set(out.empreendimentos.map(e => e.filialId)); vendas.forEach(v => fils.add(v.filialId));
+  out.filiais = Object.values(db.filiais).filter(f => fils.has(f.id)).map(f => ({ id: f.id, nome: f.nome, razao: f.razao, cidade: f.cidade, uf: f.uf, multa: f.multa, jurosMes: f.jurosMes }));
+  out.lotes = Object.values(db.lotes).filter(l => emps.has(l.empId) || vendas.some(v => v.loteId === l.id)).map(({ custo, ...l }) => l);
+  out.plantas = Object.values(db.plantas).filter(x => emps.has(x.id));
+  out.vendas = vendas; out.clientes = Object.values(db.clientes).filter(x => cli.has(x.id));
+  out.usuarios = [semSegredo(u)]; out.corretores = c ? [c] : []; out.config = Object.values(db.config);
+  return out;
+}
+async function gravarComoCorretor(req, res, u, col, id) {
+  const nao = msg => send(res, 403, { error: msg || 'Corretor não pode alterar esse cadastro.' });
+  if (req.method !== 'PUT') return nao(); const o = await readJSON(req); if (!o || typeof o !== 'object' || Array.isArray(o)) return send(res, 400, { error: 'Registro inválido.' });
+  const { emps, cli } = escopoCorretor(u);
+  if (col === 'lotes') { // só reservar lote livre de um loteamento liberado, ou liberar a própria reserva
+    const l = db.lotes[id]; if (!l || !emps.has(l.empId)) return nao('Lote fora dos loteamentos liberados para você.');
+    if (o.status === 'Reservado' && l.status === 'Disponível') Object.assign(l, { status: 'Reservado', reservaPara: String(o.reservaPara || '').slice(0, 120), reservaAte: /^\d{4}-\d{2}-\d{2}$/.test(o.reservaAte || '') ? o.reservaAte : '', reservadoPor: u.id, reservadoPorNome: u.nome, reservadoEm: new Date().toISOString() });
+    else if (o.status === 'Disponível' && l.status === 'Reservado' && l.reservadoPor === u.id) { l.status = 'Disponível'; for (const k of ['reservaPara', 'reservaAte', 'reservadoPor', 'reservadoPorNome', 'reservadoEm']) delete l[k]; }
+    else return nao('Você só pode reservar lotes livres ou liberar as suas reservas.');
+    persist(); return send(res, 200, { ok: true });
+  }
+  if (col === 'clientes') { const old = db.clientes[id]; if (old && !cli.has(id)) return nao(); db.clientes[id] = { ...(old || {}), ...o, id, criadoPor: old?.criadoPor || u.id }; persist(); return send(res, 200, { ok: true }); }
+  return nao();
+}
+async function acessoCorretor(req, res, user) {
+  if (!['Administrador', 'Gerente'].includes(user.perfil)) return send(res, 403, { error: 'Apenas Administrador ou Gerente liberam acesso de corretor.' });
+  const b = await readJSON(req, 1e4); const c = db.corretores[b.corretorId]; if (!c) return send(res, 404, { error: 'Corretor não encontrado.' });
+  let u = c.usuarioId && db.usuarios[c.usuarioId];
+  if (b.liberar) {
+    const login = String(b.login || u?.login || '').trim(); if (!login) return send(res, 400, { error: 'Informe o login do corretor.' });
+    if (Object.values(db.usuarios).some(x => x.id !== u?.id && String(x.login || '').toLowerCase() === login.toLowerCase())) return send(res, 400, { error: 'Já existe um usuário com o login "' + login + '".' });
+    if (!u && String(b.senha || '').length < 6) return send(res, 400, { error: 'Defina uma senha com pelo menos 6 caracteres.' });
+    if (b.senha && String(b.senha).length < 6) return send(res, 400, { error: 'A senha precisa ter pelo menos 6 caracteres.' });
+    if (!u) { u = { id: crypto.randomUUID(), criadoEm: new Date().toISOString() }; }
+    if (u.perfil && u.perfil !== 'Corretor') return send(res, 400, { error: 'Esse usuário não é de corretor.' });
+    const todos = (c.empreendimentos || []).includes('*'); const fils = todos ? ['*'] : [...new Set((c.empreendimentos || []).map(e => db.empreendimentos[e]?.filialId).filter(Boolean))];
+    Object.assign(u, { nome: c.nome, login, email: String(b.email || c.email || '').toLowerCase(), perfil: 'Corretor', corretorId: c.id, filiais: fils.length ? fils : ['*'], ativo: true });
+    if (b.senha) { u.salt = crypto.randomBytes(16).toString('hex'); u.hash = pbkdf2(b.senha, u.salt); }
+    db.usuarios[u.id] = u; Object.assign(c, { usuarioId: u.id, acesso: true });
+  } else if (u) { u.ativo = false; c.acesso = false; for (const [k, s] of sessions) if (s.userId === u.id) sessions.delete(k); saveSessions(); }
+  else c.acesso = false;
+  persist(); return send(res, 200, { ok: true, corretor: c, usuario: u ? semSegredo(u) : null });
+}
 const tentativas = new Map();
 function limitarLogin(ip) { const now = Date.now(); const a = (tentativas.get(ip) || []).filter(t => now - t < 15 * 60e3); a.push(now); tentativas.set(ip, a); return a.length > 10; }
 const semSegredo = u => { const { salt, hash, ...rest } = u; return rest; };
@@ -682,11 +736,14 @@ async function rotas(req, res, url, p, ip) {
     if (p === '/api/email/teste' && req.method === 'POST') { if (user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores.' }); const { para } = await readJSON(req, 1e4); await enviarEmail({ para: String(para || user.email || '').trim(), assunto: 'Teste de envio — TRAXUP Imobiliário', html: '<p style="font-family:Arial">Tudo certo! O envio de e-mails do <b>TRAXUP Imobiliário</b> está funcionando.</p>', texto: 'Tudo certo! O envio de e-mails do TRAXUP Imobiliário está funcionando.' }); return send(res, 200, { ok: true }); }
     if (p.startsWith('/api/portal-admin/')) return await rotaPortalAdmin(req, res, p, user);
     if (p === '/api/logout') { sessions.delete((req.headers.authorization || '').replace(/^Bearer\s+/i, '')); saveSessions(); return send(res, 200, { ok: true }); }
-    if (p === '/api/data' && req.method === 'GET') { const out = {}; for (const c of COLS) out[c] = Object.values(db[c]).map(o => c === 'usuarios' ? semSegredo(o) : o); return send(res, 200, out, { 'Cache-Control': 'no-store' }); }
+    if (p === '/api/data' && req.method === 'GET') { if (user.perfil === 'Corretor') return send(res, 200, dadosCorretor(user), { 'Cache-Control': 'no-store' }); const out = {}; for (const c of COLS) out[c] = Object.values(db[c]).map(o => c === 'usuarios' ? semSegredo(o) : o); return send(res, 200, out, { 'Cache-Control': 'no-store' }); }
+    if (p === '/api/corretores/acesso' && req.method === 'POST') return await acessoCorretor(req, res, user);
     const m = p.match(/^\/api\/data\/([a-z]+)\/([A-Za-z0-9_.:@+~-]{1,120})$/);
     if (m) {
       const [, col, id] = m; if (!COLS.includes(col)) return send(res, 404, { error: 'Coleção desconhecida.' });
       if (ADMIN_ONLY.has(col) && user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores podem alterar ' + col + '.' });
+      if (user.perfil === 'Corretor') return await gravarComoCorretor(req, res, user, col, id);
+      if (col === 'corretores' && !['Administrador', 'Gerente'].includes(user.perfil)) return send(res, 403, { error: 'Apenas Administrador ou Gerente cadastram corretores.' });
       if (req.method === 'PUT') {
         const o = await readJSON(req); if (!o || typeof o !== 'object' || Array.isArray(o)) return send(res, 400, { error: 'Registro inválido.' }); o.id = id;
         if (col === 'usuarios') { const old = db.usuarios[id]; if (!o.hash && old) { o.salt = old.salt; o.hash = old.hash; } if (!o.hash) return send(res, 400, { error: 'Defina uma senha para o novo usuário.' }); if (id === user.id && o.perfil !== 'Administrador') return send(res, 400, { error: 'Você não pode rebaixar o próprio perfil.' }); }

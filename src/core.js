@@ -44,7 +44,7 @@ function extenso(cents) {
 }
 
 /* ---------- armazenamento (3 modos: servidor próprio, base do artefato, navegador) ---------- */
-const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes', 'assinaturas'];
+const COLS = ['filiais', 'usuarios', 'empreendimentos', 'lotes', 'clientes', 'vendas', 'boletos', 'extratos', 'webhooks', 'modelos', 'config', 'plantas', 'logs', 'solicitacoes', 'notificacoes', 'assinaturas', 'corretores'];
 const Store = {
   mode: 'local', data: {}, db: null, token: null, downloads: null, queue: {},
   async init() {
@@ -116,7 +116,7 @@ async function hashSenha(senha, saltHex) {
 }
 const PERFIS = {
   'Administrador': ['*'],
-  'Gerente': ['mercado', 'painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
+  'Gerente': ['corretores', 'mercado', 'painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
   'Financeiro': ['mercado', 'painel', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
   'Comercial': ['mercado', 'painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'modelos', 'discord', 'config'],
   'Corretor': ['corretor', 'mercado', 'mapa', 'lotes', 'clientes', 'config']
