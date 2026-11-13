@@ -133,11 +133,13 @@ const vendaAtiva = v => v.status !== 'Distratado';
 const vencidasVenda = (v, ref = hoje()) => (v.parcelas || []).filter(p => vencida(p, ref));
 const recebidoVenda = v => soma(v.parcelas || [], pagoParcela);
 const saldoVenda = v => soma(v.parcelas || [], saldoParcela);
+// saldo da venda como no Vico: valor vendido menos o que já foi pago do principal das parcelas (juros e multa pagos não abatem)
+const aReceberVenda = v => Math.max(0, (v.valor || 0) - soma(v.parcelas || [], p => Math.min(pagoParcela(p), p.valor || 0)));
 function situacaoVenda(v, ref = hoje()) {
   if (v.status === 'Distratado') return 'Distratado';
   if (v.classificacao === 'Inadimplente') return 'Inadimplente';
   if (v.classificacao === 'Em atraso') return 'Em atraso';
-  const n = vencidasVenda(v, ref).length; if (n >= 3) return 'Inadimplente'; if (n) return 'Em atraso';
+  if (vencidasVenda(v, ref).length) return 'Em atraso'; // como no Vico: inadimplente só quando marcado na venda
   return saldoVenda(v) === 0 && (v.parcelas || []).length ? 'Quitado' : 'Em dia';
 }
 const comissaoTotal = v => v.comissaoExcluida ? 0 : (v.comissaoValor ?? Math.round(v.valor * (v.comissaoPct ?? 4) / 100));
