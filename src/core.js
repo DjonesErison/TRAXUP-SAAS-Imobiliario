@@ -127,6 +127,12 @@ const pode = (u, mod) => !!u && (PERFIS[u.perfil] || []).some(m => m === '*' || 
 const pagoParcela = p => soma(p.pagamentos || [], x => x.valor);
 const totalParcela = p => p.valor + (p.juros || 0) + (p.multa || 0);
 const saldoParcela = p => Math.max(0, totalParcela(p) - pagoParcela(p));
+// imputação do pagamento (Código Civil, art. 354): cada baixa abate primeiro a multa e os juros lançados e só depois o principal.
+// Pagamentos antigos (importados do Vico) não têm a divisão gravada: contam inteiros no principal, como antes.
+const principalPago = p => Math.min(p.valor || 0, soma(p.pagamentos || [], q => q.principal ?? q.valor));
+const principalAberto = p => Math.max(0, (p.valor || 0) - principalPago(p));
+const encargosAbertos = p => Math.max(0, saldoParcela(p) - principalAberto(p));
+const ultimoPagamento = p => (p.pagamentos || []).reduce((m, q) => q.data > m ? q.data : m, '');
 const vencida = (p, ref = hoje()) => p.venc < ref && saldoParcela(p) > 0;
 const statusParcela = (p, ref = hoje()) => saldoParcela(p) === 0 ? 'Paga' : p.venc < ref ? 'Vencida' : p.venc === ref ? 'Vence hoje' : pagoParcela(p) > 0 ? 'Parcial' : 'Em aberto';
 const vendaAtiva = v => v.status !== 'Distratado';
@@ -134,7 +140,7 @@ const vencidasVenda = (v, ref = hoje()) => (v.parcelas || []).filter(p => vencid
 const recebidoVenda = v => soma(v.parcelas || [], pagoParcela);
 const saldoVenda = v => soma(v.parcelas || [], saldoParcela);
 // saldo da venda como no Vico: valor vendido menos o que já foi pago do principal das parcelas (juros e multa pagos não abatem)
-const aReceberVenda = v => Math.max(0, (v.valor || 0) - soma(v.parcelas || [], p => Math.min(pagoParcela(p), p.valor || 0)));
+const aReceberVenda = v => Math.max(0, (v.valor || 0) - soma(v.parcelas || [], principalPago));
 function situacaoVenda(v, ref = hoje()) {
   if (v.status === 'Distratado') return 'Distratado';
   if (v.classificacao === 'Inadimplente') return 'Inadimplente';
@@ -151,12 +157,15 @@ function serieParcelas(tipo, total, qtd, primeiro, intervalo = 1) {
   for (let i = 0; i < qtd; i++) out.push({ id: uid(), tipo, ref: `${i + 1}/${qtd}`, venc: addMeses(primeiro, i * intervalo), valor: i === qtd - 1 ? ult : reg, juros: 0, multa: 0, pagamentos: [] });
   return out;
 }
+// multa e juros de uma baixa. Depois de uma baixa parcial: a multa não é cobrada de novo, e os juros correm
+// só sobre o principal que ficou em aberto, a partir da data do último pagamento (sem juros sobre juros).
 function encargos(p, dataPag, filial) {
-  const dias = Math.max(0, diasEntre(p.venc, dataPag)); if (!dias) return { dias, juros: 0, multa: 0 };
-  const base = saldoParcela({ ...p, juros: 0, multa: 0 }) || p.valor;
+  const dias = Math.max(0, diasEntre(p.venc, dataPag)); if (!dias) return { dias, diasJuros: 0, juros: 0, multa: 0 };
+  const base = principalAberto(p); if (!base) return { dias, diasJuros: 0, juros: 0, multa: 0 };
   const cb = filial?.bb || {}; const multaPct = +(cb.multa ?? filial?.multa ?? 2), jurosMes = +(cb.jurosMes ?? filial?.jurosMes ?? 1);
-  const multa = dias > (+cb.multaDias || 0) ? Math.round(base * multaPct / 100) : 0, juros = dias > (+cb.jurosDias || 0) ? Math.round(base * (jurosMes / 100) / 30 * dias) : 0;
-  return { dias, multa, juros };
+  const ult = ultimoPagamento(p), desde = ult > p.venc ? ult : p.venc, diasJuros = Math.max(0, diasEntre(desde, dataPag));
+  const multa = !(p.multa > 0) && dias > (+cb.multaDias || 0) ? Math.round(base * multaPct / 100) : 0, juros = dias > (+cb.jurosDias || 0) ? Math.round(base * (jurosMes / 100) / 30 * diasJuros) : 0;
+  return { dias, diasJuros, multa, juros };
 }
 
 /* ---------- configuração de cobrança (por empresa) ---------- */

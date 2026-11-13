@@ -664,27 +664,49 @@ function verVenda(id) {
   $('#vClass')?.addEventListener('change', async e => { v.classificacao = e.target.value; hist(v, 'Classificação financeira: ' + e.target.value); await Store.put('vendas', v); toast('Classificação salva.'); renderView(); });
 }
 const hist = (v, acao) => { (v.historico ||= []).push({ data: new Date().toISOString(), usuario: S.user?.nome, acao }); if (v.historico.length > 200) v.historico = v.historico.slice(-200); };
+// divisão de um recebimento (CC art. 354): primeiro multa e juros (já lançados + os desta baixa), depois o principal
+function dividirBaixa(p, { valor, multa = 0, juros = 0 }) {
+  const enc = encargosAbertos(p) + multa + juros, princ = principalAberto(p), devido = saldoParcela(p) + multa + juros;
+  const aEnc = Math.min(valor, enc), aPrinc = Math.max(0, valor - aEnc);
+  return { devido, enc, princ, aEnc, aPrinc, resta: Math.max(0, devido - valor), excesso: Math.max(0, valor - devido), restaPrinc: Math.max(0, princ - aPrinc) };
+}
 function formBaixa(vid, pid) {
   const v = Store.get('vendas', vid), p = v.parcelas.find(x => x.id === pid), fil = Store.get('filiais', v.filialId); const d = hoje(); const enc = encargos(p, d, fil);
-  modal(`${mHead(cliNome(v.clienteId) + ' · ' + v.numero, `Baixa — ${p.tipo} ${p.ref}`)}<form class="modalBody" data-form="baixa" data-v="${vid}" data-p="${pid}" data-etapa="1"><div id="bEtapa1"><div class="notice info">Vencimento ${dataBR(p.venc)} · Valor ${brl(p.valor)} · Já pago ${brl(pagoParcela(p))} · <b>Saldo ${brl(saldoParcela(p))}</b></div>
+  const encAnt = encargosAbertos(p);
+  modal(`${mHead(cliNome(v.clienteId) + ' · ' + v.numero, `Baixa — ${p.tipo} ${p.ref}`)}<form class="modalBody" data-form="baixa" data-v="${vid}" data-p="${pid}" data-etapa="1"><div id="bEtapa1"><div class="notice info">Vencimento ${dataBR(p.venc)} · Valor ${brl(p.valor)} · Já pago ${brl(pagoParcela(p))} · <b>Saldo ${brl(saldoParcela(p))}</b>${pagoParcela(p) ? `<br><small>Principal em aberto ${brl(principalAberto(p))}${encAnt ? ` · multa e juros já lançados em aberto ${brl(encAnt)}` : ''}</small>` : ''}</div>
+  <div class="bTipoRow"><span>Tipo de baixa</span><div class="seg" id="bTipo"><button type="button" class="on" data-t="total">Baixa total</button><button type="button" data-t="parcial">Baixa parcial</button></div><input type="hidden" name="tipo" id="bTipoIn" value="total"></div>
   <label class="dataBaixa">Data da baixa (dia em que o dinheiro entrou)<input type="date" name="data" id="bData" value="${d}" max="${d}" required></label>
-  <div class="formGrid" style="margin-top:12px"><label>Multa (R$)<input name="multa" id="bMulta" value="${centsIn(enc.multa)}"></label><label>Juros (R$)<input name="juros" id="bJuros" value="${centsIn(enc.juros)}"></label><label>Valor recebido (R$)<input name="valor" id="bValor" required value="${centsIn(saldoParcela(p) + enc.multa + enc.juros)}"></label>
-  <label>Forma${sel('forma', ['PIX', 'Boleto', 'Transferência', 'Dinheiro', 'Cartão', 'Cheque'], 'PIX')}</label><label class="c4">Observação<input name="obs"></label></div><p class="hint" id="bHint" style="margin-top:8px">${enc.dias ? `${enc.dias} dia(s) de atraso: multa de ${fil?.multa ?? 2}% e juros de ${fil?.jurosMes ?? 1}% ao mês pro rata, conforme a filial.` : 'Pagamento sem atraso.'}</p>
+  <div class="formGrid" style="margin-top:12px"><label>Multa (R$)<input name="multa" id="bMulta" value="${centsIn(enc.multa)}"></label><label>Juros (R$)<input name="juros" id="bJuros" value="${centsIn(enc.juros)}"></label><label><span id="bValorLbl">Valor recebido (R$)</span><input name="valor" id="bValor" required readonly value="${centsIn(saldoParcela(p) + enc.multa + enc.juros)}"></label>
+  <label>Forma${sel('forma', ['PIX', 'Boleto', 'Transferência', 'Dinheiro', 'Cartão', 'Cheque'], 'PIX')}</label><label class="c4">Observação<input name="obs"></label></div><p class="hint" id="bHint" style="margin-top:8px"></p><div id="bAloc"></div>
   <div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Continuar</button></div></div><div id="bEtapa2" hidden></div></form>`);
-  $('#bData').addEventListener('change', e => { const x = encargos(p, e.target.value, fil); $('#bMulta').value = centsIn(x.multa); $('#bJuros').value = centsIn(x.juros); $('#bValor').value = centsIn(saldoParcela(p) + x.multa + x.juros); $('#bHint').textContent = x.dias ? `${x.dias} dia(s) de atraso: multa e juros recalculados para a data da baixa.` : 'Pagamento sem atraso.'; });
+  const f = $('[data-form=baixa]'), ehParcial = () => $('#bTipoIn').value === 'parcial';
+  const hint = x => x.dias ? `${x.dias} dia(s) de atraso: ${x.multa ? `multa de ${fil?.multa ?? 2}% e ` : p.multa > 0 ? 'multa já lançada na baixa anterior; ' : ''}juros de ${fil?.jurosMes ?? 1}% ao mês pro rata${x.diasJuros !== x.dias ? ` sobre o principal em aberto, ${x.diasJuros} dia(s) desde o último pagamento` : ''}, conforme a filial. Zere os campos para isentar.` : 'Pagamento sem atraso.';
+  const upd = () => {
+    const multa = toCents(f.multa.value), juros = toCents(f.juros.value), devido = saldoParcela(p) + multa + juros;
+    if (!ehParcial()) { f.valor.value = centsIn(devido); $('#bAloc').innerHTML = ''; return; }
+    const valor = toCents(f.valor.value); if (!valor) { $('#bAloc').innerHTML = `<p class="hint">Total devido hoje: <b>${brl(devido)}</b>. Informe quanto o cliente pagou.</p>`; return; }
+    const a = dividirBaixa(p, { valor, multa, juros });
+    $('#bAloc').innerHTML = a.resta ? `<div class="notice warn bAloc"><b>Como o valor de ${brl(valor)} será abatido</b> (primeiro encargos, depois principal):<div class="alocGrid"><span>Multa e juros</span><b>${brl(a.aEnc)}</b><span>Principal</span><b>${brl(a.aPrinc)}</b><span>Fica em aberto na parcela</span><b class="orange">${brl(a.resta)}</b></div><small>O vencimento continua ${dataBR(p.venc)}. Na próxima baixa, os juros correm só sobre o principal em aberto (${brl(a.restaPrinc)}), a partir de ${dataBR(f.data.value)}.</small></div>` : `<div class="notice bad">Na baixa parcial o valor tem que ser menor que o total devido (${brl(devido)}). Para quitar a parcela, use <b>Baixa total</b>.</div>`;
+  };
+  $('#bTipo').addEventListener('click', e => { const b = e.target.closest('button[data-t]'); if (!b) return; $$('#bTipo button').forEach(x => x.classList.toggle('on', x === b)); $('#bTipoIn').value = b.dataset.t; const parc = b.dataset.t === 'parcial'; f.valor.readOnly = !parc; $('#bValorLbl').textContent = parc ? 'Valor pago pelo cliente (R$)' : 'Valor recebido (R$)'; if (parc) { f.valor.value = ''; f.valor.focus(); } upd(); });
+  $('#bData').addEventListener('change', e => { const x = encargos(p, e.target.value, fil); f.multa.value = centsIn(x.multa); f.juros.value = centsIn(x.juros); $('#bHint').textContent = hint(x); upd(); });
+  f.addEventListener('input', e => { if (e.target !== f.data) upd(); });
+  $('#bHint').textContent = hint(enc); upd();
 }
 function confirmarBaixaHTML(v, p, d) {
-  const valor = toCents(d.valor), multa = toCents(d.multa), juros = toCents(d.juros); const saldo = saldoParcela(p), totalDevido = saldo + multa + juros; const resta = Math.max(0, totalDevido - valor);
-  return `<div class="notice warn" style="font-size:15px"><b>Deseja realmente baixar este pagamento?</b> Confira os dados abaixo.</div>
+  const valor = toCents(d.valor), multa = toCents(d.multa), juros = toCents(d.juros); const a = dividirBaixa(p, { valor, multa, juros }), parcial = d.tipo === 'parcial';
+  return `<div class="notice warn" style="font-size:15px"><b>Deseja realmente ${parcial ? 'registrar esta baixa parcial' : 'baixar este pagamento'}?</b> Confira os dados abaixo.</div>
   <div class="detailList" style="margin:6px 0 4px"><div><span>Cliente</span><b>${esc(cliNome(v.clienteId))}</b></div><div><span>Contrato / lote</span><b>${esc(v.numero)} · ${esc(loteNome(loteDe(v)))}</b></div><div><span>Parcela</span><b>${esc(p.tipo)} ${esc(p.ref)} · venc. ${dataBR(p.venc)}</b></div>
-  <div class="destaque"><span>Data da baixa</span><b>${dataBR(d.data)}</b></div><div><span>Forma</span><b>${esc(d.forma)}</b></div>${multa || juros ? `<div><span>Multa + juros</span><b>${brl(multa + juros)}</b></div>` : ''}<div class="destaque"><span>Valor recebido</span><b>${brl(valor)}</b></div>${resta ? `<div><span>Fica em aberto na parcela</span><b class="orange">${brl(resta)}</b></div>` : ''}${valor > totalDevido ? `<div><span>Atenção</span><b class="orange">valor maior que o devido (${brl(totalDevido)})</b></div>` : ''}</div>
-  <div class="formActions"><button type="button" data-act="baixaVoltar">Voltar e corrigir</button><button class="primary" id="bConfirmar">Confirmar baixa</button></div>`;
+  <div><span>Tipo</span><b>${parcial ? 'Baixa parcial' : 'Baixa total'}</b></div><div class="destaque"><span>Data da baixa</span><b>${dataBR(d.data)}</b></div><div><span>Forma</span><b>${esc(d.forma)}</b></div>${multa || juros ? `<div><span>Multa + juros desta baixa</span><b>${brl(multa + juros)}</b></div>` : ''}<div class="destaque"><span>Valor recebido</span><b>${brl(valor)}</b></div>${a.aEnc ? `<div><span>Abate multa e juros</span><b>${brl(a.aEnc)}</b></div>` : ''}<div><span>Abate o principal</span><b>${brl(Math.min(a.aPrinc, a.princ))}</b></div>${a.resta ? `<div><span>Fica em aberto na parcela</span><b class="orange">${brl(a.resta)}</b></div>` : ''}${a.excesso ? `<div><span>Atenção</span><b class="orange">valor maior que o devido (${brl(a.devido)})</b></div>` : ''}</div>
+  <div class="formActions"><button type="button" data-act="baixaVoltar">Voltar e corrigir</button><button class="primary" id="bConfirmar">Confirmar baixa${parcial ? ' parcial' : ''}</button></div>`;
 }
 async function registrarPagamento(v, p, { valor, data, juros = 0, multa = 0, obs = '', forma = '', origem = 'manual', fitid }) {
   p.juros = (p.juros || 0) + juros; p.multa = (p.multa || 0) + multa;
-  (p.pagamentos ||= []).push({ valor, data, obs, forma, origem, fitid, usuario: S.user?.nome, em: new Date().toISOString() });
-  hist(v, `Baixa ${p.tipo} ${p.ref}: ${brl(valor)} em ${dataBR(data)} (${origem})`); await Store.put('vendas', v);
-  if (saldoParcela(p) === 0) { const b = Store.list('boletos').find(x => x.parcelaId === p.id && ['Emitido', 'Registrado'].includes(x.status)); if (b) { b.status = 'Pago'; b.pagoEm = data; await Store.put('boletos', b); } }
+  const encargos = Math.min(valor, encargosAbertos(p)); // imputação: encargos primeiro, depois principal
+  (p.pagamentos ||= []).push({ valor, principal: valor - encargos, encargos, multaLanc: multa, jurosLanc: juros, data, obs, forma, origem, fitid, usuario: S.user?.nome, em: new Date().toISOString() });
+  const resta = saldoParcela(p);
+  hist(v, `Baixa ${resta ? 'parcial ' : ''}${p.tipo} ${p.ref}: ${brl(valor)} em ${dataBR(data)} (${origem})${resta ? ` · fica em aberto ${brl(resta)}` : ''}`); await Store.put('vendas', v);
+  if (!resta) { const b = Store.list('boletos').find(x => x.parcelaId === p.id && ['Emitido', 'Registrado'].includes(x.status)); if (b) { b.status = 'Pago'; b.pagoEm = data; await Store.put('boletos', b); } }
 }
 
 /* ---------- Contas a Receber ---------- */
