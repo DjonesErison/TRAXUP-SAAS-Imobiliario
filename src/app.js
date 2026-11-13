@@ -243,7 +243,7 @@ VIEWS.painel = () => {
   const sub = (geral, comPer) => P.ativo ? comPer : geral;
   return `${barra}${barraEmp}${barraPer}${S.emp ? `<div class="notice info" style="margin-bottom:16px">Mostrando somente o empreendimento <b>${esc(Store.get('empreendimentos', S.emp)?.nome)}</b> de ${esc(nomeFil)}.</div>` : ''}<div class="kpis">
    <div class="kpi bl"><span>Valor vendido</span><strong>${brl(soma(vendasPer, v => v.valor))}</strong><small>${sub(`${vendasPer.length} vendas ativas`, `${vendasPer.length} vendas em ${esc(P.label)}`)}</small></div>
-   <div class="kpi bl"><span>Recebido</span><strong class="green">${brl(recebido)}</strong><small>${sub('Soma das baixas registradas', 'Baixas em ' + esc(P.label))}</small></div>
+   <div class="kpi bl"><span>Recebidos acumulados</span><strong class="green">${brl(recebido)}</strong><small>${sub('Soma das baixas registradas', 'Baixas em ' + esc(P.label))}</small></div>
    <div class="kpi bl"><span>A receber</span><strong>${brl(aReceber)}</strong><small>${sub('Valor vendido menos o recebido', 'Parcelas que vencem em ' + esc(P.label))}</small></div>
    <div class="kpi hl"><span>Em atraso + inadimplente</span><strong class="red">${brl(vencidoAtraso + vencidoInad)}</strong><small>${brl(vencidoInad)} inadimplente${P.ativo ? ' · vencidas em ' + esc(P.label) : ''}</small></div>
    <div class="kpi"><span>Lotes</span><strong>${cnt('Vendido')}<span class="muted" style="display:inline;font-size:15px"> / ${lotes.length} vendidos</span></strong><small>${P.ativo ? `${vendasPer.length} vendidos em ${esc(P.label)}` : `${cnt('Disponível')} disponíveis · ${cnt('Reservado')} reservados`}</small></div>
