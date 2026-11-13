@@ -559,3 +559,14 @@ table.tCompact td.tCli{min-width:230px;font-size:13px}
 tbody tr:hover td,tbody tr:hover td.colDest{background:#DCE8FF}
 tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--orange)}
 body.dark tbody tr:hover td,body.dark tbody tr:hover td.colDest{background:#24407F}
+/* menu lateral: barra de rolagem invisível; aparece fina e discreta só ao passar o mouse */
+aside{scrollbar-width:none}
+aside::-webkit-scrollbar{width:0;height:0}
+aside:hover{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+aside:hover::-webkit-scrollbar{width:5px}
+aside::-webkit-scrollbar-track{background:transparent}
+aside::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22);border-radius:99px}
+aside::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.4)}
+/* demais áreas com rolagem: barra fina no padrão do sistema */
+.tableWrap,.modalBody{scrollbar-width:thin;scrollbar-color:#B8C5E0 transparent}
+body.dark .tableWrap,body.dark .modalBody{scrollbar-color:#2F4478 transparent}
