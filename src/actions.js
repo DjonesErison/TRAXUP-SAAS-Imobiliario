@@ -302,6 +302,15 @@ const FORMS = {
       const custo = toCents(c[2]); if (l.custo !== custo) { (l.historico ||= []).push({ data: new Date().toISOString(), usuario: S.user.nome, acao: `Custo importado: ${l.custo ? brl(l.custo) : '—'} → ${brl(custo)}` }); l.custo = custo; await Store.put('lotes', l); } ok++; }
     await audit(`Importou custos de ${ok} lotes`); closeModal(); toast(`${ok} custo(s) importado(s)${nao.length ? `; não encontrados: ${nao.slice(0, 5).join(', ')}${nao.length > 5 ? '…' : ''}` : ''}.`, !!nao.length); renderView();
   },
+  async jurosMulta(v) {
+    const n = k => { const x = parseFloat(String(v[k] ?? '').replace(/\s|%/g, '').replace(',', '.')); if (!Number.isFinite(x) || x < 0) throw Error('Informe números iguais ou maiores que zero.'); return Math.round(x * 100) / 100; };
+    const fs = filiaisUsuario().filter(f => ('m_' + f.id) in v).map(f => Store.get('filiais', f.id)); let mudou = 0; const acima = [];
+    for (const f of fs) { const t = { multa: n('m_' + f.id), jurosMes: n('j_' + f.id), multaDias: Math.round(n('md_' + f.id)), jurosDias: Math.round(n('jd_' + f.id)) }; if (t.multa > 2) acima.push(f.nome); if (t.jurosMes > 10 || t.multa > 20) throw Error(`${f.nome}: confira as taxas (multa ${t.multa}% e juros ${t.jurosMes}% ao mês parecem altas demais).`); f._novo = t; }
+    if (acima.length && !FORMS.jurosMulta.okMulta) { FORMS.jurosMulta.okMulta = true; throw Error(`Multa acima de 2% em ${acima.join(', ')}: pode ser abusiva para pessoa física (CDC). Clique em salvar de novo para manter.`); }
+    FORMS.jurosMulta.okMulta = false;
+    for (const f of fs) { const t = f._novo; delete f._novo; const a = taxasFilial(f); if (['multa', 'jurosMes', 'multaDias', 'jurosDias'].every(k => a[k] === t[k])) continue; f.bb = { ...(f.bb || {}), ...t }; f.multa = t.multa; f.jurosMes = t.jurosMes; await Store.put('filiais', f); await audit(`Juros e multa de ${f.nome}: multa ${a.multa}% → ${t.multa}%, juros ${a.jurosMes}% → ${t.jurosMes}% ao mês, carências ${t.multaDias}/${t.jurosDias} dias`); mudou++; }
+    toast(mudou ? `Juros e multa salvos (${mudou} filial${mudou > 1 ? 'is' : ''}). Valem para as próximas baixas e boletos.` : 'Nada mudou.'); renderView();
+  },
   async cobranca(v, f) {
     const fl = Store.get('filiais', f.dataset.id); const num = k => { const n = parseFloat(String(v[k] ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : 0; };
     if (v.banco === '001' && onlyDigits(v.convenio).length !== 7) throw Error('No Banco do Brasil (carteira 17) o convênio deve ter 7 dígitos.');

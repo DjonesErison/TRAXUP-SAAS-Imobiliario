@@ -509,3 +509,4 @@ body.dark .mAc{color:#FFB84D}.mVazio{padding:20px;text-align:center;color:var(--
 body.dark .swTgl i{background:#3A4B78}body.dark .swTgl.on i{background:var(--blue-2)}
 .bTipoRow{display:flex;align-items:center;gap:12px;margin:2px 0 12px;font-size:14px;font-weight:700}
 .bAloc{margin-top:10px}.alocGrid{display:grid;grid-template-columns:auto auto;justify-content:start;gap:4px 18px;margin:8px 0 6px}.alocGrid b{text-align:right}
+.jmTab input{max-width:110px;text-align:right;margin-left:auto}.jmTab td{vertical-align:middle}.jmTab .jmEx{font-size:12.5px;white-space:nowrap}
