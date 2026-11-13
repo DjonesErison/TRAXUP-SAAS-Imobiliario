@@ -119,9 +119,10 @@ const PERFIS = {
   'Gerente': ['mercado', 'painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'modelos', 'config'],
   'Financeiro': ['mercado', 'painel', 'clientes', 'vendas', 'contratos', 'custos', 'financeiro', 'inadimplencia', 'boletos', 'conciliacao', 'comissoes', 'discord', 'config'],
   'Comercial': ['mercado', 'painel', 'mapa', 'lotes', 'clientes', 'vendas', 'contratos', 'modelos', 'discord', 'config'],
-  'Corretor': ['mercado', 'mapa', 'lotes', 'clientes', 'config']
+  'Corretor': ['corretor', 'mercado', 'mapa', 'lotes', 'clientes', 'config']
 };
-const pode = (u, mod) => !!u && (PERFIS[u.perfil] || []).some(m => m === '*' || m === mod);
+// o Painel do corretor é só do perfil Corretor (não aparece para Administrador)
+const pode = (u, mod) => !!u && (mod === 'corretor' ? u.perfil === 'Corretor' : (PERFIS[u.perfil] || []).some(m => m === '*' || m === mod));
 
 /* ---------- regras financeiras (herdadas do Vico: entrada, mensal, intercalada, baixas, juros/multa, comissão) ---------- */
 const pagoParcela = p => soma(p.pagamentos || [], x => x.valor);

@@ -17,7 +17,7 @@ const ACT = {
   loteLote: () => formLoteSerie(),
   delLote: el => confirmar('Excluir este lote definitivamente?', async () => { await Store.del('lotes', el.dataset.id); await audit('Excluiu lote ' + el.dataset.id); toast('Lote excluído.'); renderView(); }, 'Excluir'),
   reservar: el => { const l = Store.get('lotes', el.dataset.id); modal(`${mHead(loteDesc(l.id), 'Reservar lote')}<form class="modalBody" data-form="reserva" data-id="${l.id}"><div class="formGrid" style="grid-template-columns:1fr 1fr"><label>Reservado para<input name="reservaPara" required></label><label>Válida até<input type="date" name="reservaAte" value="${addDias(hoje(), 7)}"></label></div><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Reservar</button></div></form>`, 'narrow'); },
-  liberar: async el => { const l = Store.get('lotes', el.dataset.id); l.status = 'Disponível'; delete l.reservaPara; delete l.reservaAte; await Store.put('lotes', l); toast('Lote liberado.'); renderView(); },
+  liberar: async el => { const l = Store.get('lotes', el.dataset.id); l.status = 'Disponível'; delete l.reservaPara; delete l.reservaAte; delete l.reservadoPor; delete l.reservadoPorNome; delete l.reservadoEm; await Store.put('lotes', l); toast('Lote liberado.'); renderView(); },
 
   /* clientes */
   editCliente: el => formCliente(Store.get('clientes', el.dataset.id)),
@@ -214,7 +214,7 @@ const FORMS = {
     const dupe = c.cpf && Store.list('clientes').find(x => x.id !== c.id && onlyDigits(x.cpf) && onlyDigits(x.cpf) === onlyDigits(c.cpf)); if (dupe) throw Error('CPF/CNPJ já cadastrado para ' + dupe.nome + '.');
     const s = await Store.put('clientes', c); closeModal(); toast('Cliente salvo.'); const after = formCliente.after; formCliente.after = null; if (after) after(s); else renderView();
   },
-  async reserva(v, f) { const l = Store.get('lotes', f.dataset.id); Object.assign(l, { status: 'Reservado', reservaPara: v.reservaPara, reservaAte: v.reservaAte }); await Store.put('lotes', l); closeModal(); toast('Lote reservado.'); renderView(); },
+  async reserva(v, f) { const l = Store.get('lotes', f.dataset.id); Object.assign(l, { status: 'Reservado', reservaPara: v.reservaPara, reservaAte: v.reservaAte, reservadoPor: S.user.id, reservadoPorNome: S.user.nome, reservadoEm: new Date().toISOString() }); await Store.put('lotes', l); closeModal(); toast('Lote reservado.'); renderView(); },
   async venda(v) {
     const lote = Store.get('lotes', v.loteId); if (!v.clienteId) throw Error('Selecione o cliente.'); if (lote.status === 'Vendido') throw Error('Este lote já foi vendido.');
     const valor = toCents(v.valor); const parcelas = [...serieParcelas('Entrada', toCents(v.eTotal), +v.eQtd, v.eVenc, 1), ...serieParcelas('Mensal', toCents(v.mTotal), +v.mQtd, v.mVenc, 1), ...serieParcelas('Intercalada', toCents(v.iTotal), +v.iQtd, v.iVenc, +v.iInt || 12)];
@@ -264,6 +264,7 @@ const FORMS = {
     const filiais = Object.keys(v).filter(k => k.startsWith('fil_')).map(k => k.slice(4));
     if (u.id === S.user.id && v.perfil !== 'Administrador' && S.user.perfil === 'Administrador') throw Error('Você não pode remover o seu próprio perfil de administrador.');
     Object.assign(u, { nome: v.nome, email: v.email, login: v.login.trim(), perfil: v.perfil, ativo: v.ativo === '1', filiais: filiais.length ? filiais : [filialPadrao()] });
+    if (v.perfil === 'Corretor') Object.assign(u, { corretorNome: (v.corretorNome || '').trim() || v.nome, metaMensal: toCents(v.metaMensal) });
     if (v.senha) { if (v.senha.length < 6) throw Error('A senha precisa ter ao menos 6 caracteres.'); Object.assign(u, await hashSenha(v.senha)); }
     await Store.put('usuarios', u); await audit(`Usuário ${u.login} salvo (${u.perfil})`); closeModal(); toast('Usuário salvo.'); renderView();
   },
