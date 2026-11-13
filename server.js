@@ -757,7 +757,7 @@ async function rotas(req, res, url, p, ip) {
         const meses = r.json.map(x => ({ mes: x.data.split('/').reverse().join('-').slice(0, 7), valor: numBR(x.valor) }));
         const pedidos = []; for (let d = new Date(de + '-01T00:00:00Z'); d.toISOString().slice(0, 7) <= ate; d.setUTCMonth(d.getUTCMonth() + 1)) pedidos.push(d.toISOString().slice(0, 7));
         const acumulado = (meses.reduce((f, x) => f * (1 + x.valor / 100), 1) - 1) * 100;
-        cacheIndice[ck] = { em: Date.now(), dados: { id: ix.id, nome: ix.nome, de, ate, acumulado: +acumulado.toFixed(4), meses, faltando: pedidos.filter(m => !meses.some(x => x.mes === m)) } };
+        cacheIndice[ck] = { em: Date.now(), dados: { id: ix.id, nome: ix.nome, de, ate, acumulado: +acumulado.toFixed(6), meses, faltando: pedidos.filter(m => !meses.some(x => x.mes === m)) } };
       }
       return send(res, 200, cacheIndice[ck].dados);
     }
