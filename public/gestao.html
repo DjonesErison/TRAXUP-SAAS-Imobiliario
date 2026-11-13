@@ -192,7 +192,6 @@ function modal(html, cls = '') { fecharModal(); const o = document.createElement
 function fecharModal() { $('#ov')?.remove(); }
 const mHead = (t, sub = '') => `<div class="mHead"><div><h2>${t}</h2>${sub ? `<div class="muted" style="margin-top:4px">${sub}</div>` : ''}</div><span class="sp"></span><button class="ghost" data-act="fechar">✕</button></div>`;
 const opts = (lista, sel) => lista.map(s => `<option ${s === sel ? 'selected' : ''}>${s}</option>`).join('');
-const sugerirCodigo = n => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(ltda|me|eireli|epp|s\/?a|empreendimentos|imobiliaria|loteamentos?|incorporadora)\b/g, '').replace(/[^a-z0-9]/g, '').slice(0, 12);
 const senhaAleatoria = () => { const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s = ''; const r = crypto.getRandomValues(new Uint32Array(10)); for (const x of r) s += a[x % a.length]; return s; };
 const filialRow = (f = {}) => `<div class="rowF"><label>Nome da filial<input name="fNome" value="${esc(f.nome)}" placeholder="Ex.: Matriz Petrolina"></label><label>CNPJ<input name="fCnpj" value="${esc(f.cnpj)}"></label><label>Cidade<input name="fCidade" value="${esc(f.cidade)}"></label><label>UF<input name="fUf" maxlength="2" value="${esc(f.uf)}"></label><button type="button" class="sm danger" data-act="rmFilial" title="Remover">✕</button></div>`;
 
@@ -202,7 +201,7 @@ function camposCadastro(c = {}, novo = false) {
     <label>Responsável<input name="responsavel" value="${esc(c.responsavel)}"></label><label>E-mail<input name="email" type="email" value="${esc(c.email)}"></label><label>Telefone / WhatsApp<input name="telefone" value="${esc(c.telefone)}"></label>
     <label>Cidade<input name="cidade" value="${esc(c.cidade)}"></label><label>UF<input name="uf" maxlength="2" value="${esc(c.uf)}"></label></div></div>
   <div class="sec"><h4>Acesso e situação</h4><div class="fg">
-    <label>Código do cliente (usado no login) *<input name="codigo" required pattern="[a-z0-9]{2,20}" value="${esc(c.codigo)}" ${novo ? '' : 'readonly'} placeholder="ex.: busca" style="font-family:ui-monospace,monospace;font-weight:700"></label>
+    <label>Código do cliente (usado no login) *<input name="codigo" required ${novo ? 'pattern="\\d{4,8}" inputmode="numeric" maxlength="8" title="Só números, de 4 a 8 dígitos"' : 'readonly'} value="${esc(novo ? G.d.proximoCodigo || '' : c.codigo)}" placeholder="ex.: 1001" style="font-family:ui-monospace,monospace;font-weight:700"></label>
     <label>Status<select name="status">${opts(G.d.statusOpcoes, c.status || 'Ativo')}</select></label>
     <label class="w2">Motivo do bloqueio/cancelamento<input name="motivoBloqueio" value="${esc(c.motivoBloqueio)}" placeholder="Opcional"></label>
     <label class="chk w2"><input type="checkbox" name="resetDiario" ${c.resetDiario === false ? '' : 'checked'}> Se for demonstração, restaurar os dados todo dia às 3h</label></div>
@@ -224,15 +223,14 @@ function novoCliente() {
   <div class="sec"><h4>Administrador do cliente</h4><div class="fg"><label>Nome<input name="aNome" placeholder="Nome do responsável"></label><label>Login *<input name="aLogin" required autocomplete="off" placeholder="ex.: admin"></label><label>E-mail<input name="aEmail" type="email"></label>
     <label>Senha inicial *<input name="aSenha" required minlength="6" value="${senhaAleatoria()}" autocomplete="off"></label></div><div class="muted" style="margin-top:8px;font-size:12.5px">Ele entra com o código do cliente, este login e a senha, e cadastra os demais usuários dentro do sistema.</div></div>
   <div class="actions"><button type="button" data-act="fechar">Cancelar</button><button class="primary">Cadastrar cliente</button></div></form>`);
-  const f = $('#fCli'); let mexeu = false;
-  f.codigo.addEventListener('input', () => { mexeu = true; f.codigo.value = f.codigo.value.toLowerCase().replace(/[^a-z0-9]/g, ''); });
-  for (const n of ['razao', 'fantasia']) f[n].addEventListener('input', () => { if (!mexeu) f.codigo.value = sugerirCodigo(f.fantasia.value || f.razao.value); });
+  const f = $('#fCli');
+  f.codigo.addEventListener('input', () => { f.codigo.value = f.codigo.value.replace(/\D/g, '').slice(0, 8); });
   f.onsubmit = async e => {
     e.preventDefault(); const v = Object.fromEntries(new FormData(f)); const rows = [...f.querySelectorAll('.rowF')];
     const filiais = rows.map(r => ({ nome: r.querySelector('[name=fNome]').value, cnpj: r.querySelector('[name=fCnpj]').value, cidade: r.querySelector('[name=fCidade]').value, uf: r.querySelector('[name=fUf]').value })).filter(x => x.nome.trim());
     if (!filiais.length) return toast('Cadastre pelo menos uma filial.', true);
     const corpo = { ...v, novo: true, resetDiario: !!v.resetDiario, filiais, admin: { nome: v.aNome, login: v.aLogin, email: v.aEmail, senha: v.aSenha } };
-    try { await api('cliente', corpo); await carregar(); G.view = 'clientes'; render(); abrirCliente(v.codigo, 'acesso', { login: v.aLogin, senha: v.aSenha }); toast('Cliente cadastrado.'); } catch (er) { toast(er.message, true); }
+    try { const j = await api('cliente', corpo); await carregar(); G.view = 'clientes'; render(); abrirCliente(j.codigo || v.codigo, 'acesso', { login: v.aLogin, senha: v.aSenha }); toast('Cliente cadastrado.'); } catch (er) { toast(er.message, true); }
   };
 }
 function textoAcesso(c, login = '', senha = '') {

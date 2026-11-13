@@ -146,9 +146,9 @@ O link vale 1 hora, é de uso único e encerra as sessões abertas. A tela não 
 Endereço: `https://imob.traxup.com.br/painelgerencial` — acesso só para os gestores da TRAXUP.
 
 - **Clientes do SaaS**: razão social, CNPJ, responsável, contato, filiais, administrador, valor de implantação (à vista ou parcelado), mensalidade, dia de vencimento e início do contrato.
-- **Código do cliente**: cada cliente recebe um código (ex.: `busca`). Na tela de login do sistema e da Área do Cliente o usuário informa **código da empresa + login + senha**.
+- **Código do cliente**: cada cliente recebe um código numérico sequencial (a base atual é `1000`; os novos clientes recebem `1001`, `1002`… automaticamente). Na tela de login do sistema e da Área do Cliente o usuário informa **código da empresa + login + senha**.
 - **Base separada por cliente**: ao cadastrar, o painel cria a base zerada do cliente em `data/clientes/<codigo>/` (com backups e contratos próprios), as filiais e o administrador.
-- **Base que já existia**: continua em `data/db.json`, sem mudança, como o cliente `TENANT_PADRAO` (padrão `principal`). Os usuários dela entram com esse código **ou com o campo em branco**.
+- **Base que já existia**: continua em `data/db.json`, sem mudança, como o cliente `TENANT_PADRAO` (padrão `1000`). Os usuários dela entram com esse código **ou com o campo em branco**. Se o código da base mudar (ex.: de `principal` para `1000`), o painel migra o cadastro sozinho e o código antigo continua aceito no login.
 - **Status**: Ativo, Trial, Demonstração, Bloqueado e Cancelado. Bloqueado e Cancelado não entram (as sessões abertas são encerradas na hora).
 - **Demonstração (vendas)**: cliente com status Demonstração recebe dados fictícios no primeiro acesso, mostra a faixa "Ambiente de demonstração" e é restaurado todo dia às 3h (ou pelo botão no painel).
 - **Mensalidades**: gera as mensalidades do mês para os clientes ativos, cobranças avulsas e de implantação, baixa, reabertura e cancelamento. Receita recorrente, recebido no mês, a receber e em atraso na visão geral.

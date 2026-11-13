@@ -39,7 +39,8 @@ const ADMIN_ONLY = new Set(['usuarios', 'filiais']);
  * A requisição roda "dentro" da base do cliente (AsyncLocalStorage); `db` sempre aponta para ela. */
 const { AsyncLocalStorage } = require('node:async_hooks');
 const ALS = new AsyncLocalStorage();
-const TENANT_PADRAO = String(process.env.TENANT_PADRAO || 'principal').trim().toLowerCase();
+const TENANT_PADRAO = String(process.env.TENANT_PADRAO || '1000').trim().toLowerCase();
+const CODIGO_NUM_RE = /^\d{4,8}$/; // clientes novos recebem código numérico sequencial (1001, 1002…)
 const CODIGO_RE = /^[a-z0-9]{2,20}$/;
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const tenants = new Map();
@@ -426,6 +427,23 @@ function salvarControle() { clearTimeout(ctrlTimer); ctrlTimer = setTimeout(grav
 function backupControle() { try { const dir = path.join(DATA_DIR, 'backups-controle'); fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, `controle_${new Date().toISOString().slice(0, 10)}.json`); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(controle)); const all = fs.readdirSync(dir).filter(x => /^controle_.*\.json$/.test(x)).sort(); for (const old of all.slice(0, -60)) fs.unlinkSync(path.join(dir, old)); } catch (e) { console.error('[backup controle]', e.message); } }
 setInterval(backupControle, 3600e3).unref(); backupControle();
 // a base que já existia entra no painel como o cliente padrão (sem mexer nos dados dela)
+// se o código da base padrão mudou (ex.: "principal" → "1000"), leva o cadastro, as cobranças e as sessões para o código novo
+// e guarda o código antigo como apelido, para quem ainda digita ou tem o código antigo salvo no navegador
+controle.apelidos ||= {};
+for (const [cod, c] of Object.entries(controle.clientes)) if (c.padrao && cod !== TENANT_PADRAO && !controle.clientes[TENANT_PADRAO]) {
+  controle.clientes[TENANT_PADRAO] = { ...c, codigo: TENANT_PADRAO, codigoAnterior: cod }; delete controle.clientes[cod]; controle.apelidos[cod] = TENANT_PADRAO;
+  for (const x of Object.values(controle.cobrancas)) if (x.codigo === cod) x.codigo = TENANT_PADRAO;
+  for (const l of controle.logs) if (l.codigo === cod) l.codigo = TENANT_PADRAO;
+  for (const s of sessions.values()) if (s.tn === cod) s.tn = TENANT_PADRAO; saveSessions();
+  controle.logs.unshift({ data: new Date().toISOString(), gestor: 'Sistema', acao: `Código da base principal alterado de ${cod} para ${TENANT_PADRAO}`, codigo: TENANT_PADRAO });
+  gravarControle(); console.log(`[gestão] código da base principal: ${cod} → ${TENANT_PADRAO}`);
+}
+function proximoCodigo() {
+  let n = Math.max(1000, +TENANT_PADRAO || 0);
+  for (const k of Object.keys(controle.clientes)) if (CODIGO_NUM_RE.test(k)) n = Math.max(n, +k);
+  try { for (const k of fs.readdirSync(path.join(DATA_DIR, 'clientes'))) if (CODIGO_NUM_RE.test(k)) n = Math.max(n, +k); } catch { }
+  return String(n + 1);
+}
 if (!controle.clientes[TENANT_PADRAO]) { controle.clientes[TENANT_PADRAO] = { codigo: TENANT_PADRAO, razao: 'Cliente principal (base atual)', fantasia: '', status: 'Ativo', implantacao: 0, mensalidade: 0, diaVenc: 10, inicio: new Date().toISOString().slice(0, 10), funcionalidades: 'todas', criadoEm: new Date().toISOString(), padrao: true }; gravarControle(); }
 
 // primeiro gestor do painel: GESTAO_LOGIN / GESTAO_SENHA no .env (usado só enquanto não existe nenhum gestor)
@@ -472,7 +490,7 @@ function situacaoCobranca(c) { if (c.status === 'Paga' || c.status === 'Cancelad
 function dadosGestao() {
   const clientes = Object.values(controle.clientes).map(c => ({ ...c, base: resumoTenant(c.codigo) })).sort((a, b) => (a.padrao ? -1 : b.padrao ? 1 : (a.razao || '').localeCompare(b.razao || '')));
   const cobrancas = Object.values(controle.cobrancas).map(c => ({ ...c, situacao: situacaoCobranca(c) })).sort((a, b) => (b.venc || '').localeCompare(a.venc || ''));
-  return { clientes, cobrancas, gestores: Object.values(controle.gestores).map(semSegredo), logs: controle.logs.slice(0, 200), padrao: TENANT_PADRAO, statusOpcoes: STATUS_CLIENTE };
+  return { clientes, cobrancas, gestores: Object.values(controle.gestores).map(semSegredo), logs: controle.logs.slice(0, 200), padrao: TENANT_PADRAO, proximoCodigo: proximoCodigo(), statusOpcoes: STATUS_CLIENTE };
 }
 function gerarMensalidades(comp, gestor) {
   if (!/^\d{4}-\d{2}$/.test(comp)) throw Object.assign(Error('Informe o mês no formato AAAA-MM.'), { status: 400 });
@@ -503,8 +521,10 @@ async function rotaGestao(req, res, p, ip) {
   const body = await readJSON(req, 1e5);
 
   if (p === '/api/gestao/cliente') { // criar ou editar cliente
-    const codigo = String(body.codigo || '').trim().toLowerCase(); const existe = controle.clientes[codigo];
-    if (!CODIGO_RE.test(codigo)) return send(res, 400, { error: 'Código inválido: use de 2 a 20 letras minúsculas ou números, sem espaço (ex.: busca, lft2).' });
+    const codigo = String(body.codigo || '').trim().toLowerCase() || (body.novo ? proximoCodigo() : ''); const existe = controle.clientes[codigo];
+    if (body.novo && !CODIGO_NUM_RE.test(codigo)) return send(res, 400, { error: 'Código inválido: use só números, de 4 a 8 dígitos (ex.: 1001).' });
+    if (!CODIGO_RE.test(codigo)) return send(res, 400, { error: 'Código inválido.' });
+    if (body.novo && controle.apelidos?.[codigo]) return send(res, 400, { error: `O código "${codigo}" já está em uso.` });
     if (body.novo && (existe || fs.existsSync(path.join(dirDoTenant(codigo), 'db.json')))) return send(res, 400, { error: `O código "${codigo}" já está em uso.` });
     if (!body.novo && !existe) return send(res, 404, { error: 'Cliente não encontrado.' });
     if (!txt(body.razao)) return send(res, 400, { error: 'Informe a razão social ou nome do cliente.' });
@@ -532,7 +552,7 @@ async function rotaGestao(req, res, p, ip) {
       if (antes !== status) { logGestao(G, `Status: ${antes} → ${status}`, codigo); if (bloqueado(codigo)) encerrarSessoesDo(codigo); }
       else logGestao(G, 'Editou o cadastro', codigo);
     }
-    gravarControle(); return send(res, 200, { ok: true });
+    gravarControle(); return send(res, 200, { ok: true, codigo });
   }
   const mC = p.match(/^\/api\/gestao\/cliente\/([a-z0-9]{2,20})\/(filial|admin|demo-restaurar)$/);
   if (mC) {
@@ -581,7 +601,7 @@ async function rotaGestao(req, res, p, ip) {
 const INDEX = path.join(ROOT, 'public', 'index.html');
 const GESTAO = path.join(ROOT, 'public', 'gestao.html');
 // escolhe a base do cliente: pela sessão (requisições autenticadas) ou pelo código informado no login
-function tenantPorCodigo(codigo) { const c = String(codigo || '').trim().toLowerCase(); if (!c) return abrirTenant(TENANT_PADRAO); return controle.clientes[c] ? abrirTenant(c, true) : null; }
+function tenantPorCodigo(codigo) { let c = String(codigo || '').trim().toLowerCase(); if (!controle.clientes[c] && controle.apelidos?.[c]) c = controle.apelidos[c]; if (!c) return abrirTenant(TENANT_PADRAO); return controle.clientes[c] ? abrirTenant(c, true) : null; }
 function naBaseDoCodigo(res, codigo, fn) {
   const t = tenantPorCodigo(codigo); if (!t) return send(res, 401, { error: 'Código da empresa não encontrado. Confira o código informado pela TRAXUP.' });
   if (bloqueado(t.codigo)) return send(res, 403, { error: MSG_BLOQUEIO, bloqueado: true });

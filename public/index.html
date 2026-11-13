@@ -952,7 +952,7 @@ const campoSenha = (name, label, auto) => `<label>${label}<span class="lgInput">
 const lembrado = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
 const lembrar = (k, val, on) => { try { on ? localStorage.setItem(k, val) : localStorage.removeItem(k); } catch (e) { } };
 const loginAjuda = (ajuda, esqueci, modo = 'equipe') => `<div class="lgRow"><label class="lgCheck"><input type="checkbox" name="lembrar" checked> ${ajuda}</label><button type="button" class="lgLink" data-act="esqueciSenha" data-modo="${modo}" data-msg="${esc(esqueci)}">Esqueci minha senha</button></div>`;
-const campoCodigo = () => Store.mode === 'server' || Store.mode === 'portal' ? `<label>Código da empresa<span class="lgInput">${ic('building')}<input name="codigo" autocomplete="organization" autocapitalize="none" spellcheck="false" placeholder="Informado pela TRAXUP" value="${esc(lembrado('traxup_codigo'))}" pattern="[A-Za-z0-9]{2,20}" title="Letras e números, sem espaços"></span></label>` : '';
+const campoCodigo = () => Store.mode === 'server' || Store.mode === 'portal' ? `<label>Código da empresa<span class="lgInput">${ic('building')}<input name="codigo" autocomplete="organization" autocapitalize="none" spellcheck="false" inputmode="numeric" placeholder="ex.: 1000" value="${esc(lembrado('traxup_codigo'))}" pattern="[A-Za-z0-9]{2,20}" title="Letras e números, sem espaços"></span></label>` : '';
 const lembrarCodigo = v => { if (v.codigo !== undefined) lembrar('traxup_codigo', String(v.codigo).trim().toLowerCase(), !!String(v.codigo).trim()); };
 const emailAtivo = () => !!(Store.serverStatus && Store.serverStatus.email);
 function telaEsqueci(modo = 'equipe', enviado = '') {
