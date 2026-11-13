@@ -250,6 +250,7 @@ VIEWS.painel = () => {
    <div class="kpi"><span>Comissões a pagar</span><strong>${brl(comPag)}</strong><small>${sub('Saldo dos corretores', 'Das vendas em ' + esc(P.label))}</small></div>
    <div class="kpi"><span>Boletos em aberto</span><strong>${bolAbertos.length}</strong><small>${brl(soma(bolAbertos, b => b.valor))}${P.ativo ? ' · vencimento no período' : ''}</small></div>
    <div class="kpi"><span>Inadimplência</span><strong class="${nInad ? 'red' : ''}">${nInad}</strong><small>inadimplentes identificados${P.ativo ? ' (no período)' : ''}</small></div></div>
+  ${cardsAtraso(vencidoAtraso, vencidoInad, nInad, recebido)}
   <div class="two">${graf}${rosca}</div>
   ${proximos12(ps)}
   ${receitaProjetada(todas)}
@@ -352,6 +353,15 @@ function receitaProjetada(vendas) {
   <div class="fcDet"><h3>${a.label}</h3><p class="muted">${fmtM(a.ms[0].month)} a ${fmtM(a.ms[11].month)}</p><div class="bigNum" style="color:var(--ok)">${brl(a.val)}</div>${['Entrada', 'Mensal', 'Intercalada'].map((t, i) => `<div class="listRow"><span>${t}</span><b>${brl(a.types[i])}</b></div>`).join('')}<div class="listRow"><span class="muted">Sem reajuste</span><span class="muted">${brl(a.base)}</span></div><button class="fcBtn" data-act="fcExp">${S.f.fExp ? 'Ocultar meses' : 'Ver os 12 meses'}</button></div></div>
   ${S.f.fExp ? `<div class="tableWrap" style="margin-top:16px;border:1px solid var(--line);border-radius:10px"><table><thead><tr><th>Mês</th><th class="num">Sem reajuste</th><th class="num">Entrada</th><th class="num">Mensal</th><th class="num">Intercalada</th><th class="num">Projetado</th></tr></thead><tbody>${a.ms.map(r => `<tr><td>${fmtM(r.month)}</td><td class="num">${brl(r.base)}</td>${['Entrada', 'Mensal', 'Intercalada'].map(t => `<td class="num">${brl(r.types[t] || 0)}</td>`).join('')}<td class="num"><b>${brl(r.proj)}</b></td></tr>`).join('')}</tbody></table></div>` : ''}
   <details style="margin-top:14px"><summary class="fcHow">Como a projeção é calculada</summary><p class="hint" style="margin-top:8px">Os anos são blocos consecutivos de 12 meses a partir do mês atual. Mensais e intercaladas recebem reajuste nos aniversários do primeiro vencimento mensal do contrato, pelo fator (1 + IPCA) × 1,07. Entradas mantêm o saldo atual. O IPCA inicial de 0% é uma hipótese ajustável. Inclui só parcelas futuras com saldo, respeitando o término dos contratos e a empresa/empreendimento escolhidos. Não inclui vencidos, novas vendas ou descontos. Os valores cadastrados são considerados atualizados até hoje; só os reajustes futuros são aplicados. Contratos sem mensal cadastrada não recebem reajuste.</p></details>`}</div></div>`;
+}
+// Saldo vencido · Saldo inadimplente · Total em atraso (como no Vico); % sobre os recebimentos acumulados
+function cardsAtraso(atraso, inad, nInad, recebido) {
+  const pct = v => recebido > 0 ? (v / recebido * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' : '—';
+  const pctTxt = '<div class="atSep">% sobre recebimentos acumulados</div>';
+  return `<div class="atrasoCards">
+   <div class="atCard roxo"><div class="atHead">${ic('alert')}<b>Saldo vencido</b></div><div class="atVal"><strong>${brl(atraso)}</strong></div><small>Parcelas vencidas dos clientes não marcados como inadimplentes</small></div>
+   <div class="atCard verm"><div class="atHead">${ic('alert')}<b>Saldo inadimplente</b></div><div class="atVal"><strong>${brl(inad)}</strong><span class="atPct verde">${pct(inad)}</span></div><small>${nInad} inadimplente${nInad === 1 ? '' : 's'} identificado${nInad === 1 ? '' : 's'}</small>${pctTxt}</div>
+   <div class="atCard amar"><div class="atHead">${ic('alert')}<b>Total em atraso</b></div><div class="atVal"><strong class="atTot">${brl(atraso + inad)}</strong><span class="atPct amarelo">${pct(atraso + inad)}</span></div><small>Vencido + inadimplente</small>${pctTxt}</div></div>`;
 }
 function proximos12(ps) {
   const base = hoje().slice(0, 7) + '-01'; const meses = Array.from({ length: 12 }, (_, i) => addMeses(base, i).slice(0, 7));

@@ -481,3 +481,17 @@ body.dark .mAc{color:#FFB84D}.mVazio{padding:20px;text-align:center;color:var(--
 .asUp{display:inline-flex!important;flex-direction:row!important;align-items:center!important;width:auto!important;margin:0!important}
 .ptPulse{background:var(--orange)!important;border-color:var(--orange)!important;color:#0A2463!important;animation:ptPulse 2s ease-in-out infinite}@keyframes ptPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,159,28,.55)}50%{box-shadow:0 0 0 8px rgba(255,159,28,0)}}
 .modalBody .ptAss .cardHead{padding-top:0}
+
+/* cards de atraso do painel (Saldo vencido · Saldo inadimplente · Total em atraso) */
+.atrasoCards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.atCard{--c:#8B5CF6;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);border-radius:var(--radius);padding:18px 20px;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 12%,var(--card)) 0%,var(--card) 70%);box-shadow:var(--shadow);min-width:0}
+.atCard.roxo{--c:#8B5CF6}.atCard.verm{--c:#E0457B}.atCard.amar{--c:#E5A00D}
+.atHead{display:flex;align-items:center;gap:10px;font-size:14px}.atHead .icon{width:20px;height:20px;color:var(--c);flex:none}
+.atVal{display:flex;align-items:center;gap:12px;margin:16px 0 10px;flex-wrap:wrap}
+.atVal strong{font-family:var(--title);font-size:24px;letter-spacing:-.4px;white-space:nowrap}
+.atVal strong.atTot{color:#F2735A}
+.atPct{border-radius:999px;padding:5px 11px;font-weight:700;font-size:13px}
+.atPct.verde{background:#0F7A6A;color:#fff}.atPct.amarelo{background:#F2B63C;color:#2a1c00}
+.atCard small{color:var(--muted);font-size:13px;display:block}
+.atSep{border-top:1px solid var(--line);margin-top:10px;padding-top:8px;font-size:11.5px;color:var(--muted)}
+@media (max-width:1100px){.atrasoCards{grid-template-columns:1fr}}
