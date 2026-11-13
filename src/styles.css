@@ -639,3 +639,7 @@ th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{
 .rjVarios small{text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);font-weight:600}
 .rjChips{display:flex!important;flex-wrap:wrap;gap:6px;margin:8px 0}.rjChips i{font-style:normal;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--text)}
 .rjChk{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:10px 12px;border:1px dashed var(--orange);border-radius:10px}
+
+.autoCli{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 36px rgba(10,36,99,.22);padding:6px;max-height:360px;overflow:auto}
+.autoCli button{display:block;width:100%;text-align:left;border:0;background:none;box-shadow:none;border-radius:8px;padding:8px 10px;height:auto}
+.autoCli button:hover{background:var(--blue-3)}.autoCli b{display:block;font-size:13.5px}.autoCli small{color:var(--muted);font-size:12px}

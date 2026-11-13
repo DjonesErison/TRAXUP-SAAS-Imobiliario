@@ -852,7 +852,25 @@ VIEWS.financeiro = () => {
   ${kpis}
   <div class="card"><div class="tableWrap"><table><thead><tr><th>Vencimento</th><th>Cliente / contrato</th><th>Parcela</th><th class="num">Valor</th><th class="num">Pago</th><th>Pago em</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead><tbody>${shown.map(({ v, p }) => { const pg = (p.pagamentos || []).map(x => x.data).sort(); return `<tr><td>${dataBR(p.venc)}</td><td><b>${esc(cliNome(v.clienteId))}</b><small>${esc(v.numero)}</small></td><td>${esc(p.tipo)} ${esc(p.ref)}</td><td class="num">${brl(totalParcela(p))}</td><td class="num">${brl(pagoParcela(p))}</td><td>${pg.length ? dataBR(pg[pg.length - 1]) : '—'}</td><td class="num">${brl(saldoParcela(p))}</td><td>${badgeSit(statusParcela(p))}</td><td class="actions">${saldoParcela(p) > 0 ? `<button type="button" class="tb g" title="Baixar parcela" aria-label="Baixar parcela" data-act="baixa" data-v="${v.id}" data-p="${p.id}">${ic('check')}</button>${pode(S.user, 'boletos') ? `<button type="button" class="tb c" title="Boleto" aria-label="Boleto" data-act="emitirBoleto" data-v="${v.id}" data-p="${p.id}">${ic('barcode')}</button>` : ''}` : `<button type="button" class="tb c" title="Histórico da parcela" aria-label="Histórico da parcela" data-act="histParcela" data-v="${v.id}" data-p="${p.id}">${ic('clock')}</button>`}</td></tr>`; }).join('') || `<tr><td colspan="9" class="empty">Nenhuma parcela no filtro.</td></tr>`}</tbody><tfoot><tr><td colspan="3">${rows.length.toLocaleString('pt-BR')} parcelas</td><td class="num">${brl(tot)}</td><td class="num">${brl(soma(rows, x => pagoParcela(x.p)))}</td><td></td><td class="num">${brl(sal)}</td><td colspan="2"></td></tr></tfoot></table></div>${rows.length > shown.length ? `<p class="hint" style="padding:10px 18px">Mostrando ${shown.length} de ${rows.length.toLocaleString('pt-BR')}. Os cards e o total consideram todas as ${rows.length.toLocaleString('pt-BR')} parcelas do filtro. Refine o filtro ou exporte (exporta todas do filtro).</p>` : ''}</div>`;
 };
-AFTER.financeiro = () => bindAll(['pq'], ['ptp', 'pemp', 'pquad', 'pmes', 'pano', 'pdi', 'pdf']);
+AFTER.financeiro = () => { bindAll(['pq'], ['ptp', 'pemp', 'pquad', 'pmes', 'pano', 'pdi', 'pdf']); autoCliente('pq'); };
+// sugestões de clientes (só titulares) enquanto digita; nada aparece só por clicar no campo
+function autoCliente(id) {
+  const el = $('#' + id); if (!el || el.dataset.auto) return; el.dataset.auto = '1'; el.setAttribute('autocomplete', 'off');
+  const fechar = () => $('#autoCli')?.remove();
+  const mostrar = () => {
+    const inp = $('#' + id); const q = norm(inp?.value || '').trim(); fechar(); if (!inp || q.length < 2) return;
+    const lotes = c => [...new Set(Store.list('vendas').filter(v => v.clienteId === c.id && vendaAtiva(v)).map(v => loteNome(Store.get('lotes', v.loteId))))].join(', ');
+    const lista = L('clientes').filter(c => !ehConjuge(c) && c.nome).map(c => ({ c, n: norm(c.nome) })).filter(x => x.n.startsWith(q) || x.n.split(/\s+/).some(w => w.startsWith(q)) || (q.length >= 4 && x.n.includes(q)))
+      .sort((a, b) => (b.n.startsWith(q) - a.n.startsWith(q)) || a.n.localeCompare(b.n)).slice(0, 12);
+    if (!lista.length) return; const r = inp.getBoundingClientRect();
+    document.body.insertAdjacentHTML('beforeend', `<div id="autoCli" class="autoCli" style="left:${r.left + scrollX}px;top:${r.bottom + scrollY + 4}px;width:${Math.max(r.width, 340)}px">${lista.map(({ c }) => `<button type="button" data-nome="${esc(c.nome)}"><b>${esc(c.nome)}</b><small>${esc([nomeFilial(c.filialId), lotes(c)].filter(Boolean).join(' · '))}</small></button>`).join('')}</div>`);
+    $('#autoCli').addEventListener('mousedown', e => { const b = e.target.closest('button[data-nome]'); if (!b) return; e.preventDefault(); S.f[id] = b.dataset.nome; fechar(); renderView(); });
+  };
+  el.addEventListener('input', () => setTimeout(mostrar, 280));
+  el.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+  el.addEventListener('blur', () => setTimeout(() => { if (document.activeElement?.id !== id) fechar(); }, 150));
+  if (document.activeElement === el && (el.value || '').length >= 2) mostrar();
+}
 
 /* ---------- Inadimplência ---------- */
 function linhasInad() {
