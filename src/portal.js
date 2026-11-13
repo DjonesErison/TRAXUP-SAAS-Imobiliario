@@ -146,6 +146,7 @@ Object.assign(ACT, {
   ptPdfAssinar: el => { const v = Store.get('vendas', el.dataset.id), m = pModeloDa(v); if (m) imprimirContratoPdf(v, m); },
   ptVerAssinado: el => abrirPdfAssinado('/api/portal/contrato/' + encodeURIComponent(el.dataset.id) + '/pdf', { Authorization: 'Bearer ' + PORTAL.token }),
   ptMercado: () => modal(`${mHead('Mercado e índices', 'Câmbio, bolsa e índices de reajuste')}<div class="modalBody">${cardMercado().replace('id="mercadoCard"', '').replace(/<button class="sm" data-act="mercadoAtualizar"[^]*?<\/button>/, '')}<p class="hint">Índices: Banco Central do Brasil. Valores informativos; o reajuste da sua parcela segue o índice e as regras do seu contrato.</p></div>`, 'wide'),
+  ptMercadoTela: () => { lembrar('traxup_pt_mercado', '1', lembrado('traxup_pt_mercado') !== '1'); const box = $('#mercadoCard'); if (box) box.outerHTML = cardMercadoResumo(); },
   ptVoltarLogin: () => portalLogin(),
   ptVenda: el => { PORTAL.venda = el.dataset.id; portalRender(); },
   ptAba: el => { PORTAL.aba = el.dataset.k; PORTAL.mais = false; portalRender(); },
