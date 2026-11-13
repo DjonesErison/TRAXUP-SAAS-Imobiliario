@@ -1227,7 +1227,7 @@ function render() {
   renderView();
 }
 function renderView() {
-  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); try { aplicarLayout(); } catch (e) { console.error(e); } try { prepararOrdenacao(); } catch (e) { console.error(e); } } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
+  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); try { aplicarLayout(); } catch (e) { console.error(e); } try { prepararOrdenacao(); } catch (e) { console.error(e); } ['pq', 'vq', 'cq', 'iq', 'bq', 'kq', 'uq', 'kcq'].forEach(id => $('#' + id) && autoCliente(id)); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
   try { history.replaceState(null, '', '#' + S.view); } catch (e) { }
 }
 const AFTER = {};
