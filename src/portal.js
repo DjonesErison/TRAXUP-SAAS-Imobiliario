@@ -56,7 +56,7 @@ const pSolDa = pid => Store.list('solicitacoes').find(s => s.parcelaId === pid &
 const pModeloDa = v => v?.contratoGeradoEm ? (Store.get('modelos', v.contratoModeloId) || Store.list('modelos').find(m => m.nome === v.contratoModelo)) : null;
 const pLote = v => Store.get('lotes', v.loteId) || {};
 const pEmp = v => Store.get('empreendimentos', pLote(v).empId) || {};
-const pNomeLote = v => { const l = pLote(v); return `Quadra ${l.quadra || '—'} · Lote ${l.numero || '—'}`; };
+const pNomeLote = v => { const l = pLote(v); return `Lote ${l.numero || '—'}`; };
 
 function portalRender() {
   const c = PORTAL.cliente || {}, vs = pVendas(), v = Store.get('vendas', PORTAL.venda);
