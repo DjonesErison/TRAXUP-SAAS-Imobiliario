@@ -137,14 +137,14 @@ tfoot td{font-weight:700;background:var(--surface-2)}
 .toast.bad{border-left-color:var(--bad)}
 
 /* barra de empresas (painel) — identidade TRAXUP */
-.empBar{display:inline-flex;flex-wrap:wrap;gap:12px;background:linear-gradient(135deg,var(--navy) 0%,#071B4D 100%);border-radius:14px;padding:12px;margin-bottom:20px;max-width:100%;box-shadow:var(--shadow);position:relative}
-.empBar::after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--blue-2) 0 48%,transparent 48% 52%,var(--orange) 52%)}
-.empBar button{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.16);color:#DCE6FF;border-radius:11px;padding:13px 22px;font-size:16px;font-weight:800;font-family:var(--title);gap:12px;letter-spacing:.2px}
+.empBar{display:inline-flex;flex-wrap:wrap;gap:8px;background:linear-gradient(135deg,var(--navy) 0%,#071B4D 100%);border-radius:11px;padding:7px;margin-bottom:16px;max-width:100%;box-shadow:var(--shadow);position:relative}
+.empBar::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--blue-2) 0 48%,transparent 48% 52%,var(--orange) 52%)}
+.empBar button{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.16);color:#DCE6FF;border-radius:8px;padding:7px 14px;font-size:13.5px;font-weight:800;font-family:var(--title);gap:7px;box-shadow:none;letter-spacing:.2px}
 .empBar button:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
-.empBar button .icon{width:19px;height:19px;color:#8FA8E0}
-.empBar button.on{background:linear-gradient(180deg,var(--blue-2),var(--blue));border-color:var(--orange);color:#fff;box-shadow:0 6px 16px rgba(18,70,178,.45),inset 0 -3px 0 var(--orange)}
+.empBar button .icon{width:14px;height:14px;color:#8FA8E0}
+.empBar button.on{background:linear-gradient(180deg,var(--blue-2),var(--blue));border-color:var(--orange);color:#fff;box-shadow:0 3px 10px rgba(18,70,178,.4),inset 0 -2px 0 var(--orange)}
 .empBar button.on .icon{color:var(--orange-2)}
-@media (max-width:820px){.empBar{display:flex}.empBar button{flex:1 1 40%;justify-content:center;padding:11px 14px;font-size:15px}}
+@media (max-width:820px){.empBar{display:flex}.empBar button{flex:1 1 40%;justify-content:center;padding:8px 10px;font-size:13px}}
 .perBar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin:0 0 18px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;box-shadow:var(--shadow)}
 .perBar .empSubLbl{align-self:center}.perBar label{min-width:150px}.perBar .badge{align-self:center}
 .empSub{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-6px 0 18px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--orange);border-radius:12px;box-shadow:var(--shadow)}

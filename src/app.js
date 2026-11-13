@@ -157,16 +157,23 @@ function render() {
   const fs = filiaisUsuario(); const nav = MENU.map(([g, items]) => { const its = items.filter(([k]) => pode(S.user, k)); return its.length ? `<div class="navGroup">${g}</div>` + its.map(([k, t, i]) => `<button class="${S.view === k ? 'active' : ''}" data-act="go" data-v="${k}">${ic(i)}${t}</button>`).join('') : ''; }).join('');
   $('#app').innerHTML = `<div class="shell"><aside><div class="brand">${LOGO_MARCA()}</div><div class="brandLine"></div><nav>${nav}</nav><div class="asideFoot">Tecnologia que impulsiona negócios<br>${esc(Store.label())}</div></aside>
   <main><div class="topbar"><button class="menuToggle ghost" data-act="toggleNav">${ic('menu')}</button><div class="title"><div class="eyebrow">TRAXUP / ${esc(TITULOS[S.view] || '')}</div><h1>${esc(TITULOS[S.view] || '')}</h1></div>
-  <div class="filialPick">Empresa ${fs.length > 1 ? `<select id="filialSel">${opt('*', 'Todas as empresas', S.filial)}${fs.map(f => opt(f.id, f.nome, S.filial)).join('')}</select>` : `<b style="padding:6px 8px;color:var(--text)">${esc(fs[0]?.nome || '—')}</b>`}</div>
   ${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}${sinoHTML()}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
   ${S.conta?.demo ? `<div class="notice warn" style="margin:0 24px;border-radius:0 0 10px 10px">${ic('alert')}<b>Ambiente de demonstração.</b> Os dados são fictícios e podem ser restaurados a qualquer momento.</div>` : ''}<div class="content" id="content"></div></main></div>`;
   renderView();
 }
 function renderView() {
-  const el = $('#content'); if (!el) return; try { el.innerHTML = (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
+  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
   try { history.replaceState(null, '', '#' + S.view); } catch (e) { }
 }
 const AFTER = {};
+// botões de empresa no topo de todas as telas (substituem o filtro "Empresa" do cabeçalho)
+const VIEWS_SEM_EMPRESA = new Set(['mercado', 'discord', 'modelos', 'usuarios', 'filiais', 'config']);
+function barraEmpresas() {
+  if (VIEWS_SEM_EMPRESA.has(S.view)) return '';
+  const fs = filiaisUsuario().filter(f => f.id === S.filial || Store.list('lotes').some(l => l.filialId === f.id) || Store.list('vendas').some(v => v.filialId === f.id));
+  if (fs.length < 2) return '';
+  return `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fs].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>`;
+}
 
 /* ---------- exportação Excel / PDF de qualquer tela ---------- */
 const VIEWS_SEM_EXPORT = new Set(['discord', 'modelos', 'config', 'mercado']);
@@ -244,11 +251,10 @@ VIEWS.painel = () => {
   const devedores = todas.map(v => ({ v, val: soma(vencPer(v), saldoParcela), n: vencPer(v).length })).filter(x => x.val > 0).sort((a, b) => b.val - a.val).slice(0, 6);
   const prox = ps.filter(x => saldoParcela(x.p) > 0 && x.p.venc >= ref && x.p.venc <= addDias(ref, 7)).sort((a, b) => a.p.venc.localeCompare(b.p.venc)).slice(0, 8);
   const graf = graficoRecebimentos(ps), rosca = graficoLotes(lotes, vendasPer);
-  const fsBar = filiaisUsuario().filter(f => f.id === S.filial || Store.list('lotes').some(l => l.filialId === f.id) || Store.list('vendas').some(v => v.filialId === f.id)); const barra = fsBar.length > 1 ? `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fsBar].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>` : '';
   const nomeFil = nomeFilial(S.filial); const barraEmp = empsFil.length > 1 ? `<div class="empSub"><span class="empSubLbl">${ic('building')}Empreendimento de ${esc(nomeFil)}:</span>${[{ id: '', nome: 'Todos os empreendimentos' }, ...empsFil].map(e => `<button class="${(S.emp || '') === e.id ? 'on' : ''}" data-act="verEmp" data-id="${e.id}">${esc(e.nome)}${(S.emp || '') === e.id ? ic('check') : ''}</button>`).join('')}</div>` : '';
   const barraPer = `<div class="perBar"><span class="empSubLbl">${ic('grid')}Período:</span><label>Ano<select id="pAno">${opt('', 'Todos os anos', P.ano)}${anosDisponiveis().map(([a, t]) => opt(a, t, P.ano)).join('')}</select></label><label>Mês<select id="pMes">${opt('', 'Todos os meses', P.mes || '')}${MESES.map((n, i) => opt(i + 1, n[0].toUpperCase() + n.slice(1), P.mes || '')).join('')}</select></label>${P.ativo ? `<span class="badge orange">${esc(P.label)}</span><button class="sm ghost" data-act="limparPeriodo">${ic('x')}Limpar período</button>` : `<span class="muted" style="font-size:13px">Mostrando todo o período</span>`}</div>`;
   const sub = (geral, comPer) => P.ativo ? comPer : geral;
-  return `${barra}${barraEmp}${barraPer}${S.emp ? `<div class="notice info" style="margin-bottom:16px">Mostrando somente o empreendimento <b>${esc(Store.get('empreendimentos', S.emp)?.nome)}</b> de ${esc(nomeFil)}.</div>` : ''}<div class="kpis">
+  return `${barraEmp}${barraPer}${S.emp ? `<div class="notice info" style="margin-bottom:16px">Mostrando somente o empreendimento <b>${esc(Store.get('empreendimentos', S.emp)?.nome)}</b> de ${esc(nomeFil)}.</div>` : ''}<div class="kpis">
    <div class="kpi bl"><span>Valor vendido</span><strong>${brl(soma(vendasPer, v => v.valor))}</strong><small>${sub(`${vendasPer.length} vendas ativas`, `${vendasPer.length} vendas em ${esc(P.label)}`)}</small></div>
    <div class="kpi bl"><span>Recebidos acumulados</span><strong class="green">${brl(recebido)}</strong><small>${sub('Soma das baixas registradas', 'Baixas em ' + esc(P.label))}</small></div>
    <div class="kpi bl"><span>A receber</span><strong>${brl(aReceber)}</strong><small>${sub('Valor vendido menos o recebido', 'Parcelas que vencem em ' + esc(P.label))}</small></div>

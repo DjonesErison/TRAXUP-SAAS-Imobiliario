@@ -142,14 +142,14 @@ tfoot td{font-weight:700;background:var(--surface-2)}
 .toast.bad{border-left-color:var(--bad)}
 
 /* barra de empresas (painel) — identidade TRAXUP */
-.empBar{display:inline-flex;flex-wrap:wrap;gap:12px;background:linear-gradient(135deg,var(--navy) 0%,#071B4D 100%);border-radius:14px;padding:12px;margin-bottom:20px;max-width:100%;box-shadow:var(--shadow);position:relative}
-.empBar::after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--blue-2) 0 48%,transparent 48% 52%,var(--orange) 52%)}
-.empBar button{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.16);color:#DCE6FF;border-radius:11px;padding:13px 22px;font-size:16px;font-weight:800;font-family:var(--title);gap:12px;letter-spacing:.2px}
+.empBar{display:inline-flex;flex-wrap:wrap;gap:8px;background:linear-gradient(135deg,var(--navy) 0%,#071B4D 100%);border-radius:11px;padding:7px;margin-bottom:16px;max-width:100%;box-shadow:var(--shadow);position:relative}
+.empBar::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--blue-2) 0 48%,transparent 48% 52%,var(--orange) 52%)}
+.empBar button{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.16);color:#DCE6FF;border-radius:8px;padding:7px 14px;font-size:13.5px;font-weight:800;font-family:var(--title);gap:7px;box-shadow:none;letter-spacing:.2px}
 .empBar button:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
-.empBar button .icon{width:19px;height:19px;color:#8FA8E0}
-.empBar button.on{background:linear-gradient(180deg,var(--blue-2),var(--blue));border-color:var(--orange);color:#fff;box-shadow:0 6px 16px rgba(18,70,178,.45),inset 0 -3px 0 var(--orange)}
+.empBar button .icon{width:14px;height:14px;color:#8FA8E0}
+.empBar button.on{background:linear-gradient(180deg,var(--blue-2),var(--blue));border-color:var(--orange);color:#fff;box-shadow:0 3px 10px rgba(18,70,178,.4),inset 0 -2px 0 var(--orange)}
 .empBar button.on .icon{color:var(--orange-2)}
-@media (max-width:820px){.empBar{display:flex}.empBar button{flex:1 1 40%;justify-content:center;padding:11px 14px;font-size:15px}}
+@media (max-width:820px){.empBar{display:flex}.empBar button{flex:1 1 40%;justify-content:center;padding:8px 10px;font-size:13px}}
 .perBar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin:0 0 18px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;box-shadow:var(--shadow)}
 .perBar .empSubLbl{align-self:center}.perBar label{min-width:150px}.perBar .badge{align-self:center}
 .empSub{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-6px 0 18px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--orange);border-radius:12px;box-shadow:var(--shadow)}
@@ -1089,16 +1089,23 @@ function render() {
   const fs = filiaisUsuario(); const nav = MENU.map(([g, items]) => { const its = items.filter(([k]) => pode(S.user, k)); return its.length ? `<div class="navGroup">${g}</div>` + its.map(([k, t, i]) => `<button class="${S.view === k ? 'active' : ''}" data-act="go" data-v="${k}">${ic(i)}${t}</button>`).join('') : ''; }).join('');
   $('#app').innerHTML = `<div class="shell"><aside><div class="brand">${LOGO_MARCA()}</div><div class="brandLine"></div><nav>${nav}</nav><div class="asideFoot">Tecnologia que impulsiona negócios<br>${esc(Store.label())}</div></aside>
   <main><div class="topbar"><button class="menuToggle ghost" data-act="toggleNav">${ic('menu')}</button><div class="title"><div class="eyebrow">TRAXUP / ${esc(TITULOS[S.view] || '')}</div><h1>${esc(TITULOS[S.view] || '')}</h1></div>
-  <div class="filialPick">Empresa ${fs.length > 1 ? `<select id="filialSel">${opt('*', 'Todas as empresas', S.filial)}${fs.map(f => opt(f.id, f.nome, S.filial)).join('')}</select>` : `<b style="padding:6px 8px;color:var(--text)">${esc(fs[0]?.nome || '—')}</b>`}</div>
   ${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}${sinoHTML()}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
   ${S.conta?.demo ? `<div class="notice warn" style="margin:0 24px;border-radius:0 0 10px 10px">${ic('alert')}<b>Ambiente de demonstração.</b> Os dados são fictícios e podem ser restaurados a qualquer momento.</div>` : ''}<div class="content" id="content"></div></main></div>`;
   renderView();
 }
 function renderView() {
-  const el = $('#content'); if (!el) return; try { el.innerHTML = (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
+  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
   try { history.replaceState(null, '', '#' + S.view); } catch (e) { }
 }
 const AFTER = {};
+// botões de empresa no topo de todas as telas (substituem o filtro "Empresa" do cabeçalho)
+const VIEWS_SEM_EMPRESA = new Set(['mercado', 'discord', 'modelos', 'usuarios', 'filiais', 'config']);
+function barraEmpresas() {
+  if (VIEWS_SEM_EMPRESA.has(S.view)) return '';
+  const fs = filiaisUsuario().filter(f => f.id === S.filial || Store.list('lotes').some(l => l.filialId === f.id) || Store.list('vendas').some(v => v.filialId === f.id));
+  if (fs.length < 2) return '';
+  return `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fs].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>`;
+}
 
 /* ---------- exportação Excel / PDF de qualquer tela ---------- */
 const VIEWS_SEM_EXPORT = new Set(['discord', 'modelos', 'config', 'mercado']);
@@ -1176,11 +1183,10 @@ VIEWS.painel = () => {
   const devedores = todas.map(v => ({ v, val: soma(vencPer(v), saldoParcela), n: vencPer(v).length })).filter(x => x.val > 0).sort((a, b) => b.val - a.val).slice(0, 6);
   const prox = ps.filter(x => saldoParcela(x.p) > 0 && x.p.venc >= ref && x.p.venc <= addDias(ref, 7)).sort((a, b) => a.p.venc.localeCompare(b.p.venc)).slice(0, 8);
   const graf = graficoRecebimentos(ps), rosca = graficoLotes(lotes, vendasPer);
-  const fsBar = filiaisUsuario().filter(f => f.id === S.filial || Store.list('lotes').some(l => l.filialId === f.id) || Store.list('vendas').some(v => v.filialId === f.id)); const barra = fsBar.length > 1 ? `<div class="empBar" role="tablist" aria-label="Empresa">${[{ id: '*', nome: 'Todas as empresas' }, ...fsBar].map(f => `<button role="tab" aria-selected="${S.filial === f.id}" class="${S.filial === f.id ? 'on' : ''}" data-act="verFilial" data-id="${f.id}">${esc(f.nome)}${ic(S.filial === f.id ? 'check' : 'chev')}</button>`).join('')}</div>` : '';
   const nomeFil = nomeFilial(S.filial); const barraEmp = empsFil.length > 1 ? `<div class="empSub"><span class="empSubLbl">${ic('building')}Empreendimento de ${esc(nomeFil)}:</span>${[{ id: '', nome: 'Todos os empreendimentos' }, ...empsFil].map(e => `<button class="${(S.emp || '') === e.id ? 'on' : ''}" data-act="verEmp" data-id="${e.id}">${esc(e.nome)}${(S.emp || '') === e.id ? ic('check') : ''}</button>`).join('')}</div>` : '';
   const barraPer = `<div class="perBar"><span class="empSubLbl">${ic('grid')}Período:</span><label>Ano<select id="pAno">${opt('', 'Todos os anos', P.ano)}${anosDisponiveis().map(([a, t]) => opt(a, t, P.ano)).join('')}</select></label><label>Mês<select id="pMes">${opt('', 'Todos os meses', P.mes || '')}${MESES.map((n, i) => opt(i + 1, n[0].toUpperCase() + n.slice(1), P.mes || '')).join('')}</select></label>${P.ativo ? `<span class="badge orange">${esc(P.label)}</span><button class="sm ghost" data-act="limparPeriodo">${ic('x')}Limpar período</button>` : `<span class="muted" style="font-size:13px">Mostrando todo o período</span>`}</div>`;
   const sub = (geral, comPer) => P.ativo ? comPer : geral;
-  return `${barra}${barraEmp}${barraPer}${S.emp ? `<div class="notice info" style="margin-bottom:16px">Mostrando somente o empreendimento <b>${esc(Store.get('empreendimentos', S.emp)?.nome)}</b> de ${esc(nomeFil)}.</div>` : ''}<div class="kpis">
+  return `${barraEmp}${barraPer}${S.emp ? `<div class="notice info" style="margin-bottom:16px">Mostrando somente o empreendimento <b>${esc(Store.get('empreendimentos', S.emp)?.nome)}</b> de ${esc(nomeFil)}.</div>` : ''}<div class="kpis">
    <div class="kpi bl"><span>Valor vendido</span><strong>${brl(soma(vendasPer, v => v.valor))}</strong><small>${sub(`${vendasPer.length} vendas ativas`, `${vendasPer.length} vendas em ${esc(P.label)}`)}</small></div>
    <div class="kpi bl"><span>Recebidos acumulados</span><strong class="green">${brl(recebido)}</strong><small>${sub('Soma das baixas registradas', 'Baixas em ' + esc(P.label))}</small></div>
    <div class="kpi bl"><span>A receber</span><strong>${brl(aReceber)}</strong><small>${sub('Valor vendido menos o recebido', 'Parcelas que vencem em ' + esc(P.label))}</small></div>
@@ -2430,7 +2436,7 @@ const ACT = {
   custosPdf: async () => { const html = docCustos(linhasCustos()); if (Store.mode !== 'db') { const w = window.open('', '_blank'); if (w) { w.document.write(html + '<script>setTimeout(()=>print(),300)<\/script>'); w.document.close(); return; } } await salvarArquivo(`custo_venda_lucro_${hoje()}.html`, html, 'text/html'); },
   importarCustos: () => modal(`${mHead('Custo, venda e lucro', 'Importar custos dos lotes')}<form class="modalBody" data-form="importarCustos"><p class="hint">Arquivo CSV com as colunas <b>empresa;lote;custo</b> (ex.: <code class="k">Busca;B-10;57059,59</code>). O lote é localizado pela empresa e por quadra-número. Custos existentes são substituídos.</p><label style="margin-top:12px">Arquivo (.csv)<input type="file" name="arq" accept=".csv,.txt" required></label><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Importar</button></div></form>`, 'narrow'),
   cfgBoleto: el => formCobranca(el.dataset.id),
-  verFilial: el => { S.filial = el.dataset.id; S.emp = ''; render(); },
+  verFilial: el => { S.filial = el.dataset.id; S.emp = ''; S.sel = {}; S.f.ext = null; S.f.mod = null; render(); },
   verEmp: el => { S.emp = el.dataset.id; renderView(); },
   delFilial: el => confirmar('Excluir esta filial? Ela não tem lotes, clientes nem vendas.', async () => { const id = el.dataset.id; await Store.del('filiais', id); for (const u of Store.list('usuarios').filter(u => (u.filiais || []).includes(id))) { u.filiais = u.filiais.filter(x => x !== id); await Store.put('usuarios', u); } if (S.filial === id) S.filial = '*'; await audit('Excluiu filial vazia'); closeModal(); toast('Filial excluída.'); render(); }, 'Excluir'),
   backup: async () => { const dump = { _traxup: { app: 'TRAXUP Imobiliário', versao: 1, geradoEm: new Date().toISOString(), por: S.user?.nome, contagem: Object.fromEntries(COLS.map(c => [c, Object.keys(Store.data[c] || {}).length])) } }; for (const c of COLS) dump[c] = Store.data[c]; await salvarArquivo(`traxup_imobiliario_backup_${hoje()}_${new Date().toTimeString().slice(0, 5).replace(':', 'h')}.json`, JSON.stringify(dump), 'application/json'); const c = { ...cfg(), ultimoBackup: new Date().toISOString(), ultimoBackupPor: S.user?.nome }; await Store.put('config', c); await audit('Fez backup completo'); if (S.view === 'config') renderView(); },
