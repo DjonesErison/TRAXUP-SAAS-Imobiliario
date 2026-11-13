@@ -529,3 +529,19 @@ body.dark .tb{background:color-mix(in srgb,var(--c) 16%,transparent);border-colo
 .tb.e{--c:#8B5CF6}.tb.l{--c:#F59E0B}.tb.u{--c:#16A34A}.tb.p{--c:#3B82F6}.tb.d{--c:#EF4444}
 .tb.v{--c:#2563EB}.tb.g{--c:#16A34A}.tb.c{--c:#0891B2}
 td.actions .tb{margin-left:5px;vertical-align:middle}
+
+/* Vendas: filtros organizados e tabela compacta */
+.vFiltros{padding:14px 16px;margin-bottom:14px;display:grid;gap:12px}
+.vFiltros label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);font-weight:600;min-width:0}
+.vFiltros input,.vFiltros select{height:38px}
+.vfL1{display:grid;grid-template-columns:minmax(260px,2.4fr) repeat(4,minmax(130px,1fr));gap:12px;align-items:end}
+.vfL2{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;padding-top:12px;border-top:1px dashed var(--line)}
+.fRange{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);font-weight:600}
+.fRange>div{display:flex;align-items:center;gap:6px}.fRange i{font-style:normal;font-weight:500;font-size:12px}
+.fRange input{height:38px;width:150px}
+.vfL2 button{height:38px}
+@media (max-width:1100px){.vfL1{grid-template-columns:1fr 1fr}.vfBusca{grid-column:1/-1}}
+table.tCompact td{padding:7px 12px}table.tCompact th{padding:9px 12px}
+table.tCompact td small{margin-top:1px}
+td.nw{white-space:nowrap}
+table.tCompact td.tCli{min-width:230px;font-size:13px}
