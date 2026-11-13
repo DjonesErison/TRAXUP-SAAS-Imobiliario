@@ -555,3 +555,7 @@ table.tCompact td.tCli{min-width:230px;font-size:13px}
 .fLinha input,.fLinha select,.fLinha button{height:38px}
 .fLinha .fRange input{width:140px}
 .fLinha .spacer{flex:1 1 0;min-width:0}
+/* linha da tabela sob o mouse: destaque mais vivo, com faixa laranja à esquerda */
+tbody tr:hover td,tbody tr:hover td.colDest{background:#DCE8FF}
+tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--orange)}
+body.dark tbody tr:hover td,body.dark tbody tr:hover td.colDest{background:#24407F}
