@@ -520,3 +520,10 @@ th.colDest{background:color-mix(in srgb,var(--blue-2) 14%,transparent);color:var
 td.colDest{background:color-mix(in srgb,var(--blue-2) 6%,transparent);font-weight:700}
 td.colDest.green{color:var(--green,#16A34A)}
 body.dark th.colDest{color:#fff}
+
+/* botões de ação com ícone colorido */
+.tbs{display:flex;justify-content:flex-end;gap:7px}
+.tb{--c:#8B5CF6;width:34px;height:34px;padding:0;display:inline-grid;place-items:center;border-radius:9px;border:1px solid color-mix(in srgb,var(--c) 28%,transparent);background:color-mix(in srgb,var(--c) 12%,transparent);color:var(--c);box-shadow:none;flex:none}
+.tb .icon{width:17px;height:17px;margin:0}.tb:hover{background:color-mix(in srgb,var(--c) 22%,transparent);border-color:color-mix(in srgb,var(--c) 45%,transparent);color:var(--c)}
+body.dark .tb{background:color-mix(in srgb,var(--c) 16%,transparent);border-color:color-mix(in srgb,var(--c) 30%,transparent);color:var(--c)}
+.tb.e{--c:#8B5CF6}.tb.l{--c:#F59E0B}.tb.u{--c:#16A34A}.tb.p{--c:#3B82F6}.tb.d{--c:#EF4444}
