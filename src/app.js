@@ -1449,7 +1449,7 @@ function rjSelecao() {
   const c = RJ.cfg; let base;
   if (c.escopo === 'venda') { const v = Store.get('vendas', c.vendaId); base = v ? (v.parcelas || []).map(p => ({ v, p })) : []; }
   else base = linhasParcelas();
-  return base.filter(({ p }) => (!c.de || p.venc >= c.de) && (!c.ate || p.venc <= c.ate) && (!c.tipo || p.tipo === c.tipo) && (c.sit === 'todas' || saldoParcela(p) > 0));
+  return base.filter(({ p }) => p.tipo !== 'Intercalada' && (!c.de || p.venc >= c.de) && (!c.ate || p.venc <= c.ate) && (!c.tipo || p.tipo === c.tipo) && (c.sit === 'todas' || saldoParcela(p) > 0));
 }
 function rjFator() {
   const c = RJ.cfg; if (!c.valOn) return { ok: true, f: 1 };
@@ -1493,7 +1493,7 @@ function rjRender() {
   const inp = (k, t, attrs = '') => `<label>${t}<input data-rj="${k}" value="${esc(c[k] ?? '')}" ${attrs}></label>`;
   const v = c.escopo === 'venda' ? Store.get('vendas', c.vendaId) : null; const mostra = mud.slice(0, 60);
   const quem = it => `${esc(cliNome(it.v.clienteId))}<small>${esc(it.v.codigo ? 'Venda ' + it.v.codigo + ' · ' : '')}${esc(loteNome(Store.get('lotes', it.v.loteId)))}</small>`;
-  box.innerHTML = `<div class="rjEscopo">${ic('file')}<span>Aplicando em <b>${itens.length.toLocaleString('pt-BR')}</b> parcela${itens.length === 1 ? '' : 's'} em aberto ${c.escopo === 'venda' ? `da venda <b>${esc(v?.codigo || v?.numero || '')}</b>` : 'do filtro atual de Contas a Receber'}.</span></div>
+  box.innerHTML = `<div class="rjEscopo">${ic('file')}<span>Aplicando em <b>${itens.length.toLocaleString('pt-BR')}</b> parcela${itens.length === 1 ? '' : 's'} em aberto ${c.escopo === 'venda' ? `da venda <b>${esc(v?.codigo || v?.numero || '')}</b>` : 'do filtro atual de Contas a Receber'}. As intercaladas não são reajustadas.</span></div>
   <div class="rjDois">
    <div class="rjSec ${c.valOn ? '' : 'off'}"><h3><span class="rjN">1</span>${tg('valOn', 'Reajuste de valor')}</h3>${seg('modo', [['indice', 'Por índice'], ['pct', 'Percentual'], ['valor', 'Novo valor']])}
     <div class="rjRow">${c.modo === 'indice' ? `<label>Índice<select data-rj="indice">${[['ipca', 'IPCA'], ['igpm', 'IGP-M'], ['incc', 'INCC'], ['inpc', 'INPC'], ['igpdi', 'IGP-DI']].map(([k, t]) => opt(k, t, c.indice)).join('')}</select></label>${inp('ide', 'Acumulado de', 'type="month"')}${inp('iate', 'até', 'type="month"')}${inp('taxaAno', '+ taxa ao ano (%)', 'inputmode="decimal" style="max-width:110px"')}` : c.modo === 'pct' ? inp('pct', 'Percentual (%)', 'inputmode="decimal" placeholder="ex.: 4,5 ou -2"') : inp('novo', 'Novo valor da parcela (R$)', 'inputmode="decimal"')}</div>
