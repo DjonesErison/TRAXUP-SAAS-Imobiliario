@@ -746,6 +746,11 @@ async function rotas(req, res, url, p, ip) {
       } }
     if (p === '/api/notificacoes' && req.method === 'GET') return send(res, 200, { notificacoes: Object.values(db.notificacoes).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 60), solicitacoes: Object.values(db.solicitacoes).filter(x => x.status === 'Pendente'), assinaturas: Object.values(db.assinaturas) }, { 'Cache-Control': 'no-store' });
     if (p === '/api/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(url.searchParams.get('forcar') === '1' && user.perfil === 'Administrador'), { 'Cache-Control': 'no-store' });
+    if (p === '/api/layout') { // organização dos cards de cada usuário
+      db.layouts ||= {};
+      if (req.method === 'GET') return send(res, 200, { layout: db.layouts[user.id] || null });
+      if (req.method === 'PUT') { const { layout } = await readJSON(req, 2e5); if (!layout || typeof layout !== 'object' || Array.isArray(layout)) return send(res, 400, { error: 'Organização inválida.' }); db.layouts[user.id] = layout; persist(); return send(res, 200, { ok: true }); }
+    }
     if (p === '/api/email/teste' && req.method === 'POST') { if (user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores.' }); const { para } = await readJSON(req, 1e4); await enviarEmail({ para: String(para || user.email || '').trim(), assunto: 'Teste de envio — TRAXUP Imobiliário', html: '<p style="font-family:Arial">Tudo certo! O envio de e-mails do <b>TRAXUP Imobiliário</b> está funcionando.</p>', texto: 'Tudo certo! O envio de e-mails do TRAXUP Imobiliário está funcionando.' }); return send(res, 200, { ok: true }); }
     if (p.startsWith('/api/portal-admin/')) return await rotaPortalAdmin(req, res, p, user);
     if (p === '/api/logout') { sessions.delete((req.headers.authorization || '').replace(/^Bearer\s+/i, '')); saveSessions(); return send(res, 200, { ok: true }); }

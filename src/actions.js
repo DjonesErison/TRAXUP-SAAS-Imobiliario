@@ -4,6 +4,9 @@
 const ACT = {
   closeModal: () => closeModal(),
   go: el => { S.view = el.dataset.v; S.sel = {}; document.body.classList.remove('navOpen'); render(); window.scrollTo(0, 0); },
+  organizar: () => { LAY.edit = !LAY.edit; render(); if (!LAY.edit) toast('Organização salva.'); },
+  layOlho: el => { const it = el.closest('.layItem'); it.classList.toggle('layOculto'); laySalvarGrupo(it.parentElement); el.title = it.classList.contains('layOculto') ? 'Mostrar este card' : 'Esconder este card'; el.innerHTML = ic(it.classList.contains('layOculto') ? 'eye' : 'eyeOff'); },
+  layRestaurar: () => confirmar('Voltar esta tela para a organização padrão? A ordem e os cards escondidos desta tela serão desfeitos.', async () => { const d = layDados(); delete d[S.view]; layGravar(); render(); toast('Tela restaurada.'); }, 'Restaurar'),
   tema: () => { const t = document.body.classList.contains('dark') ? 'light' : 'dark'; aplicarTema(t); try { localStorage.setItem('traxup_tema', t); } catch (e) { } Store.mode === 'portal' ? portalRender() : render(); },
   toggleNav: () => document.body.classList.toggle('navOpen'),
   sair: () => sair(),

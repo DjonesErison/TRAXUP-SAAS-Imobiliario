@@ -3,6 +3,7 @@
 
 const S = { user: null, filial: '*', view: 'painel', f: {}, sel: {}, busy: false };
 const ICON = {
+  eyeOff: 'M3 3l18 18M10.6 5.1A10.9 10.9 0 0 1 12 5c7 0 11 7 11 7a18 18 0 0 1-3.2 4M6.6 6.6C3.4 8.6 1 12 1 12s4 7 11 7a10.6 10.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2',
   clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
   edit: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4', power: 'M12 3v8M6.4 6.4a8 8 0 1 0 11.2 0', unlock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 7.5-2',
   trend: 'M3 17l6-6 4 4 8-8M15 7h6v6', refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6', mail: 'M3 5h18v14H3zM3 6l9 7 9-7', lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', eye: 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', arrow: 'M5 12h14M13 6l6 6-6 6', bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0', key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
@@ -159,15 +160,67 @@ function render() {
   const fs = filiaisUsuario(); const nav = MENU.map(([g, items]) => { const its = items.filter(([k]) => pode(S.user, k)); return its.length ? `<div class="navGroup">${g}</div>` + its.map(([k, t, i]) => `<button class="${S.view === k ? 'active' : ''}" data-act="go" data-v="${k}">${ic(i)}${t}</button>`).join('') : ''; }).join('');
   $('#app').innerHTML = `<div class="shell"><aside><div class="brand">${LOGO_MARCA()}</div><div class="brandLine"></div><nav>${nav}</nav><div class="asideFoot">Tecnologia que impulsiona negócios<br>${esc(Store.label())}</div></aside>
   <main><div class="topbar"><button class="menuToggle ghost" data-act="toggleNav">${ic('menu')}</button><div class="title"><div class="eyebrow">TRAXUP / ${esc(TITULOS[S.view] || '')}</div><h1>${esc(TITULOS[S.view] || '')}</h1></div>
-  ${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}${sinoHTML()}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
+  <button class="sm orgBtn ${LAY.edit ? 'on' : ''}" data-act="organizar" title="Arrastar, esconder e reorganizar os cards desta tela">${ic('grid')}${LAY.edit ? 'Organizando…' : 'Organizar'}</button>${VIEWS_SEM_EXPORT.has(S.view) ? '' : `<div class="expBtns"><button class="sm" data-act="exportar" data-f="xls" title="Exportar esta tela para Excel">${ic('down')}Excel</button><button class="sm" data-act="exportar" data-f="pdf" title="Exportar esta tela em PDF">${ic('down')}PDF</button></div>`}${sinoHTML()}<button class="themeBtn" data-act="tema" title="${document.body.classList.contains('dark') ? 'Mudar para tema claro' : 'Mudar para tema escuro'}" aria-label="Alternar tema claro/escuro">${ic(document.body.classList.contains('dark') ? 'sun' : 'moon')}</button><div class="userChip"><div class="avatar">${esc((S.user.nome || '?')[0].toUpperCase())}</div><div><b>${esc(S.user.nome)}</b><br><span class="muted">${esc(S.user.perfil)}</span></div><button class="ghost" data-act="sair" title="Sair">${ic('logout')}</button></div></div>
   ${S.conta?.demo ? `<div class="notice warn" style="margin:0 24px;border-radius:0 0 10px 10px">${ic('alert')}<b>Ambiente de demonstração.</b> Os dados são fictícios e podem ser restaurados a qualquer momento.</div>` : ''}<div class="content" id="content"></div></main></div>`;
   renderView();
 }
 function renderView() {
-  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
+  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); try { aplicarLayout(); } catch (e) { console.error(e); } } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
   try { history.replaceState(null, '', '#' + S.view); } catch (e) { }
 }
 const AFTER = {};
+
+/* ---------- organizar cards: arrastar, esconder e restaurar (salvo por usuário) ---------- */
+const LAY = { dados: null, edit: false, buscou: false, user: null };
+const layKey = () => 'traxup_layout_' + (S.user?.id || '') + '_' + (S.conta?.codigo || '');
+function layDados() {
+  if (LAY.user !== layKey()) { LAY.user = layKey(); LAY.dados = null; LAY.buscou = false; }
+  if (!LAY.dados) { try { LAY.dados = JSON.parse(localStorage.getItem(layKey()) || '{}'); } catch (e) { LAY.dados = {}; } }
+  if (Store.mode === 'server' && !LAY.buscou) { LAY.buscou = true; fetch('api/layout', { headers: Store.authH(), cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j?.layout && JSON.stringify(j.layout) !== JSON.stringify(LAY.dados)) { LAY.dados = j.layout; try { localStorage.setItem(layKey(), JSON.stringify(j.layout)); } catch (e) { } aplicarLayout(); } }).catch(() => { }); }
+  return LAY.dados;
+}
+function layGravar() { try { localStorage.setItem(layKey(), JSON.stringify(LAY.dados)); } catch (e) { } if (Store.mode === 'server') fetch('api/layout', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...Store.authH() }, body: JSON.stringify({ layout: LAY.dados }) }).catch(() => { }); }
+const LAY_GRUPOS = '.kpis, .atrasoCards, .two, .mGrid, .ptKpis';
+const LAY_TOPO = ':scope > .card, :scope > .kpis, :scope > .atrasoCards, :scope > .two';
+const chaveCard = el => el.dataset.lay || (el.dataset.lay = norm((el.querySelector('h2, h3, .atHead b, span, strong')?.textContent || el.textContent || '').trim()).replace(/[^a-z0-9]+/g, '-').slice(0, 40) || 'x');
+function gruposLayout() {
+  const c = $('#content'); if (!c) return [];
+  const filhos = g => [...g.children].filter(x => !x.matches('.layOlho, .layAlca, .layBanner'));
+  const gs = [...c.querySelectorAll(LAY_GRUPOS)].filter(g => !g.closest('.modal')).map(g => [g, filhos(g)]);
+  if (S.view === 'painel') gs.push([c, [...c.querySelectorAll(LAY_TOPO)]]);
+  return gs.filter(([, it]) => it.length > 1).map(([g, it]) => { const ks = it.map(chaveCard); g.dataset.layg = (g === c ? 'topo' : 'g') + ':' + [...ks].sort().join('|').slice(0, 120); return [g, it]; });
+}
+function aplicarLayout() {
+  const d = layDados()[S.view] || {}; const c = $('#content'); if (!c) return;
+  for (const [g, itens] of gruposLayout()) {
+    const cfg = d[g.dataset.layg] || {};
+    if (cfg.ordem?.length) { const pos = k => { const i = cfg.ordem.indexOf(k); return i < 0 ? 999 : i; }; const ord = itens.slice().sort((a, b) => pos(chaveCard(a)) - pos(chaveCard(b))); const ancora = document.createComment('lay'); g.insertBefore(ancora, itens[0]); let ref = ancora; for (const el of ord) { ref.after(el); ref = el; } ancora.remove(); }
+    for (const el of itens) { el.classList.add('layItem'); el.classList.toggle('layOculto', (cfg.ocultos || []).includes(chaveCard(el))); }
+  }
+  c.querySelector('.layBanner')?.remove();
+  if (LAY.edit) {
+    document.body.classList.add('orgMode');
+    c.insertAdjacentHTML('afterbegin', `<div class="layBanner">${ic('grid')}<div><b>Organizando a tela.</b> Arraste os cards para mudar a ordem e use o olho para esconder ou mostrar. Fica salvo na sua conta.</div><span class="spacer"></span><button class="sm" data-act="layRestaurar">${ic('refresh')}Restaurar padrão</button><button class="sm primary" data-act="organizar">${ic('check')}Concluir</button></div>`);
+    for (const el of c.querySelectorAll('.layItem')) if (!el.querySelector(':scope > .layOlho')) el.insertAdjacentHTML('beforeend', `<button type="button" class="layOlho" data-act="layOlho" title="${el.classList.contains('layOculto') ? 'Mostrar' : 'Esconder'} este card">${ic(el.classList.contains('layOculto') ? 'eye' : 'eyeOff')}</button><span class="layAlca">⠿</span>`);
+  } else document.body.classList.remove('orgMode');
+}
+function laySalvarGrupo(g) {
+  const d = layDados(); const v = (d[S.view] ||= {}); const itens = [...g.children].filter(x => x.classList.contains('layItem'));
+  v[g.dataset.layg] = { ordem: itens.map(chaveCard), ocultos: itens.filter(x => x.classList.contains('layOculto')).map(chaveCard) }; layGravar();
+}
+// arrastar com mouse ou dedo (pointer events): o card segue a posição do ponteiro dentro do próprio grupo
+document.addEventListener('pointerdown', e => {
+  if (!LAY.edit || e.button > 0 || e.target.closest('.layOlho, .layBanner')) return;
+  const it = e.target.closest('.layItem'); if (!it) return; const g = it.parentElement; e.preventDefault();
+  it.classList.add('layArrastando'); it.setPointerCapture?.(e.pointerId);
+  const mover = ev => {
+    const alvo = document.elementsFromPoint(ev.clientX, ev.clientY).map(x => x.closest?.('.layItem')).find(x => x && x !== it && x.parentElement === g); if (!alvo) return;
+    const r = alvo.getBoundingClientRect(); const depois = (r.width > r.height * 1.6 && g.id === 'content') ? ev.clientY > r.top + r.height / 2 : (ev.clientX > r.left + r.width / 2 || ev.clientY > r.bottom - 4);
+    depois ? alvo.after(it) : alvo.before(it);
+  };
+  const soltar = () => { it.classList.remove('layArrastando'); document.removeEventListener('pointermove', mover); document.removeEventListener('pointerup', soltar); document.removeEventListener('pointercancel', soltar); laySalvarGrupo(g); };
+  document.addEventListener('pointermove', mover); document.addEventListener('pointerup', soltar); document.addEventListener('pointercancel', soltar);
+});
 // botões de empresa no topo de todas as telas (substituem o filtro "Empresa" do cabeçalho)
 const VIEWS_SEM_EMPRESA = new Set(['mercado', 'discord', 'modelos', 'usuarios', 'filiais', 'config']);
 function barraEmpresas() {
