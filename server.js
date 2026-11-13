@@ -331,6 +331,7 @@ const INDICES = [
   { id: 'tr', nome: 'TR', desc: 'Taxa Referencial, usada na poupança e em financiamentos.', sgs: 226, taxa: 'dia' },
   { id: 'poup', nome: 'Poupança', desc: 'Rendimento mensal da caderneta de poupança.', sgs: 195, taxa: 'mes' }
 ];
+const cacheIndice = {};
 const cacheMercado = { cot: null, cotEm: 0, ind: null, indEm: 0 };
 const numBR = v => +String(v).replace(',', '.');
 async function sgs(cod, n) { const r = await httpsJSON(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${cod}/dados/ultimos/${n}?formato=json`, { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } }); if (r.status !== 200 || !Array.isArray(r.json)) throw Error('BCB ' + r.status); return r.json.map(x => ({ data: x.data.split('/').reverse().join('-'), valor: numBR(x.valor) })); }
@@ -745,6 +746,21 @@ async function rotas(req, res, url, p, ip) {
         return send(res, 405, { error: 'Método não permitido.' });
       } }
     if (p === '/api/notificacoes' && req.method === 'GET') return send(res, 200, { notificacoes: Object.values(db.notificacoes).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 60), solicitacoes: Object.values(db.solicitacoes).filter(x => x.status === 'Pendente'), assinaturas: Object.values(db.assinaturas) }, { 'Cache-Control': 'no-store' });
+    if (p === '/api/indice' && req.method === 'GET') { // índice acumulado entre dois meses (reajuste de parcelas)
+      const ix = INDICES.find(x => x.id === url.searchParams.get('id') && !x.taxa); const de = url.searchParams.get('de') || '', ate = url.searchParams.get('ate') || '';
+      if (!ix || !/^\d{4}-\d{2}$/.test(de) || !/^\d{4}-\d{2}$/.test(ate) || de > ate) return send(res, 400, { error: 'Informe o índice e o período (mês inicial e final).' });
+      const ck = ix.id + de + ate; cacheIndice[ck] ||= { em: 0 };
+      if (Date.now() - cacheIndice[ck].em > 6 * 3600e3) {
+        const [ya, ma] = ate.split('-').map(Number); const fim = new Date(Date.UTC(ya, ma, 0)).getUTCDate();
+        const r = await httpsJSON(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${ix.sgs}/dados?formato=json&dataInicial=01/${de.slice(5)}/${de.slice(0, 4)}&dataFinal=${fim}/${ate.slice(5)}/${ate.slice(0, 4)}`, { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } }).catch(() => null);
+        if (!r || r.status !== 200 || !Array.isArray(r.json)) return send(res, 502, { error: 'Não foi possível consultar o Banco Central agora. Tente de novo ou use um percentual.' });
+        const meses = r.json.map(x => ({ mes: x.data.split('/').reverse().join('-').slice(0, 7), valor: numBR(x.valor) }));
+        const pedidos = []; for (let d = new Date(de + '-01T00:00:00Z'); d.toISOString().slice(0, 7) <= ate; d.setUTCMonth(d.getUTCMonth() + 1)) pedidos.push(d.toISOString().slice(0, 7));
+        const acumulado = (meses.reduce((f, x) => f * (1 + x.valor / 100), 1) - 1) * 100;
+        cacheIndice[ck] = { em: Date.now(), dados: { id: ix.id, nome: ix.nome, de, ate, acumulado: +acumulado.toFixed(4), meses, faltando: pedidos.filter(m => !meses.some(x => x.mes === m)) } };
+      }
+      return send(res, 200, cacheIndice[ck].dados);
+    }
     if (p === '/api/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(url.searchParams.get('forcar') === '1' && user.perfil === 'Administrador'), { 'Cache-Control': 'no-store' });
     if (p === '/api/layout') { // organização dos cards de cada usuário
       db.layouts ||= {};

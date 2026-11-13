@@ -754,7 +754,7 @@ function verVenda(id) {
   const ps = (v.parcelas || []).slice().sort((a, b) => a.venc.localeCompare(b.venc)); const tipos = ['Entrada', 'Mensal', 'Intercalada'];
   modal(`${mHead(`${v.codigo ? 'Venda ' + v.codigo + ' · ' : ''}${v.numero} · ${nomeFilial(v.filialId)}`, cliNome(v.clienteId) + ' — ' + loteDesc(v.loteId))}<div class="modalBody">
   <div class="kpis" style="grid-template-columns:repeat(4,1fr)"><div class="kpi"><span>Valor</span><strong>${brl(v.valor)}</strong><small>${dataBR(v.data)}</small></div><div class="kpi"><span>Recebido</span><strong class="green">${brl(recebidoVenda(v))}</strong></div><div class="kpi"><span>Saldo</span><strong>${brl(saldoVenda(v))}</strong><small>${vencidasVenda(v).length} vencidas</small></div><div class="kpi"><span>Situação</span><strong style="font-size:16px">${badgeSit(situacaoVenda(v))}</strong><small>Classificação: ${esc(v.classificacao || 'Automático')}</small></div></div>
-  <div class="toolbar"><div class="legend">${tipos.map(t => { const a = ps.filter(p => p.tipo === t); return a.length ? `<span><b>${t}:</b>&nbsp;${a.length}× · ${brl(soma(a, p => p.valor))}</span>` : ''; }).join('')}</div><span class="spacer"></span>${fin ? `<button class="sm" data-act="addParcela" data-id="${v.id}">${ic('plus')}Parcela avulsa</button>` : ''}${pode(S.user, 'modelos') ? `<button class="sm" data-act="gerarContrato" data-id="${v.id}">${ic('doc')}Gerar contrato</button>` : ''}${S.user.perfil === 'Administrador' || S.user.perfil === 'Gerente' ? (v.status === 'Distratado' ? '' : `<button class="sm danger" data-act="distrato" data-id="${v.id}">Distratar</button>`) : ''}</div>
+  <div class="toolbar"><div class="legend">${tipos.map(t => { const a = ps.filter(p => p.tipo === t); return a.length ? `<span><b>${t}:</b>&nbsp;${a.length}× · ${brl(soma(a, p => p.valor))}</span>` : ''; }).join('')}</div><span class="spacer"></span>${fin ? `<button class="sm" data-act="addParcela" data-id="${v.id}">${ic('plus')}Parcela avulsa</button><button class="sm" data-act="reajustar" data-id="${v.id}">${ic('trend')}Reajustar</button>` : ''}${pode(S.user, 'modelos') ? `<button class="sm" data-act="gerarContrato" data-id="${v.id}">${ic('doc')}Gerar contrato</button>` : ''}${S.user.perfil === 'Administrador' || S.user.perfil === 'Gerente' ? (v.status === 'Distratado' ? '' : `<button class="sm danger" data-act="distrato" data-id="${v.id}">Distratar</button>`) : ''}</div>
   <div class="tableWrap" style="max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px"><table><thead><tr><th>Tipo</th><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th class="num">Encargos</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead><tbody>${ps.map(p => { const b = Store.list('boletos').find(x => x.parcelaId === p.id && x.status !== 'Cancelado'); return `<tr><td>${esc(p.tipo)}</td><td>${esc(p.ref)}</td><td>${dataBR(p.venc)}</td><td class="num">${brl(p.valor)}</td><td class="num">${(p.juros || p.multa) ? brl((p.juros || 0) + (p.multa || 0)) : '—'}</td><td class="num">${brl(pagoParcela(p))}</td><td class="num">${brl(saldoParcela(p))}</td><td>${badgeSit(statusParcela(p))}${b ? ` <span class="badge blue" title="${esc(b.linha)}">boleto</span>` : ''}</td><td class="actions">${fin && saldoParcela(p) > 0 ? `<button type="button" class="tb g" title="Baixar parcela" aria-label="Baixar parcela" data-act="baixa" data-v="${v.id}" data-p="${p.id}">${ic('check')}</button>` : ''}${fin && saldoParcela(p) > 0 && pode(S.user, 'boletos') ? `<button type="button" class="tb c" title="${b ? 'Ver boleto' : 'Boleto'}" aria-label="${b ? 'Ver boleto' : 'Boleto'}" data-act="emitirBoleto" data-v="${v.id}" data-p="${p.id}">${ic('barcode')}</button>` : ''}${(p.pagamentos || []).length ? `<button type="button" class="tb c" title="Histórico da parcela" aria-label="Histórico da parcela" data-act="histParcela" data-v="${v.id}" data-p="${p.id}">${ic('clock')}</button>` : ''}${fin && S.user.perfil !== 'Financeiro' ? `<button type="button" class="tb e" title="Editar parcela" aria-label="Editar parcela" data-act="editParcela" data-v="${v.id}" data-p="${p.id}">${ic('edit')}</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="9" class="empty">Sem parcelas.</td></tr>`}</tbody></table></div>
   <div class="formGrid" style="margin-top:16px"><label>Classificação financeira<select id="vClass" ${fin ? '' : 'disabled'}>${['Automático', 'Em atraso', 'Inadimplente'].map(s => opt(s, s, v.classificacao || 'Automático')).join('')}</select></label><label>Corretor<input value="${esc(v.corretor || '')}" disabled></label><label>Comissão<input value="${brl(comissaoTotal(v))} (${esc(v.comissaoPct ?? 4)}%)" disabled></label><label>Reajuste<input value="${esc(v.indice || '')} · ${esc(v.reajuste || '')}" disabled></label></div>
   ${(v.antecipacoes || []).length ? `<details style="margin-top:14px"><summary class="muted" style="cursor:pointer">Antecipações de parcelas (${v.antecipacoes.length})</summary><div class="tableWrap" style="margin-top:8px"><table><thead><tr><th>Tipo</th><th>Parcela</th><th>Vencimento</th><th>Pago em</th><th class="num">Valor</th></tr></thead><tbody>${v.antecipacoes.map(a => `<tr><td>${esc(a.tipo)}</td><td>${esc(a.ref)}</td><td>${dataBR(a.venc)}</td><td>${dataBR(a.pagoEm)}</td><td class="num">${brl(a.valor)}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
@@ -848,7 +848,7 @@ VIEWS.financeiro = () => {
   const kpis = `<div class="kpis" style="grid-template-columns:repeat(5,1fr)"><div class="kpi bl"><span>Parcelas · ${esc(nomeSt)}</span><strong>${rows.length.toLocaleString('pt-BR')}</strong><small>no filtro atual</small></div><div class="kpi bl"><span>Valor das parcelas</span><strong>${brl(tot)}</strong><small>valor original + encargos</small></div><div class="kpi"><span>Recebido</span><strong class="green">${brl(rec)}</strong><small>${temMes && porPagamento(st) ? 'pago em ' + rotMes : periodoPag ? `${f.ppini ? dataBR(f.ppini) : 'início'} a ${f.ppfim ? dataBR(f.ppfim) : 'hoje'}` : 'pagamentos destas parcelas'}</small></div><div class="kpi"><span>Vencido</span><strong class="${venc ? 'red' : ''}">${brl(venc)}</strong><small>em atraso, não pago</small></div><div class="kpi hl"><span>A vencer</span><strong>${brl(aVenc)}</strong><small>saldo ainda no prazo</small></div></div>`;
   const anosP = [...new Set(base.flatMap(({ p }) => [p.venc.slice(0, 4), ...(p.pagamentos || []).map(x => (x.data || '').slice(0, 4))]).filter(Boolean))].sort().reverse();
   const painelChip = (f.pini || f.pfim || f.ppini || f.ppfim) ? `<span class="chipF">${f.pini || f.pfim ? 'Vencimento' : 'Pagamento'} do painel: ${dataBR(f.pini || f.ppini) || 'início'} a ${dataBR(f.pfim || f.ppfim) || 'fim'}<button data-act="limparPainelParc" title="Remover">×</button></span>` : '';
-  return `${abasHTML}${filtroBox(`${fTxt('pq', 'Cliente', f.pq, 'Pesquisar pelo nome do cliente')}${fSel('pmes', porPagamento(st) ? 'Mês do pagamento' : 'Mês do vencimento', [['', 'Todos os meses'], ...MESES.map((m, i) => [String(i + 1).padStart(2, '0'), m])], f.pmes)}${fSel('pano', 'Ano', [['', 'Todos os anos'], ...anosP], f.pano)}${fDate('pdi', porPagamento(st) ? 'Pagamento de' : 'Vencimento de', f.pdi)}${fDate('pdf', 'até', f.pdf)}${fSel('ptp', 'Tipo', [['', 'Todos'], 'Entrada', 'Mensal', 'Intercalada', 'Avulsa'], f.ptp)}${fSel('pquad', 'Quadra', quadraItems(f.pemp), f.pquad)}${painelChip}<span class="spacer"></span>${btnLimpar(K)}<button data-act="exportParcelas">${ic('down')}CSV</button>`)}
+  return `${abasHTML}${filtroBox(`${fTxt('pq', 'Cliente', f.pq, 'Pesquisar pelo nome do cliente')}${fSel('pmes', porPagamento(st) ? 'Mês do pagamento' : 'Mês do vencimento', [['', 'Todos os meses'], ...MESES.map((m, i) => [String(i + 1).padStart(2, '0'), m])], f.pmes)}${fSel('pano', 'Ano', [['', 'Todos os anos'], ...anosP], f.pano)}${fDate('pdi', porPagamento(st) ? 'Pagamento de' : 'Vencimento de', f.pdi)}${fDate('pdf', 'até', f.pdf)}${fSel('ptp', 'Tipo', [['', 'Todos'], 'Entrada', 'Mensal', 'Intercalada', 'Avulsa'], f.ptp)}${fSel('pquad', 'Quadra', quadraItems(f.pemp), f.pquad)}${painelChip}<span class="spacer"></span>${btnLimpar(K)}<button data-act="exportParcelas">${ic('down')}CSV</button>${pode(S.user, 'financeiro') ? `<button class="primary" data-act="reajustar">${ic('trend')}Reajustar parcelas</button>` : ''}`)}
   ${kpis}
   <div class="card"><div class="tableWrap"><table><thead><tr><th>Vencimento</th><th>Cliente / contrato</th><th>Parcela</th><th class="num">Valor</th><th class="num">Pago</th><th>Pago em</th><th class="num">Saldo</th><th>Situação</th><th></th></tr></thead><tbody>${shown.map(({ v, p }) => { const pg = (p.pagamentos || []).map(x => x.data).sort(); return `<tr><td>${dataBR(p.venc)}</td><td><b>${esc(cliNome(v.clienteId))}</b><small>${esc(v.numero)}</small></td><td>${esc(p.tipo)} ${esc(p.ref)}</td><td class="num">${brl(totalParcela(p))}</td><td class="num">${brl(pagoParcela(p))}</td><td>${pg.length ? dataBR(pg[pg.length - 1]) : '—'}</td><td class="num">${brl(saldoParcela(p))}</td><td>${badgeSit(statusParcela(p))}</td><td class="actions">${saldoParcela(p) > 0 ? `<button type="button" class="tb g" title="Baixar parcela" aria-label="Baixar parcela" data-act="baixa" data-v="${v.id}" data-p="${p.id}">${ic('check')}</button>${pode(S.user, 'boletos') ? `<button type="button" class="tb c" title="Boleto" aria-label="Boleto" data-act="emitirBoleto" data-v="${v.id}" data-p="${p.id}">${ic('barcode')}</button>` : ''}` : `<button type="button" class="tb c" title="Histórico da parcela" aria-label="Histórico da parcela" data-act="histParcela" data-v="${v.id}" data-p="${p.id}">${ic('clock')}</button>`}</td></tr>`; }).join('') || `<tr><td colspan="9" class="empty">Nenhuma parcela no filtro.</td></tr>`}</tbody><tfoot><tr><td colspan="3">${rows.length.toLocaleString('pt-BR')} parcelas</td><td class="num">${brl(tot)}</td><td class="num">${brl(soma(rows, x => pagoParcela(x.p)))}</td><td></td><td class="num">${brl(sal)}</td><td colspan="2"></td></tr></tfoot></table></div>${rows.length > shown.length ? `<p class="hint" style="padding:10px 18px">Mostrando ${shown.length} de ${rows.length.toLocaleString('pt-BR')}. Os cards e o total consideram todas as ${rows.length.toLocaleString('pt-BR')} parcelas do filtro. Refine o filtro ou exporte (exporta todas do filtro).</p>` : ''}</div>`;
 };
@@ -1430,3 +1430,115 @@ Testemunhas:
 Corretor responsável: {{venda.corretor}}`;
 // nova venda: ao escolher um corretor cadastrado, a comissão vem do cadastro dele
 document.addEventListener('change', e => { if (!e.target.matches('input[data-cor-pct]')) return; const c = corretorPorNome(e.target.value), f = e.target.form; if (c && f?.comissaoPct) f.comissaoPct.value = pctIn(c.comissaoPct ?? 4); });
+
+/* ---------- Reajuste de parcelas em lote (valor, vencimento, juros e multa) ---------- */
+const RJ = { cfg: null, idx: null, idxErro: '', idxKey: '', buscando: false };
+const pctTxt = x => (x > 0 ? '+' : '') + (x || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+const mesAnt = (n = 1) => addMeses(hoje().slice(0, 8) + '01', -n).slice(0, 7);
+function abrirReajuste(vendaId = '') {
+  const fil = Store.get('filiais', S.filial) || Store.list('filiais')[0] || {};
+  RJ.conf = null; RJ.cfg = { escopo: vendaId ? 'venda' : 'filtro', vendaId, de: '', ate: '', tipo: '', sit: 'aberto',
+    valOn: true, modo: 'indice', indice: 'ipca', ide: mesAnt(12), iate: mesAnt(1), pct: '', novo: '',
+    vencOn: false, vmodo: 'dia', dia: '10', adiar: '1', unid: 'meses',
+    jmOn: false, multa: String(fil.multa ?? 2).replace('.', ','), juros: String(fil.jurosMes ?? 1).replace('.', ','), calcAte: hoje() };
+  modal(`${mHead('Reajustar parcelas', 'Valor, vencimento, juros e multa de várias parcelas de uma vez, com prévia antes de gravar')}<div class="modalBody" id="rjCorpo"></div>`, 'wide rjModal');
+  rjRender();
+}
+function rjSelecao() {
+  const c = RJ.cfg; let base;
+  if (c.escopo === 'venda') { const v = Store.get('vendas', c.vendaId); base = v ? (v.parcelas || []).map(p => ({ v, p })) : []; }
+  else base = linhasParcelas();
+  return base.filter(({ p }) => (!c.de || p.venc >= c.de) && (!c.ate || p.venc <= c.ate) && (!c.tipo || p.tipo === c.tipo) && (c.sit === 'todas' || saldoParcela(p) > 0));
+}
+function rjFator() {
+  const c = RJ.cfg; if (!c.valOn) return { ok: true, f: 1 };
+  if (c.modo === 'pct') { const x = parseFloat(String(c.pct).replace(',', '.')); return isNaN(x) ? { ok: false, msg: 'Informe o percentual.' } : { ok: true, f: 1 + x / 100, txt: pctTxt(x) }; }
+  if (c.modo === 'valor') { const n = toCents(c.novo); return n > 0 ? { ok: true, novo: n } : { ok: false, msg: 'Informe o novo valor.' }; }
+  const k = `${c.indice}|${c.ide}|${c.iate}`;
+  if (RJ.idxKey !== k) { RJ.idxKey = k; RJ.idx = null; RJ.idxErro = ''; rjBuscarIndice(); }
+  if (RJ.idxErro) return { ok: false, msg: RJ.idxErro }; if (!RJ.idx) return { ok: false, msg: 'Consultando o índice no Banco Central…' };
+  return { ok: true, f: 1 + RJ.idx.acumulado / 100, txt: `${RJ.idx.nome} acumulado: ${pctTxt(RJ.idx.acumulado)}` };
+}
+async function rjBuscarIndice() {
+  const c = RJ.cfg; const k = RJ.idxKey;
+  if (Store.mode !== 'server') { RJ.idxErro = 'Consulta ao Banco Central disponível só no servidor. Use "Percentual".'; return rjRender(); }
+  if (!/^\d{4}-\d{2}$/.test(c.ide) || !/^\d{4}-\d{2}$/.test(c.iate)) { RJ.idxErro = 'Informe o mês inicial e o final.'; return rjRender(); }
+  try { const r = await fetch(`api/indice?id=${c.indice}&de=${c.ide}&ate=${c.iate}`, { headers: Store.authH() }); const j = await r.json(); if (RJ.idxKey !== k) return; if (!r.ok) throw Error(j.error); RJ.idx = j; }
+  catch (e) { if (RJ.idxKey === k) RJ.idxErro = e.message || 'Falha ao consultar o índice.'; }
+  rjRender();
+}
+function rjCalcular() {
+  const c = RJ.cfg; const fx = rjFator(); const sel = rjSelecao();
+  const multa = parseFloat(String(c.multa).replace(',', '.')) || 0, juros = parseFloat(String(c.juros).replace(',', '.')) || 0;
+  const itens = sel.map(({ v, p }) => {
+    const antes = { valor: p.valor, venc: p.venc, juros: p.juros || 0, multa: p.multa || 0 }; const d = { ...antes };
+    if (c.valOn && fx.ok) d.valor = fx.novo ?? Math.round(p.valor * fx.f);
+    if (c.vencOn) {
+      if (c.vmodo === 'dia') { const dia = Math.min(31, Math.max(1, +c.dia || 1)); const [y, m] = p.venc.split('-'); const ult = new Date(Date.UTC(+y, +m, 0)).getUTCDate(); d.venc = `${y}-${m}-${String(Math.min(dia, ult)).padStart(2, '0')}`; }
+      else { const n = +c.adiar || 0; d.venc = c.unid === 'meses' ? addMeses(p.venc, n) : new Date(Date.parse(p.venc) + n * 864e5).toISOString().slice(0, 10); }
+    }
+    if (c.jmOn) { const atraso = diasEntre(d.venc, c.calcAte); const princ = Math.max(0, d.valor - pagoParcela(p)); if (atraso > 0 && princ > 0) { d.multa = Math.round(princ * multa / 100); d.juros = Math.round(princ * juros / 100 / 30 * atraso); } else { d.multa = 0; d.juros = 0; } }
+    const mudou = d.valor !== antes.valor || d.venc !== antes.venc || d.juros !== antes.juros || d.multa !== antes.multa;
+    return { v, p, antes, d, mudou };
+  });
+  return { fx, itens, mud: itens.filter(x => x.mudou) };
+}
+function rjRender() {
+  const box = $('#rjCorpo'); if (!box || !RJ.cfg) return; const c = RJ.cfg; const { fx, itens, mud } = rjCalcular();
+  const tot = it => it.valor + it.juros + it.multa; const antes = soma(itens, x => tot(x.antes)), depois = soma(itens, x => tot(x.d));
+  const seg = (campo, ops) => `<div class="rjSeg">${ops.map(([k, t]) => `<button type="button" class="${c[campo] === k ? 'on' : ''}" data-act="rjSet" data-k="${campo}" data-v="${k}">${t}</button>`).join('')}</div>`;
+  const tg = (campo, t) => `<button type="button" class="rjTg ${c[campo] ? 'on' : ''}" data-act="rjSet" data-k="${campo}" data-v="${c[campo] ? '' : '1'}"><i></i>${t}</button>`;
+  const inp = (k, t, attrs = '') => `<label>${t}<input data-rj="${k}" value="${esc(c[k] ?? '')}" ${attrs}></label>`;
+  const v = c.escopo === 'venda' ? Store.get('vendas', c.vendaId) : null; const mostra = mud.slice(0, 60);
+  const quem = it => `${esc(cliNome(it.v.clienteId))}<small>${esc(it.v.codigo ? 'Venda ' + it.v.codigo + ' · ' : '')}${esc(loteNome(Store.get('lotes', it.v.loteId)))}</small>`;
+  box.innerHTML = `<div class="rjSec"><h3><span class="rjN">1</span>Quais parcelas</h3><div class="rjRow">
+    <label>Aplicar em<select data-rj="escopo">${opt('filtro', 'Parcelas do filtro de Contas a Receber', c.escopo)}${c.vendaId ? opt('venda', 'Só a venda ' + (v?.codigo || v?.numero || ''), c.escopo) : ''}</select></label>
+    ${inp('de', 'Vencimento de', 'type="date"')}${inp('ate', 'até', 'type="date"')}
+    <label>Tipo<select data-rj="tipo">${opt('', 'Todos', c.tipo)}${['Entrada', 'Mensal', 'Intercalada', 'Avulsa'].map(t => opt(t, t, c.tipo)).join('')}</select></label>
+    <label>Situação<select data-rj="sit">${opt('aberto', 'Só com saldo em aberto', c.sit)}${opt('todas', 'Todas, inclusive pagas', c.sit)}</select></label>
+    <span class="rjConta">→ <b>${itens.length.toLocaleString('pt-BR')}</b> parcela${itens.length === 1 ? '' : 's'}</span></div></div>
+  <div class="rjTres">
+   <div class="rjSec ${c.valOn ? '' : 'off'}"><h3><span class="rjN">2</span>${tg('valOn', 'Reajuste de valor')}</h3>${seg('modo', [['indice', 'Por índice'], ['pct', 'Percentual'], ['valor', 'Novo valor']])}
+    <div class="rjRow">${c.modo === 'indice' ? `<label>Índice<select data-rj="indice">${[['ipca', 'IPCA'], ['igpm', 'IGP-M'], ['incc', 'INCC'], ['inpc', 'INPC'], ['igpdi', 'IGP-DI']].map(([k, t]) => opt(k, t, c.indice)).join('')}</select></label>${inp('ide', 'Acumulado de', 'type="month"')}${inp('iate', 'até', 'type="month"')}` : c.modo === 'pct' ? inp('pct', 'Percentual (%)', 'inputmode="decimal" placeholder="ex.: 4,5 ou -2"') : inp('novo', 'Novo valor da parcela (R$)', 'inputmode="decimal"')}</div>
+    <p class="rjHint ${fx.ok ? '' : 'rjAviso'}">${c.valOn ? (fx.ok ? (fx.txt ? `<b>${esc(fx.txt)}</b>${RJ.idx?.faltando?.length && c.modo === 'indice' ? ` · sem dado do BC para ${RJ.idx.faltando.join(', ')}` : ''}` : 'Todas as parcelas selecionadas passam a ter esse valor.') : esc(fx.msg)) : 'Desligado: o valor não muda.'}</p></div>
+   <div class="rjSec ${c.vencOn ? '' : 'off'}"><h3><span class="rjN">3</span>${tg('vencOn', 'Vencimento')}</h3>${seg('vmodo', [['dia', 'Novo dia'], ['adiar', 'Adiar']])}
+    <div class="rjRow">${c.vmodo === 'dia' ? inp('dia', 'Dia do vencimento', 'type="number" min="1" max="31"') : `${inp('adiar', 'Adiar', 'type="number" min="1"')}<label>&nbsp;<select data-rj="unid">${opt('meses', 'meses', c.unid)}${opt('dias', 'dias', c.unid)}</select></label>`}</div>
+    <p class="rjHint">${c.vencOn ? (c.vmodo === 'dia' ? `Todas passam a vencer no dia ${esc(c.dia)} do mesmo mês (ou no último dia, nos meses mais curtos).` : `Cada vencimento é empurrado ${esc(c.adiar)} ${esc(c.unid)}.`) : 'Desligado: o vencimento não muda.'}</p></div>
+   <div class="rjSec ${c.jmOn ? '' : 'off'}"><h3><span class="rjN">4</span>${tg('jmOn', 'Juros e multa')}</h3>
+    <div class="rjRow">${inp('multa', 'Multa (%)', 'inputmode="decimal"')}${inp('juros', 'Juros ao mês (%)', 'inputmode="decimal"')}${inp('calcAte', 'Calcular até', 'type="date"')}</div>
+    <p class="rjHint">${c.jmOn ? 'Só nas parcelas vencidas até essa data, sobre o saldo do principal; juros proporcionais aos dias de atraso. Substitui os encargos atuais.' : 'Desligado: juros e multa não mudam.'}</p></div>
+  </div>
+  <div class="rjSec"><h3><span class="rjN">5</span>Prévia <span class="muted" style="font-weight:500;font-size:13px">· ${mud.length.toLocaleString('pt-BR')} parcela${mud.length === 1 ? '' : 's'} vão mudar</span></h3>
+   ${mud.length ? `<div class="tableWrap" style="max-height:300px"><table class="tCompact"><thead><tr><th>Cliente / venda</th><th>Parcela</th><th>Vencimento</th><th class="num">Valor atual</th><th class="num">Novo valor</th><th class="num">Juros + multa</th><th class="num">Diferença</th></tr></thead><tbody>${mostra.map(it => { const df = tot(it.d) - tot(it.antes); return `<tr><td class="tCli">${quem(it)}</td><td>${esc(it.p.tipo)} ${esc(it.p.ref || '')}</td><td>${it.d.venc !== it.antes.venc ? `<s class="muted">${dataBR(it.antes.venc)}</s> ${dataBR(it.d.venc)}` : dataBR(it.d.venc)}</td><td class="num">${brl(it.antes.valor)}</td><td class="num"><b>${brl(it.d.valor)}</b></td><td class="num">${it.d.juros + it.d.multa ? brl(it.d.juros + it.d.multa) : '—'}</td><td class="num ${df > 0 ? 'green' : df < 0 ? 'red' : ''}">${df ? (df > 0 ? '+ ' : '− ') + brl(Math.abs(df)) : '—'}</td></tr>`; }).join('')}${mud.length > mostra.length ? `<tr><td colspan="7" class="muted">… mais ${mud.length - mostra.length} parcela(s)</td></tr>` : ''}</tbody></table></div>
+   <div class="rjTot"><span>Antes: <b>${brl(antes)}</b></span><span>Depois: <b>${brl(depois)}</b></span><span class="${depois - antes >= 0 ? 'green' : 'red'}">Diferença: <b>${depois - antes >= 0 ? '+ ' : '− '}${brl(Math.abs(depois - antes))}</b></span></div>` : `<p class="muted" style="margin:4px 0">${itens.length ? 'Ligue uma das opções acima para ver o que muda.' : 'Nenhuma parcela no filtro escolhido.'}</p>`}</div>
+  ${rjLotesHTML()}
+  ${RJ.conf ? `<div class="rjConf">${ic('alert')}<div>${RJ.conf.tipo === 'aplicar' ? `<b>Aplicar o reajuste em ${mud.length.toLocaleString('pt-BR')} parcela(s)?</b><br><small>${esc(rjDescricao())}</small>` : '<b>Desfazer este reajuste?</b><br><small>As parcelas voltam ao valor, vencimento e encargos de antes. As que foram alteradas depois ficam como estão.</small>'}</div><span class="spacer"></span><button type="button" data-act="rjVoltar">Voltar</button><button type="button" class="${RJ.conf.tipo === 'aplicar' ? 'primary' : 'danger'}" data-act="rjConfirmar">${ic('check')}${RJ.conf.tipo === 'aplicar' ? 'Confirmar' : 'Desfazer'}</button></div>`
+  : `<div class="formActions"><span class="muted" style="font-size:12.5px">Fica registrado no histórico de cada venda e pode ser desfeito.</span><span class="spacer"></span><button type="button" data-act="closeModal">Cancelar</button><button type="button" class="primary" data-act="rjAplicar" ${mud.length && (!c.valOn || fx.ok) ? '' : 'disabled'}>${ic('check')}Aplicar em ${mud.length.toLocaleString('pt-BR')} parcela${mud.length === 1 ? '' : 's'}</button></div>`}`;
+}
+function rjLotes() {
+  const m = {}; for (const v of Store.list('vendas')) for (const p of v.parcelas || []) { const r = (p.reajustes || []).at(-1); if (r) (m[r.lote] ||= { lote: r.lote, em: r.em, por: r.por, desc: r.desc, n: 0 }).n++; }
+  return Object.values(m).sort((a, b) => b.em.localeCompare(a.em)).slice(0, 5);
+}
+function rjLotesHTML() { const ls = rjLotes(); return ls.length ? `<details class="rjHist"><summary>Últimos reajustes aplicados (${ls.length})</summary><table class="tCompact"><tbody>${ls.map(l => `<tr><td>${new Date(l.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td><td>${esc(l.por || '')}</td><td>${esc(l.desc)}</td><td class="num">${l.n} parcela(s)</td><td class="actions"><button type="button" class="sm danger" data-act="rjDesfazer" data-lote="${l.lote}">${ic('refresh')}Desfazer</button></td></tr>`).join('')}</tbody></table></details>` : ''; }
+function rjDescricao() {
+  const c = RJ.cfg, fx = rjFator(), p = [];
+  if (c.valOn) p.push(c.modo === 'valor' ? `valor fixo ${brl(fx.novo)}` : c.modo === 'pct' ? `reajuste ${fx.txt}` : `${RJ.idx?.nome} ${c.ide.split('-').reverse().join('/')} a ${c.iate.split('-').reverse().join('/')} (${pctTxt(RJ.idx?.acumulado)})`);
+  if (c.vencOn) p.push(c.vmodo === 'dia' ? `vencimento no dia ${c.dia}` : `vencimento adiado ${c.adiar} ${c.unid}`);
+  if (c.jmOn) p.push(`multa ${c.multa}% + juros ${c.juros}% a.m. até ${dataBR(c.calcAte)}`);
+  return p.join(' · ');
+}
+async function rjAplicar() {
+  const { mud } = rjCalcular(); if (!mud.length) return; const lote = uid(), em = new Date().toISOString(), desc = rjDescricao(); const vendas = new Map();
+  for (const it of mud) { Object.assign(it.p, it.d); (it.p.reajustes ||= []).push({ lote, em, por: S.user?.nome, desc, antes: it.antes, depois: it.d }); if (it.p.reajustes.length > 20) it.p.reajustes = it.p.reajustes.slice(-20); vendas.set(it.v.id, (vendas.get(it.v.id) || 0) + 1); }
+  let n = 0; for (const [id, q] of vendas) { const v = Store.get('vendas', id); hist(v, `Reajuste em ${q} parcela(s): ${desc}`); await Store.put('vendas', v); n++; }
+  await audit(`Reajuste em lote: ${mud.length} parcela(s) de ${n} venda(s) — ${desc}`); closeModal(); toast(`Reajuste aplicado em ${mud.length} parcela(s).`); renderView();
+}
+async function rjDesfazer(lote) {
+  const alvo = []; let conflito = 0;
+  for (const v of Store.list('vendas')) for (const p of v.parcelas || []) { const r = (p.reajustes || []).at(-1); if (r?.lote !== lote) continue; const d = r.depois; if (p.valor === d.valor && p.venc === d.venc && (p.juros || 0) === d.juros && (p.multa || 0) === d.multa) alvo.push({ v, p, r }); else conflito++; }
+  const vendas = new Set(); for (const { v, p, r } of alvo) { Object.assign(p, r.antes); p.reajustes.pop(); vendas.add(v.id); }
+  for (const id of vendas) { const v = Store.get('vendas', id); hist(v, 'Reajuste desfeito'); await Store.put('vendas', v); }
+  await audit(`Desfez reajuste em lote: ${alvo.length} parcela(s)`); toast(`Reajuste desfeito em ${alvo.length} parcela(s).${conflito ? ` ${conflito} parcela(s) foram alteradas depois e ficaram como estão.` : ''}`, !!conflito); rjRender(); renderView();
+}
+document.addEventListener('input', e => { const k = e.target.dataset?.rj; if (!k || !RJ.cfg) return; RJ.cfg[k] = e.target.value; clearTimeout(RJ.t); RJ.t = setTimeout(() => { const foco = document.activeElement?.dataset?.rj; const pos = document.activeElement?.selectionStart; rjRender(); const el = foco && document.querySelector(`[data-rj="${foco}"]`); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (er) { } } }, 350); });
+document.addEventListener('change', e => { const k = e.target.dataset?.rj; if (!k || !RJ.cfg || e.target.tagName !== 'SELECT') return; RJ.cfg[k] = e.target.value; rjRender(); });
