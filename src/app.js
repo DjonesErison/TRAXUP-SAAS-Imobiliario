@@ -1438,18 +1438,25 @@ const pctTxt = x => (x > 0 ? '+' : '') + (x || 0).toLocaleString('pt-BR', { mini
 const mesAnt = (n = 1) => addMeses(hoje().slice(0, 8) + '01', -n).slice(0, 7);
 function abrirReajuste(vendaId = '') {
   const fil = Store.get('filiais', S.filial) || Store.list('filiais')[0] || {};
-  RJ.conf = null; RJ.varias = false; RJ.cfg = { escopo: vendaId ? 'venda' : 'filtro', vendaId, de: '', ate: '', tipo: '', sit: 'aberto',
+  RJ.conf = null; RJ.varias = false; const vSug = vendaId ? Store.get('vendas', vendaId) : (vs1 => vs1.length === 1 ? vs1[0] : null)([...new Map(linhasParcelas().map(x => [x.v.id, x.v])).values()]); const [nDe, nAte] = rjSugerirNumeros(vSug);
+  RJ.cfg = { nDe, nAte, tipo: 'Mensal', escopo: vendaId ? 'venda' : 'filtro', vendaId, de: '', ate: '', sit: 'aberto',
     valOn: true, modo: 'indice', indice: 'ipca', taxaAno: '7', ide: mesAnt(12), iate: mesAnt(1), pct: '', novo: '',
     vencOn: false, vmodo: 'dia', dia: '10', adiar: '1', unid: 'meses',
     jmOn: false, multa: String(fil.multa ?? 2).replace('.', ','), juros: String(fil.jurosMes ?? 1).replace('.', ','), calcAte: hoje() };
   modal(`${mHead('Reajustar parcelas', 'Valor e vencimento das parcelas em aberto, com prévia antes de gravar')}<div class="modalBody" id="rjCorpo"></div>`, 'wide rjModal');
   rjRender();
 }
+const numParcela = p => parseInt(String(p.ref || '').split('/')[0]) || 0;
+// sugestão: as próximas 12 mensais em aberto da venda (ex.: 13 a 24)
+function rjSugerirNumeros(v) { const ns = (v?.parcelas || []).filter(p => p.tipo === 'Mensal' && saldoParcela(p) > 0).map(numParcela).filter(Boolean).sort((a, b) => a - b); return ns.length ? [String(ns[0]), String(ns[0] + 11)] : ['', '']; }
+function rjVendas() { const c = RJ.cfg; return c.escopo === 'venda' ? [Store.get('vendas', c.vendaId)].filter(Boolean) : [...new Map(linhasParcelas().map(x => [x.v.id, x.v])).values()]; }
 function rjSelecao() {
   const c = RJ.cfg; let base;
-  if (c.escopo === 'venda') { const v = Store.get('vendas', c.vendaId); base = v ? (v.parcelas || []).map(p => ({ v, p })) : []; }
-  else base = linhasParcelas();
-  return base.filter(({ p }) => p.tipo !== 'Intercalada' && (!c.de || p.venc >= c.de) && (!c.ate || p.venc <= c.ate) && (!c.tipo || p.tipo === c.tipo) && (c.sit === 'todas' || saldoParcela(p) > 0));
+  // vendas: a da tela da venda, ou as que aparecem no filtro de Contas a Receber (sem depender de datas)
+  const vendas = rjVendas();
+  base = vendas.flatMap(v => (v.parcelas || []).map(p => ({ v, p })));
+  const de = parseInt(c.nDe), ate = parseInt(c.nAte); if (!de || !ate) return [];
+  return base.filter(({ p }) => { const n = numParcela(p); return p.tipo !== 'Intercalada' && n >= de && n <= ate && (!c.tipo || p.tipo === c.tipo) && saldoParcela(p) > 0; }).sort((a, b) => a.v.id.localeCompare(b.v.id) || numParcela(a.p) - numParcela(b.p));
 }
 function rjFator() {
   const c = RJ.cfg; if (!c.valOn) return { ok: true, f: 1 };
@@ -1493,20 +1500,22 @@ function rjRender() {
   const inp = (k, t, attrs = '') => `<label>${t}<input data-rj="${k}" value="${esc(c[k] ?? '')}" ${attrs}></label>`;
   const v = c.escopo === 'venda' ? Store.get('vendas', c.vendaId) : null; const mostra = mud.slice(0, 60);
   const quem = it => `${esc(cliNome(it.v.clienteId))}<small>${esc(it.v.codigo ? 'Venda ' + it.v.codigo + ' · ' : '')}${esc(loteNome(Store.get('lotes', it.v.loteId)))}</small>`;
-  const vs = [...new Map(itens.map(x => [x.v.id, x.v])).values()]; const varias = vs.length > 1;
+  const vs = rjVendas(); const varias = vs.length > 1;
   const vInfo = x => `${esc(cliNome(x.clienteId))} · ${x.codigo ? 'Venda ' + esc(x.codigo) + ' · ' : ''}${esc(loteNome(Store.get('lotes', x.loteId)))} · ${esc(nomeFilial(x.filialId))}`;
-  box.innerHTML = `${vs.length === 1 ? `<div class="rjCliente">${ic('user')}<div><small>Cliente e venda que serão reajustados</small><b>${esc(cliNome(vs[0].clienteId))}</b><span>${vs[0].codigo ? 'Venda <b>' + esc(vs[0].codigo) + '</b> · ' : ''}Contrato ${esc(vs[0].numero || '')} · Lote <b>${esc(loteNome(Store.get('lotes', vs[0].loteId)))}</b> · ${esc(nomeFilial(vs[0].filialId))} · ${itens.length} parcela${itens.length === 1 ? '' : 's'} em aberto</span></div></div>`
+  box.innerHTML = `${vs.length === 1 ? `<div class="rjCliente">${ic('user')}<div><small>Cliente e venda que serão reajustados</small><b>${esc(cliNome(vs[0].clienteId))}</b><span>${vs[0].codigo ? 'Venda <b>' + esc(vs[0].codigo) + '</b> · ' : ''}Contrato ${esc(vs[0].numero || '')} · Lote <b>${esc(loteNome(Store.get('lotes', vs[0].loteId)))}</b> · ${esc(nomeFilial(vs[0].filialId))} · ${(v0 => v0.length + ' parcela' + (v0.length === 1 ? '' : 's') + ' em aberto')((vs[0].parcelas || []).filter(p => saldoParcela(p) > 0))}</span></div></div>`
     : vs.length ? `<div class="rjCliente rjVarios">${ic('alert')}<div><small>Atenção: o filtro atual tem parcelas de <b>${vs.length} vendas diferentes</b> (${itens.length.toLocaleString('pt-BR')} parcelas)</small><span class="rjChips">${vs.slice(0, 8).map(x => `<i>${vInfo(x)}</i>`).join('')}${vs.length > 8 ? `<i>… e mais ${vs.length - 8}</i>` : ''}</span><span>Para reajustar um cliente só, feche e filtre pelo nome do cliente em Contas a Receber, ou use o botão Reajustar dentro da venda.</span></div></div>` : ''}
-  <div class="rjEscopo">${ic('file')}<span>As intercaladas não são reajustadas.</span></div>
+  <div class="rjSec"><h3><span class="rjN">1</span>Quais parcelas (pelo número)</h3><div class="rjRow">${inp('nDe', 'Da parcela nº', 'type="number" min="1" style="max-width:140px"')}${inp('nAte', 'até a parcela nº', 'type="number" min="1" style="max-width:140px"')}<label>Tipo<select data-rj="tipo">${opt('Mensal', 'Mensal', c.tipo)}${opt('Entrada', 'Entrada', c.tipo)}${opt('', 'Mensal e entrada', c.tipo)}</select></label>
+    <span class="rjConta">${parseInt(c.nDe) && parseInt(c.nAte) ? `→ <b>${itens.length.toLocaleString('pt-BR')}</b> parcela${itens.length === 1 ? '' : 's'} em aberto` : '<span class="rjAviso">Informe a parcela inicial e a final.</span>'}</span></div>
+    <p class="rjHint">Ex.: <b>13 a 24</b> reajusta o 2º ano do contrato. Só parcelas em aberto; as intercaladas não são reajustadas.</p></div>
   <div class="rjDois">
-   <div class="rjSec ${c.valOn ? '' : 'off'}"><h3><span class="rjN">1</span>${tg('valOn', 'Reajuste de valor')}</h3>${seg('modo', [['indice', 'Por índice'], ['pct', 'Percentual'], ['valor', 'Novo valor']])}
+   <div class="rjSec ${c.valOn ? '' : 'off'}"><h3><span class="rjN">2</span>${tg('valOn', 'Reajuste de valor')}</h3>${seg('modo', [['indice', 'Por índice'], ['pct', 'Percentual'], ['valor', 'Novo valor']])}
     <div class="rjRow">${c.modo === 'indice' ? `<label>Índice<select data-rj="indice">${[['ipca', 'IPCA'], ['igpm', 'IGP-M'], ['incc', 'INCC'], ['inpc', 'INPC'], ['igpdi', 'IGP-DI']].map(([k, t]) => opt(k, t, c.indice)).join('')}</select></label>${inp('ide', 'Acumulado de', 'type="month"')}${inp('iate', 'até', 'type="month"')}${inp('taxaAno', '+ taxa ao ano (%)', 'inputmode="decimal" style="max-width:110px"')}` : c.modo === 'pct' ? inp('pct', 'Percentual (%)', 'inputmode="decimal" placeholder="ex.: 4,5 ou -2"') : inp('novo', 'Novo valor da parcela (R$)', 'inputmode="decimal"')}</div>
     <p class="rjHint ${fx.ok ? '' : 'rjAviso'}">${c.valOn ? (fx.ok ? (fx.txt ? `<b>${esc(fx.txt)}</b>${RJ.idx?.faltando?.length && c.modo === 'indice' ? ` · sem dado do BC para ${RJ.idx.faltando.join(', ')}` : ''}` : 'Todas as parcelas selecionadas passam a ter esse valor.') : esc(fx.msg)) : 'Desligado: o valor não muda.'}</p></div>
-   <div class="rjSec ${c.vencOn ? '' : 'off'}"><h3><span class="rjN">2</span>${tg('vencOn', 'Vencimento')}</h3>${seg('vmodo', [['dia', 'Novo dia'], ['adiar', 'Adiar']])}
+   <div class="rjSec ${c.vencOn ? '' : 'off'}"><h3><span class="rjN">3</span>${tg('vencOn', 'Vencimento')}</h3>${seg('vmodo', [['dia', 'Novo dia'], ['adiar', 'Adiar']])}
     <div class="rjRow">${c.vmodo === 'dia' ? inp('dia', 'Dia do vencimento', 'type="number" min="1" max="31"') : `${inp('adiar', 'Adiar', 'type="number" min="1"')}<label>&nbsp;<select data-rj="unid">${opt('meses', 'meses', c.unid)}${opt('dias', 'dias', c.unid)}</select></label>`}</div>
     <p class="rjHint">${c.vencOn ? (c.vmodo === 'dia' ? `Todas passam a vencer no dia ${esc(c.dia)} do mesmo mês (ou no último dia, nos meses mais curtos).` : `Cada vencimento é empurrado ${esc(c.adiar)} ${esc(c.unid)}.`) : 'Desligado: o vencimento não muda.'}</p></div>
   </div>
-  <div class="rjSec"><h3><span class="rjN">3</span>Prévia <span class="muted" style="font-weight:500;font-size:13px">· ${mud.length.toLocaleString('pt-BR')} parcela${mud.length === 1 ? '' : 's'} vão mudar</span></h3>
+  <div class="rjSec"><h3><span class="rjN">4</span>Prévia <span class="muted" style="font-weight:500;font-size:13px">· ${mud.length.toLocaleString('pt-BR')} parcela${mud.length === 1 ? '' : 's'} vão mudar</span></h3>
    ${mud.length ? `${rjQuadros(mud)}<details class="rjLista"><summary>Ver as ${mud.length.toLocaleString('pt-BR')} parcela(s) uma a uma</summary><div class="tableWrap" style="max-height:300px"><table class="tCompact"><thead><tr><th>Cliente / venda</th><th>Parcela</th><th>Vencimento</th><th class="num">Valor atual</th><th class="num">Novo valor</th><th class="num">Juros + multa</th><th class="num">Diferença</th></tr></thead><tbody>${mostra.map(it => { const df = tot(it.d) - tot(it.antes); return `<tr><td class="tCli">${quem(it)}</td><td>${esc(it.p.tipo)} ${esc(it.p.ref || '')}</td><td>${it.d.venc !== it.antes.venc ? `<s class="muted">${dataBR(it.antes.venc)}</s> ${dataBR(it.d.venc)}` : dataBR(it.d.venc)}</td><td class="num">${brl(it.antes.valor)}</td><td class="num"><b>${brl(it.d.valor)}</b></td><td class="num">${it.d.juros + it.d.multa ? brl(it.d.juros + it.d.multa) : '—'}</td><td class="num ${df > 0 ? 'green' : df < 0 ? 'red' : ''}">${df ? (df > 0 ? '+ ' : '− ') + brl(Math.abs(df)) : '—'}</td></tr>`; }).join('')}${mud.length > mostra.length ? `<tr><td colspan="7" class="muted">… mais ${mud.length - mostra.length} parcela(s)</td></tr>` : ''}</tbody></table></div></details>
    <div class="rjTot"><span>Antes: <b>${brl(antes)}</b></span><span>Depois: <b>${brl(depois)}</b></span><span class="${depois - antes >= 0 ? 'green' : 'red'}">Diferença: <b>${depois - antes >= 0 ? '+ ' : '− '}${brl(Math.abs(depois - antes))}</b></span></div>` : `<p class="muted" style="margin:4px 0">${itens.length ? 'Ligue uma das opções acima para ver o que muda.' : 'Nenhuma parcela no filtro escolhido.'}</p>`}</div>
   ${rjLotesHTML()}
