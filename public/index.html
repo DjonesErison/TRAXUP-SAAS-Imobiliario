@@ -990,6 +990,7 @@ function aplicarTema(t) { document.body.classList.toggle('dark', t === 'dark'); 
 (function temaInicial() { let t = null; try { t = localStorage.getItem('traxup_tema'); } catch (e) { } if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; aplicarTema(t); })();
 async function boot() {
   $('#app').innerHTML = `<div class="lgLoad"><img src="${LOGO_IMG}" alt="TRAXUP"><div class="lgSpin"></div></div>`;
+  if (/^\/(corretor|painel-corretor)\/+$|^\/painel-corretor$/.test(location.pathname)) history.replaceState(null, '', '/corretor' + location.hash);
   await Store.init();
   if (/^\/redefinir-senha\/?$/.test(location.pathname)) { const t = tokenDaUrl(); history.replaceState(null, '', '/'); return t ? telaRedefinir('equipe', t) : telaLogin('Link de redefinição inválido.'); }
   try { const s = JSON.parse(sessionStorage.getItem('traxup_sess') || 'null'); if (s && Store.mode === 'server' && s.token) { Store.token = s.token; await Store.loadAll(); const u = Store.get('usuarios', s.userId); if (u && u.ativo !== false) { S.user = u; return entrar(); } } } catch (e) { Store.token = null; }
@@ -1002,6 +1003,8 @@ function telaErro(msg) { $('#app').innerHTML = loginShell(`<div class="loginCard
 const LOGIN_TXT = {
   equipe: { k: '', h: ['Seu empreendimento', 'sob controle', 'em um só lugar.'], p: 'Lotes, vendas, contas a receber, boletos do Banco do Brasil, conciliação bancária e contratos de todas as empresas num painel só — sempre atualizado.',
     f: [['grid', 'Dashboard', 'Vendas, recebimentos e previsões de cada empresa num só lugar.'], ['wallet', 'Controle financeiro', 'Contas a receber, baixas, conciliação bancária e inadimplência.'], ['users', 'Painel do cliente', 'O comprador consulta o lote, o contrato e as parcelas sozinho.'], ['barcode', 'Emissão de boleto', 'Boletos do Banco do Brasil emitidos e registrados pelo sistema.']], rodape: 'Mais controle. Menos surpresa no fim do mês.' },
+  corretor: { k: 'Olá, corretor!', h: ['Suas vendas', 'e comissões', 'na palma da mão.'], p: 'Veja os lotes livres dos seus loteamentos, reserve para o seu cliente, monte a proposta e acompanhe as suas comissões e a meta do mês.',
+    f: [['map', 'Lotes livres', 'Mapa e lista dos lotes disponíveis para você vender.'], ['key', 'Reservas', 'Reserve o lote para o seu cliente e acompanhe o prazo.'], ['send', 'Simulador de proposta', 'Entrada e parcelas prontas para mandar no WhatsApp.'], ['hand', 'Comissões e meta', 'Quanto você vendeu no mês, a receber e já recebido.']], rodape: 'Mais vendas, menos papelada.' },
   cliente: { k: 'Olá, cliente!', h: ['Seu loteamento', 'na palma', 'da sua mão.'], p: 'Consulte as parcelas, imprima boletos, veja o contrato e acompanhe tudo do seu lote quando quiser — sem precisar ligar.',
     f: [['barcode', '2ª via de boleto', 'Imprima ou copie a linha digitável na hora.'], ['doc', 'Contratos e extratos', 'Visualize o contrato e imprima o extrato completo.'], ['send', 'Solicitações', 'Peça o boleto da parcela e acompanhe o atendimento.'], ['file', 'Relatórios', 'Quanto já pagou, quanto falta e as próximas parcelas.']], rodape: 'Transparência em cada parcela.' }
 };
@@ -1039,13 +1042,15 @@ function telaSenhaRedefinida(modo) {
   $('#app').innerHTML = loginShell(`<div class="loginCard"><div class="lgOkIc ok">${ic('check')}</div><h1>Senha<br>alterada!</h1><p class="sub">Pronto. A sua nova senha já está valendo. Por segurança, encerramos as sessões abertas em outros aparelhos.</p><button class="primary lgBtn" data-act="${modo === 'cliente' ? 'ptVoltarLogin' : 'voltarLogin'}">Entrar agora ${ic('arrow')}</button></div>`, modo);
 }
 const tokenDaUrl = () => { const t = new URLSearchParams(location.search).get('t') || ''; return /^[\w.-]{20,140}$/.test(t) ? t : ''; };
+// endereço próprio do corretor: imob.traxup.com.br/corretor
+const ehCorretorUrl = () => /^\/(corretor|painel-corretor)\/?$/.test(location.pathname);
 function telaLogin(erro = '') {
-  const ult = lembrado('traxup_ultimo_login');
-  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="login"><h1>Acesse o TRAXUP<br>Imobiliário</h1><p class="sub">Entre com o código da empresa, o login ou e-mail e a senha cadastrados.</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
+  const ult = lembrado('traxup_ultimo_login'), cor = ehCorretorUrl(); document.title = cor ? 'Painel do Corretor — TRAXUP Imobiliário' : 'TRAXUP Imobiliário';
+  $('#app').innerHTML = loginShell(`<form class="loginCard" data-form="login"><h1>${cor ? 'Painel do<br>Corretor' : 'Acesse o TRAXUP<br>Imobiliário'}</h1><p class="sub">${cor ? 'Entre com o código da empresa e o login e a senha que a imobiliária liberou para você.' : 'Entre com o código da empresa, o login ou e-mail e a senha cadastrados.'}</p>${erro ? `<div class="notice bad">${esc(erro)}</div>` : ''}
   ${campoCodigo()}<label>Login ou e-mail<span class="lgInput">${ic('mail')}<input name="login" autocomplete="username" placeholder="seu.login ou e-mail" required value="${esc(ult)}" ${ult ? '' : 'autofocus'}></span></label>${campoSenha('senha', 'Senha', 'current-password')}
   ${loginAjuda('Lembrar meu login', 'Peça ao administrador do sistema para redefinir a sua senha em Usuários.')}
   <button class="primary lgBtn" type="submit">Entrar ${ic('arrow')}</button>
-  <div class="lgHelp"><span>Precisa de ajuda?</span></div><p class="lgHelpTxt">Fale com o administrador do sistema.</p>${Store.mode !== 'server' ? `<div class="lgMeta">${esc(Store.label())}</div>` : ''}</form>`);
+  <div class="lgHelp"><span>Precisa de ajuda?</span></div><p class="lgHelpTxt">${cor ? 'Fale com o gestor da imobiliária para liberar ou recuperar o seu acesso.' : 'Fale com o administrador do sistema.'}</p>${Store.mode !== 'server' ? `<div class="lgMeta">${esc(Store.label())}</div>` : ''}</form>`, cor ? 'corretor' : 'equipe');
   if (ult) setTimeout(() => $('input[name=senha]')?.focus(), 30);
 }
 function telaSetup() {
@@ -1058,6 +1063,8 @@ function telaSetup() {
   <button class="primary" type="submit">Criar e entrar</button><div class="storageNote">Dados: <b>${esc(Store.label())}</b></div></form>`);
 }
 async function entrar() {
+  if (ehCorretorUrl() && S.user && S.user.perfil !== 'Corretor') { if (Store.mode === 'server' && Store.token) fetch('api/logout', { method: 'POST', headers: Store.authH() }).catch(() => { }); try { sessionStorage.removeItem('traxup_sess'); } catch (e) { } Store.token = null; S.user = null; return telaLogin('Este endereço é só para corretores. A equipe entra em imob.traxup.com.br.'); }
+  if (S.user?.perfil === 'Corretor' && !ehCorretorUrl()) history.replaceState(null, '', '/corretor' + location.hash);
   try { sessionStorage.setItem('traxup_sess', JSON.stringify({ userId: S.user.id, token: Store.token })); } catch (e) { }
   if (Store.mode === 'server') { try { const r = await fetch('api/conta', { headers: Store.authH(), cache: 'no-store' }); if (r.ok) S.conta = await r.json(); } catch (e) { } await prepararBase(); }
   const fs = filiaisUsuario(); S.filial = fs.length === 1 ? fs[0].id : '*';
@@ -1959,7 +1966,7 @@ function formCorretor(c) {
   <label>E-mail<input name="email" type="email" value="${esc(c.email || '')}"></label><label>Comissão padrão (%)<input name="comissaoPct" inputmode="decimal" required value="${pctIn(c.comissaoPct ?? 4)}"></label><label>Meta mensal de vendas (R$)<input name="metaMensal" inputmode="decimal" value="${c.metaMensal ? centsIn(c.metaMensal) : ''}" placeholder="0,00"></label>
   <div style="grid-column:1/-1"><div class="formSection" style="margin-top:4px">Loteamentos que ele pode ver e vender</div><div class="empChecks"><label class="check"><input type="checkbox" name="emp_*" id="cEmpTodos" ${todos ? 'checked' : ''}> <b>Todos os loteamentos</b></label>${emps.map(e => `<label class="check"><input type="checkbox" name="emp_${e.id}" class="cEmp" ${todos || (c.empreendimentos || []).includes(e.id) ? 'checked' : ''} ${todos ? 'disabled' : ''}> ${esc(e.nome)} <small class="muted">${esc(nomeFilial(e.filialId))}</small></label>`).join('') || '<span class="muted">Nenhum empreendimento cadastrado.</span>'}</div></div>
   <div style="grid-column:1/-1"><div class="formSection">Acesso ao sistema</div><label class="check"><input type="checkbox" name="liberar" id="cLiberar" ${acessoCor(c) === 'Liberado' ? 'checked' : ''}> Liberar acesso ao TRAXUP (painel do corretor, mapa, lotes e clientes dele)</label>
-  <div class="formGrid" id="cAcesso" style="grid-template-columns:1fr 1fr;margin-top:8px;${acessoCor(c) === 'Liberado' ? '' : 'display:none'}"><label>Login<input name="login" value="${esc(login)}" autocomplete="off"></label><label>${u ? 'Nova senha (em branco = manter)' : 'Senha (mín. 6)'}<input name="senha" type="password" minlength="6" autocomplete="new-password"></label><p class="hint" style="grid-column:1/-1;margin:0">Entra em imob.traxup.com.br com o código da empresa, esse login e a senha. Ele vê só as vendas e clientes dele e os lotes dos loteamentos marcados acima.</p></div></div></div>
+  <div class="formGrid" id="cAcesso" style="grid-template-columns:1fr 1fr;margin-top:8px;${acessoCor(c) === 'Liberado' ? '' : 'display:none'}"><label>Login<input name="login" value="${esc(login)}" autocomplete="off"></label><label>${u ? 'Nova senha (em branco = manter)' : 'Senha (mín. 6)'}<input name="senha" type="password" minlength="6" autocomplete="new-password"></label><p class="hint" style="grid-column:1/-1;margin:0">Ele entra em <b>imob.traxup.com.br/corretor</b> com o código da empresa, esse login e a senha. Ele vê só as vendas e clientes dele e os lotes dos loteamentos marcados acima.</p></div></div></div>
   <div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Salvar corretor</button></div></form>`, 'wide');
   const f = $('[data-form=corretor]'); $('#cEmpTodos').addEventListener('change', e => $$('.cEmp').forEach(x => { x.disabled = e.target.checked; if (e.target.checked) x.checked = true; }));
   $('#cLiberar').addEventListener('change', e => { $('#cAcesso').style.display = e.target.checked ? '' : 'none'; if (e.target.checked && !f.login.value) f.login.value = (f.email.value.split('@')[0] || normCor(f.nome.value).split(' ')[0] || ''); });
