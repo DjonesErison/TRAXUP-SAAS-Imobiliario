@@ -11,6 +11,8 @@ const ACT = {
   rjSet: el => { RJ.cfg[el.dataset.k] = el.dataset.v; rjRender(); },
   rjAplicar: () => { RJ.conf = { tipo: 'aplicar' }; rjRender(); },
   rjDesfazer: el => { RJ.conf = { tipo: 'desfazer', lote: el.dataset.lote }; rjRender(); },
+  rjVariasOk: el => { RJ.varias = el.checked; rjRender(); },
+  rjDesfazerUlt: el => { const u = rjLotes(el.dataset.v || '').find(x => x.lote === el.dataset.lote); confirmar(`Desfazer o reajuste de <b>${u ? new Date(u.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : ''}</b>${el.dataset.v ? ' nesta venda' : ''}?<br><small>${esc(u?.desc || '')} · ${u?.n || 0} parcela(s)</small><br><br>As parcelas voltam ao valor e vencimento de antes. As que foram alteradas depois ficam como estão.`, async () => { await rjDesfazer(el.dataset.lote, el.dataset.v || ''); if (el.dataset.v) verVenda(el.dataset.v); }, 'Desfazer'); },
   rjVoltar: () => { RJ.conf = null; rjRender(); },
   rjConfirmar: async () => { const c = RJ.conf; RJ.conf = null; try { c.tipo === 'aplicar' ? await rjAplicar() : await rjDesfazer(c.lote); } catch (e) { toast(e.message, true); rjRender(); } },
   tema: () => { const t = document.body.classList.contains('dark') ? 'light' : 'dark'; aplicarTema(t); try { localStorage.setItem('traxup_tema', t); } catch (e) { } Store.mode === 'portal' ? portalRender() : render(); },
