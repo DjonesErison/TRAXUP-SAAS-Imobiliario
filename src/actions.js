@@ -40,6 +40,20 @@ const ACT = {
   importarCorretores: () => modalImportarCorretores(),
   impCorretorUm: el => { const x = corretoresSemCadastro()[+el.dataset.i]; if (!x) return; closeModal(); formCorretor({ nome: x.nome, comissaoPct: x.pct, empreendimentos: x.emps.length ? x.emps : ['*'], ativo: true }); },
   impCorretoresTodos: async () => { const xs = corretoresSemCadastro(); let n = 0, v = 0; for (const x of xs) { await cadastrarDasVendas(x); n++; v += x.vendas.length; } await audit(`Cadastrou ${n} corretor(es) a partir das vendas`); closeModal(); toast(`${n} corretor(es) cadastrado(s) e ${v} venda(s) vinculada(s).`); S.view = 'corretores'; render(); },
+  ativoCorretor: el => {
+    const c = Store.get('corretores', el.dataset.id); const ativar = c.ativo === false;
+    confirmar(ativar ? `Ativar de novo <b>${esc(c.nome)}</b>? Ele volta a aparecer na escolha de corretor das vendas. O acesso ao sistema continua como está; libere pelo botão "Liberar acesso", se quiser.` : `Desativar <b>${esc(c.nome)}</b>? Ele deixa de aparecer na escolha de corretor das novas vendas${acessoCor(c) === 'Liberado' ? ' e o acesso ao sistema é bloqueado na hora' : ''}. As vendas e comissões dele continuam.`, async () => {
+      if (!ativar && acessoCor(c) === 'Liberado') await sincronizarAcesso(c, { liberar: false });
+      await Store.put('corretores', { ...Store.get('corretores', c.id), ativo: ativar }); await audit(`${ativar ? 'Ativou' : 'Desativou'} o corretor ${c.nome}`); toast(ativar ? 'Corretor ativado.' : 'Corretor desativado.'); renderView();
+    }, ativar ? 'Ativar' : 'Desativar');
+  },
+  delCorretor: el => {
+    const c = Store.get('corretores', el.dataset.id); const nv = vendasDoCorretor(c).length;
+    confirmar(`Excluir o cadastro de <b>${esc(c.nome)}</b>? ${c.usuarioId ? 'O login dele no sistema também é excluído. ' : ''}${nv ? `As ${nv} venda(s) e as comissões dele <b>continuam</b> com o nome registrado. Se a ideia é só tirar ele de circulação, prefira <b>Desativar</b>.` : 'Ele não tem vendas registradas.'}`, async () => {
+      if (c.usuarioId && Store.get('usuarios', c.usuarioId)) { try { await sincronizarAcesso(c, { liberar: false }); } catch (e) { } await Store.del('usuarios', c.usuarioId); }
+      await Store.del('corretores', c.id); await audit('Excluiu o corretor ' + c.nome); toast('Corretor excluído.'); renderView();
+    }, 'Excluir');
+  },
   editCorretor: el => formCorretor(Store.get('corretores', el.dataset.id)),
   simular: el => simularLote(el.dataset.id),
   acessoCorretor: el => { const c = Store.get('corretores', el.dataset.id), lib = el.dataset.v === '1'; confirmar(lib ? `Liberar de novo o acesso de <b>${esc(c.nome)}</b> com o mesmo login e senha?` : `Bloquear o acesso de <b>${esc(c.nome)}</b>? Ele sai do sistema na hora e não consegue mais entrar. O cadastro e as vendas continuam.`, async () => { await sincronizarAcesso(c, { liberar: lib }); await audit(`${lib ? 'Liberou' : 'Bloqueou'} o acesso do corretor ${c.nome}`); toast(lib ? 'Acesso liberado.' : 'Acesso bloqueado.'); renderView(); }, lib ? 'Liberar' : 'Bloquear'); },
