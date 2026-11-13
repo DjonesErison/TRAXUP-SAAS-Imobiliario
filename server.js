@@ -45,7 +45,20 @@ const CODIGO_RE = /^[a-z0-9]{2,20}$/;
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const tenants = new Map();
 function dirDoTenant(codigo) { return codigo === TENANT_PADRAO ? DATA_DIR : path.join(DATA_DIR, 'clientes', codigo); }
-function normalizarBase(b) { for (const c of COLS) b[c] ||= {}; b.portal ||= {}; b.resets ||= {}; return b; }
+function normalizarBase(b) { for (const c of COLS) b[c] ||= {}; b.portal ||= {}; b.resets ||= {}; numerarVendas(b); return b; }
+// código da venda: número sequencial sem zeros à esquerda (1, 2, 3…), dado na ordem da data da venda e nunca reaproveitado
+const maxCodigoVenda = b => Math.max(0, +b.codVendaUlt || 0, ...Object.values(b.vendas || {}).map(v => +v.codigo || 0));
+function numerarVendas(b) {
+  const sem = Object.values(b.vendas || {}).filter(v => !/^\d+$/.test(String(v.codigo || ''))); if (!sem.length) return;
+  let n = maxCodigoVenda(b); sem.sort((x, y) => (x.data || '').localeCompare(y.data || '') || String(x.numero || '').localeCompare(String(y.numero || ''), 'pt-BR', { numeric: true }) || String(x.id).localeCompare(String(y.id)));
+  for (const v of sem) v.codigo = String(++n); b.codVendaUlt = n;
+}
+function codigoDaVenda(o) { // mantém o código já dado; venda nova (ou código repetido) recebe o próximo número
+  const old = db.vendas[o.id]; if (old?.codigo) { o.codigo = old.codigo; return; }
+  const usado = Object.values(db.vendas).some(v => v.id !== o.id && String(v.codigo) === String(o.codigo));
+  if (!/^\d+$/.test(String(o.codigo || '')) || usado) o.codigo = String(maxCodigoVenda(db) + 1);
+  db.codVendaUlt = Math.max(+db.codVendaUlt || 0, +o.codigo);
+}
 function abrirTenant(codigo, criar = false) {
   codigo = String(codigo || '').trim().toLowerCase(); if (!CODIGO_RE.test(codigo)) return null;
   if (tenants.has(codigo)) return tenants.get(codigo);
@@ -747,7 +760,8 @@ async function rotas(req, res, url, p, ip) {
       if (req.method === 'PUT') {
         const o = await readJSON(req); if (!o || typeof o !== 'object' || Array.isArray(o)) return send(res, 400, { error: 'Registro inválido.' }); o.id = id;
         if (col === 'usuarios') { const old = db.usuarios[id]; if (!o.hash && old) { o.salt = old.salt; o.hash = old.hash; } if (!o.hash) return send(res, 400, { error: 'Defina uma senha para o novo usuário.' }); if (id === user.id && o.perfil !== 'Administrador') return send(res, 400, { error: 'Você não pode rebaixar o próprio perfil.' }); }
-        db[col][id] = o; persist(); return send(res, 200, { ok: true });
+        if (col === 'vendas') codigoDaVenda(o);
+        db[col][id] = o; persist(); return send(res, 200, { ok: true, ...(col === 'vendas' ? { codigo: o.codigo } : {}) });
       }
       if (req.method === 'DELETE') { if (col === 'usuarios' && id === user.id) return send(res, 400, { error: 'Você não pode excluir o próprio usuário.' }); delete db[col][id]; persist(); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: 'Método não permitido.' });

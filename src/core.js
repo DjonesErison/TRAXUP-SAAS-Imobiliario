@@ -87,12 +87,13 @@ const Store = {
   async put(c, o) {
     if (this.mode === 'portal') throw Error('Painel somente para consulta.');
     o = JSON.parse(JSON.stringify(o)); if (!o.id) o.id = uid(); o.atualizadoEm = new Date().toISOString();
+    if (c === 'vendas') { const old = this.data.vendas?.[o.id]; if (old?.codigo) o.codigo = old.codigo; else if (!o.codigo && this.mode !== 'server') o.codigo = String(Math.max(0, ...Object.values(this.data.vendas || {}).map(v => +v.codigo || 0)) + 1); } // no servidor, o código vem na resposta
     (this.data[c] ||= {})[o.id] = o;
     const key = c + '/' + o.id; const prev = this.queue[key] || Promise.resolve();
     const job = prev.catch(() => { }).then(() => this._write(c, o)); this.queue[key] = job; await job; return o;
   },
   async _write(c, o) {
-    if (this.mode === 'server') { const r = await fetch(`api/data/${c}/${encodeURIComponent(o.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...this.authH() }, body: JSON.stringify(o) }); if (!r.ok) { const j = await r.json().catch(() => ({})); throw Error(j.error || 'O servidor recusou a gravação.'); } return; }
+    if (this.mode === 'server') { const r = await fetch(`api/data/${c}/${encodeURIComponent(o.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...this.authH() }, body: JSON.stringify(o) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'O servidor recusou a gravação.'); if (j.codigo) o.codigo = j.codigo; return; }
     if (this.mode === 'db') { try { await this.db.collection(c).doc(o.id).set(o); } catch (e) { throw Error(e && e.code === 'quota_exceeded' ? 'A base atingiu o limite de armazenamento.' : e && e.code === 'invalid_argument' ? 'Sem permissão de gravação ou registro grande demais.' : 'Falha ao gravar: ' + (e && e.message || e)); } return; }
     this.saveLocal();
   },
