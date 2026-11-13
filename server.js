@@ -762,6 +762,23 @@ async function rotas(req, res, url, p, ip) {
       return send(res, 200, cacheIndice[ck].dados);
     }
     if (p === '/api/mercado' && req.method === 'GET') return send(res, 200, await dadosMercado(url.searchParams.get('forcar') === '1' && user.perfil === 'Administrador'), { 'Cache-Control': 'no-store' });
+    if (p === '/api/cessao/termo') { // termo de cessão de direitos assinado (PDF ou imagem), guardado junto dos contratos da venda
+      if (user.perfil === 'Corretor') return send(res, 403, { error: 'Sem permissão.' });
+      if (req.method === 'POST') {
+        const { vendaId, cessaoId, nome, base64 } = await readJSON(req, 22e6); if (!db.vendas[vendaId]) return send(res, 404, { error: 'Venda não encontrada.' });
+        const buf = Buffer.from(String(base64 || '').replace(/^data:[^,]*,/, ''), 'base64'); if (!buf.length) return send(res, 400, { error: 'Arquivo vazio.' }); if (buf.length > MAX_PDF) return send(res, 413, { error: 'O arquivo passa de 15 MB.' });
+        const ext = buf.slice(0, 5).toString() === '%PDF-' ? 'pdf' : buf[0] === 0xFF && buf[1] === 0xD8 ? 'jpg' : buf.slice(1, 4).toString() === 'PNG' ? 'png' : null;
+        if (!ext) return send(res, 400, { error: 'Envie o termo em PDF, JPG ou PNG.' });
+        const dir = path.join(atual().ctDir, String(vendaId).replace(/[^\w.-]/g, '_')); fs.mkdirSync(dir, { recursive: true });
+        const arquivo = `cessao_${String(cessaoId).replace(/[^\w-]/g, '')}_${Date.now()}.${ext}`; fs.writeFileSync(path.join(dir, arquivo), buf);
+        return send(res, 200, { arquivo, nome: String(nome || '').slice(0, 120), tamanho: buf.length, tipo: ext, hash: crypto.createHash('sha256').update(buf).digest('hex') });
+      }
+      if (req.method === 'GET') {
+        const vid = url.searchParams.get('vendaId') || '', arq = url.searchParams.get('arquivo') || ''; if (!db.vendas[vid] || !/^cessao_[\w-]+_\d+\.(pdf|jpg|png)$/.test(arq)) return send(res, 404, { error: 'Termo não encontrado.' });
+        const f = path.join(atual().ctDir, vid.replace(/[^\w.-]/g, '_'), arq); if (!fs.existsSync(f)) return send(res, 404, { error: 'Termo não encontrado.' });
+        res.writeHead(200, { 'Content-Type': arq.endsWith('pdf') ? 'application/pdf' : arq.endsWith('png') ? 'image/png' : 'image/jpeg', 'Content-Disposition': `inline; filename="${arq}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); return res.end(fs.readFileSync(f));
+      }
+    }
     if (p === '/api/layout') { // organização dos cards de cada usuário
       db.layouts ||= {};
       if (req.method === 'GET') return send(res, 200, { layout: db.layouts[user.id] || null });
