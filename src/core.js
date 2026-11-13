@@ -271,6 +271,16 @@ function sugerirConciliacao(tx, vendas, boletos) {
 }
 
 /* ---------- modelo de contrato: variáveis ---------- */
+// distrato (Lei 6.766/1979, art. 32-A): valores pagos menos cláusula penal (até 10% do contrato), fruição (até 0,75% ao mês) e outras deduções
+const INICIATIVAS_DISTRATO = { comprador: 'iniciativa do(a) PROMISSÁRIO(A) COMPRADOR(A)', vendedora: 'iniciativa da PROMITENTE VENDEDORA', acordo: 'comum acordo entre as partes' };
+function mesesEntre(a, b) { if (!a || !b || b <= a) return 0; const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number); return Math.max(0, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0)); }
+function calcDistrato(v, d) {
+  const ps = v.parcelas || [], valor = v.valor || 0, pago = recebidoVenda(v);
+  const multa = Math.round(valor * (+d.multaPct || 0) / 100), fruicao = Math.round(valor * (+d.fruicaoPct || 0) / 100 * (+d.fruicaoMeses || 0)), outras = +d.outras || 0;
+  const deducoes = multa + fruicao + outras;
+  return { totalPago: pago, multa, fruicao, outras, deducoes, devolucao: Math.max(0, pago - deducoes), parcelasPagas: ps.filter(p => saldoParcela(p) === 0).length, parcelasAbertas: ps.filter(p => saldoParcela(p) > 0).length, saldoCancelado: saldoVenda(v) };
+}
+const pctBR = n => String(+(+n || 0).toFixed(2)).replace('.', ',') + '%';
 function contextoVenda(v) {
   const cli = Store.get('clientes', v?.clienteId) || {}, lote = Store.get('lotes', v?.loteId) || {}, emp = Store.get('empreendimentos', lote.empId) || {}, fil = Store.get('filiais', v?.filialId) || {};
   const ps = v?.parcelas || []; const t = tipo => ps.filter(p => p.tipo === tipo);
@@ -286,7 +296,18 @@ function contextoVenda(v) {
     'mensal.total': brl(M.total), 'mensal.total_extenso': extenso(M.total), 'mensal.qtd': M.qtd, 'mensal.valor': brl(M.valor), 'mensal.valor_extenso': extenso(M.valor), 'mensal.primeiro_venc': dataBR(M.primeiro),
     'intercalada.total': brl(I.total), 'intercalada.total_extenso': extenso(I.total), 'intercalada.qtd': I.qtd, 'intercalada.valor': brl(I.valor), 'intercalada.primeiro_venc': dataBR(I.primeiro),
     'filial.nome': fil.razao || fil.nome, 'filial.cnpj': fmtCPF(fil.cnpj), 'filial.endereco': fil.endereco, 'filial.cidade': fil.cidade, 'filial.uf': fil.uf,
-    'hoje': dataBR(hoje()), 'hoje_extenso': dataExtenso(hoje()), 'tabela_parcelas': tabela
+    'hoje': dataBR(hoje()), 'hoje_extenso': dataExtenso(hoje()), 'tabela_parcelas': tabela,
+    ...contextoDistrato(v?.distrato)
+  };
+}
+function contextoDistrato(d) {
+  d = d || {}; const ok = !!d.data;
+  return {
+    'distrato.data': dataBR(d.data), 'distrato.data_extenso': dataExtenso(d.data), 'distrato.iniciativa': INICIATIVAS_DISTRATO[d.iniciativa] || '', 'distrato.motivo': d.motivo,
+    'distrato.total_pago': ok ? brl(d.totalPago) : '', 'distrato.total_pago_extenso': ok ? extenso(d.totalPago) : '', 'distrato.parcelas_pagas': ok ? d.parcelasPagas : '', 'distrato.parcelas_abertas': ok ? d.parcelasAbertas : '', 'distrato.saldo_cancelado': ok ? brl(d.saldoCancelado) : '',
+    'distrato.multa_pct': ok ? pctBR(d.multaPct) : '', 'distrato.multa': ok ? brl(d.multa) : '', 'distrato.fruicao_pct': ok ? pctBR(d.fruicaoPct) : '', 'distrato.fruicao_meses': ok ? d.fruicaoMeses : '', 'distrato.fruicao': ok ? brl(d.fruicao) : '',
+    'distrato.outras': ok ? brl(d.outras) : '', 'distrato.outras_descricao': ok ? (d.outrasDesc || 'não há') : '', 'distrato.total_deducoes': ok ? brl(d.deducoes) : '',
+    'distrato.devolucao': ok ? brl(d.devolucao) : '', 'distrato.devolucao_extenso': ok ? extenso(d.devolucao) : '', 'distrato.forma_devolucao': d.forma
   };
 }
 const VARIAVEIS = Object.keys(contextoVenda(null));

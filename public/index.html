@@ -791,6 +791,16 @@ function sugerirConciliacao(tx, vendas, boletos) {
 }
 
 /* ---------- modelo de contrato: variáveis ---------- */
+// distrato (Lei 6.766/1979, art. 32-A): valores pagos menos cláusula penal (até 10% do contrato), fruição (até 0,75% ao mês) e outras deduções
+const INICIATIVAS_DISTRATO = { comprador: 'iniciativa do(a) PROMISSÁRIO(A) COMPRADOR(A)', vendedora: 'iniciativa da PROMITENTE VENDEDORA', acordo: 'comum acordo entre as partes' };
+function mesesEntre(a, b) { if (!a || !b || b <= a) return 0; const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number); return Math.max(0, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0)); }
+function calcDistrato(v, d) {
+  const ps = v.parcelas || [], valor = v.valor || 0, pago = recebidoVenda(v);
+  const multa = Math.round(valor * (+d.multaPct || 0) / 100), fruicao = Math.round(valor * (+d.fruicaoPct || 0) / 100 * (+d.fruicaoMeses || 0)), outras = +d.outras || 0;
+  const deducoes = multa + fruicao + outras;
+  return { totalPago: pago, multa, fruicao, outras, deducoes, devolucao: Math.max(0, pago - deducoes), parcelasPagas: ps.filter(p => saldoParcela(p) === 0).length, parcelasAbertas: ps.filter(p => saldoParcela(p) > 0).length, saldoCancelado: saldoVenda(v) };
+}
+const pctBR = n => String(+(+n || 0).toFixed(2)).replace('.', ',') + '%';
 function contextoVenda(v) {
   const cli = Store.get('clientes', v?.clienteId) || {}, lote = Store.get('lotes', v?.loteId) || {}, emp = Store.get('empreendimentos', lote.empId) || {}, fil = Store.get('filiais', v?.filialId) || {};
   const ps = v?.parcelas || []; const t = tipo => ps.filter(p => p.tipo === tipo);
@@ -806,7 +816,18 @@ function contextoVenda(v) {
     'mensal.total': brl(M.total), 'mensal.total_extenso': extenso(M.total), 'mensal.qtd': M.qtd, 'mensal.valor': brl(M.valor), 'mensal.valor_extenso': extenso(M.valor), 'mensal.primeiro_venc': dataBR(M.primeiro),
     'intercalada.total': brl(I.total), 'intercalada.total_extenso': extenso(I.total), 'intercalada.qtd': I.qtd, 'intercalada.valor': brl(I.valor), 'intercalada.primeiro_venc': dataBR(I.primeiro),
     'filial.nome': fil.razao || fil.nome, 'filial.cnpj': fmtCPF(fil.cnpj), 'filial.endereco': fil.endereco, 'filial.cidade': fil.cidade, 'filial.uf': fil.uf,
-    'hoje': dataBR(hoje()), 'hoje_extenso': dataExtenso(hoje()), 'tabela_parcelas': tabela
+    'hoje': dataBR(hoje()), 'hoje_extenso': dataExtenso(hoje()), 'tabela_parcelas': tabela,
+    ...contextoDistrato(v?.distrato)
+  };
+}
+function contextoDistrato(d) {
+  d = d || {}; const ok = !!d.data;
+  return {
+    'distrato.data': dataBR(d.data), 'distrato.data_extenso': dataExtenso(d.data), 'distrato.iniciativa': INICIATIVAS_DISTRATO[d.iniciativa] || '', 'distrato.motivo': d.motivo,
+    'distrato.total_pago': ok ? brl(d.totalPago) : '', 'distrato.total_pago_extenso': ok ? extenso(d.totalPago) : '', 'distrato.parcelas_pagas': ok ? d.parcelasPagas : '', 'distrato.parcelas_abertas': ok ? d.parcelasAbertas : '', 'distrato.saldo_cancelado': ok ? brl(d.saldoCancelado) : '',
+    'distrato.multa_pct': ok ? pctBR(d.multaPct) : '', 'distrato.multa': ok ? brl(d.multa) : '', 'distrato.fruicao_pct': ok ? pctBR(d.fruicaoPct) : '', 'distrato.fruicao_meses': ok ? d.fruicaoMeses : '', 'distrato.fruicao': ok ? brl(d.fruicao) : '',
+    'distrato.outras': ok ? brl(d.outras) : '', 'distrato.outras_descricao': ok ? (d.outrasDesc || 'não há') : '', 'distrato.total_deducoes': ok ? brl(d.deducoes) : '',
+    'distrato.devolucao': ok ? brl(d.devolucao) : '', 'distrato.devolucao_extenso': ok ? extenso(d.devolucao) : '', 'distrato.forma_devolucao': d.forma
   };
 }
 const VARIAVEIS = Object.keys(contextoVenda(null));
@@ -1425,7 +1446,7 @@ VIEWS.contratos = () => {
   const podeDoc = pode(S.user, 'modelos'), adm = ['Administrador', 'Gerente'].includes(S.user.perfil);
   return `<div class="kpis" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="kpi bl"><span>Contratos ativos</span><strong>${cnt('Ativo')}</strong><small>em pagamento</small></div><div class="kpi"><span>Quitados</span><strong class="green">${cnt('Quitado')}</strong><small>todas as parcelas pagas</small></div><div class="kpi"><span>Distratados</span><strong>${cnt('Distratado')}</strong><small>cancelados</small></div><div class="kpi"><span>Assinados</span><strong class="green">${L('vendas').filter(v => statusAss(v.id) === 'Assinado').length}</strong><small>${L('vendas').filter(v => statusAss(v.id) === 'Enviado pelo cliente').length} a conferir · ${L('vendas').filter(v => statusAss(v.id) === 'Aguardando assinatura').length} aguardando</small></div><div class="kpi hl"><span>Sem documento gerado</span><strong>${L('vendas').filter(v => vendaAtiva(v) && !v.contratoGeradoEm).length}</strong><small>${modelos} modelo(s) de contrato cadastrado(s)</small></div></div>
   ${filtroBox(`${fTxt('kcq', 'Buscar', f.kcq, 'Contrato, cliente, lote ou corretor')}${fSel('kcst', 'Situação do contrato', [['', 'Todas'], 'Ativo', 'Quitado', 'Distratado'], f.kcst)}${fSel('kcdoc', 'Documento', [['', 'Todos'], ['sim', 'Já gerado'], ['nao', 'Não gerado']], f.kcdoc)}`, `${fDate('kcini', 'Contrato de', f.kcini)}${fDate('kcfim', 'até', f.kcfim)}${fSel('kcterm', 'Término em', [['', 'Qualquer ano'], ...anosFim], f.kcterm)}<span class="spacer"></span>${btnLimpar(K)}${podeDoc ? `<button data-act="go" data-v="modelos">${ic('doc')}Modelos de contrato</button>` : ''}`)}
-  <div class="card"><div class="cardHead"><div><h2>Contratos</h2><p>Prazo, reajuste e documentos de cada contrato de venda</p></div><span class="muted">${rows.length} contratos</span></div><div class="tableWrap"><table><thead><tr><th>Contrato</th><th>Cliente</th><th>Lote</th><th>Assinatura</th><th class="num">Valor</th><th>Prazo</th><th>Reajuste</th><th>Situação</th><th>Documento</th><th>Assinatura</th><th></th></tr></thead><tbody>${rows.map(v => { const ps = (v.parcelas || []).map(p => p.venc).sort(); const st = situacaoContrato(v); return `<tr><td><b>${esc(v.numero)}</b><small>${esc(nomeFilial(v.filialId))}</small></td><td>${esc(cliNome(v.clienteId))}<small>${esc(v.corretor || '')}</small></td><td class="nw">${esc(loteNome(loteDe(v)))}</td><td>${dataBR(v.data)}</td><td class="num nw">${brl(v.valor)}</td><td class="nw">${(v.parcelas || []).length} parcelas<small>${ps.length ? dataBR(ps[0]) + ' a ' + dataBR(ps[ps.length - 1]) : '—'}</small></td><td title="${esc(v.reajuste || '')}">${esc(v.indice || '—')}<small>${v.reajuste ? 'anual' : ''}</small></td><td><span class="badge ${st === 'Ativo' ? 'blue' : st === 'Quitado' ? 'ok' : ''}">${st}</span></td><td>${v.contratoGeradoEm ? `<span class="badge ok" title="${esc(v.contratoModelo || '')}">Gerado</span><small>${new Date(v.contratoGeradoEm).toLocaleDateString('pt-BR')}</small>` : '<span class="badge warn">Não gerado</span>'}</td><td>${badgeAss(v.id)}</td><td class="actions"><button class="sm" data-act="assinatura" data-id="${v.id}">${ic('key')}Assinatura</button>${podeDoc ? `<button class="sm primary" data-act="gerarContrato" data-id="${v.id}">${ic('doc')}Gerar contrato</button>` : ''}<button class="sm" data-act="verVenda" data-id="${v.id}">Abrir</button>${adm && st !== 'Distratado' ? `<button class="sm danger" data-act="distrato" data-id="${v.id}">Distratar</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="11" class="empty">Nenhum contrato no filtro.</td></tr>'}</tbody><tfoot><tr><td colspan="4">${rows.length} contratos</td><td class="num">${brl(soma(rows, v => v.valor))}</td><td colspan="6"></td></tr></tfoot></table></div></div>`;
+  <div class="card"><div class="cardHead"><div><h2>Contratos</h2><p>Prazo, reajuste e documentos de cada contrato de venda</p></div><span class="muted">${rows.length} contratos</span></div><div class="tableWrap"><table><thead><tr><th>Contrato</th><th>Cliente</th><th>Lote</th><th>Assinatura</th><th class="num">Valor</th><th>Prazo</th><th>Reajuste</th><th>Situação</th><th>Documento</th><th>Assinatura</th><th></th></tr></thead><tbody>${rows.map(v => { const ps = (v.parcelas || []).map(p => p.venc).sort(); const st = situacaoContrato(v); return `<tr><td><b>${esc(v.numero)}</b><small>${esc(nomeFilial(v.filialId))}</small></td><td>${esc(cliNome(v.clienteId))}<small>${esc(v.corretor || '')}</small></td><td class="nw">${esc(loteNome(loteDe(v)))}</td><td>${dataBR(v.data)}</td><td class="num nw">${brl(v.valor)}</td><td class="nw">${(v.parcelas || []).length} parcelas<small>${ps.length ? dataBR(ps[0]) + ' a ' + dataBR(ps[ps.length - 1]) : '—'}</small></td><td title="${esc(v.reajuste || '')}">${esc(v.indice || '—')}<small>${v.reajuste ? 'anual' : ''}</small></td><td><span class="badge ${st === 'Ativo' ? 'blue' : st === 'Quitado' ? 'ok' : ''}">${st}</span></td><td>${v.contratoGeradoEm ? `<span class="badge ok" title="${esc(v.contratoModelo || '')}">Gerado</span><small>${new Date(v.contratoGeradoEm).toLocaleDateString('pt-BR')}</small>` : '<span class="badge warn">Não gerado</span>'}${v.distratoGeradoEm ? `<small>Termo de distrato ${new Date(v.distratoGeradoEm).toLocaleDateString('pt-BR')}</small>` : ''}</td><td>${badgeAss(v.id)}</td><td class="actions"><button class="sm" data-act="assinatura" data-id="${v.id}">${ic('key')}Assinatura</button>${podeDoc ? `<button class="sm primary" data-act="gerarContrato" data-id="${v.id}">${ic('doc')}Gerar contrato</button>` : ''}<button class="sm" data-act="verVenda" data-id="${v.id}">Abrir</button>${adm && st !== 'Distratado' ? `<button class="sm danger" data-act="distrato" data-id="${v.id}">Distratar</button>` : ''}${st === 'Distratado' && (adm || podeDoc) ? `<button class="sm" data-act="termoDistrato" data-id="${v.id}">${ic('doc')}Termo de distrato</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="11" class="empty">Nenhum contrato no filtro.</td></tr>'}</tbody><tfoot><tr><td colspan="4">${rows.length} contratos</td><td class="num">${brl(soma(rows, v => v.valor))}</td><td colspan="6"></td></tr></tfoot></table></div></div>`;
 };
 AFTER.contratos = () => bindAll(['kcq'], ['kcst', 'kcdoc', 'kcini', 'kcfim', 'kcterm']);
 
@@ -1859,21 +1880,23 @@ function abrirDiscordCom(texto, vendaId = '') { S.discord = { modelo: 'Mensagem 
 
 /* ---------- Modelos de contrato ---------- */
 VIEWS.modelos = () => {
-  const ms = L('modelos').filter(m => m.tipo === 'contrato'); if (!ms.some(m => m.id === S.f.mod)) S.f.mod = ms[0]?.id; const m = Store.get('modelos', S.f.mod);
-  const vendas = L('vendas'); const vSel = Store.get('vendas', S.f.modVenda);
+  const tipo = S.f.modTipo === 'distrato' ? 'distrato' : 'contrato', dist = tipo === 'distrato';
+  const ms = L('modelos').filter(m => m.tipo === tipo); if (!ms.some(m => m.id === S.f.mod)) S.f.mod = ms[0]?.id; const m = Store.get('modelos', S.f.mod);
+  const vendas = L('vendas').filter(v => !dist || v.status === 'Distratado'); const vSel = vendas.find(v => v.id === S.f.modVenda);
   const grupos = {}; VARIAVEIS.forEach(k => { const g = k.split('.')[0]; (grupos[g] ||= []).push(k); });
-  return `<div class="toolbar"><label class="grow">Modelo<select id="modSel">${ms.map(x => opt(x.id, x.nome + ' · ' + nomeFilial(x.filialId), S.f.mod)).join('') || opt('', 'Nenhum modelo', '')}</select></label><button data-act="novoModelo">${ic('plus')}Novo modelo</button><label style="min-width:0"><span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--text);font-size:14px;font-weight:500">${ic('upload')}Importar modelo da empresa (.docx, .txt, .html)</span><input type="file" id="modFile" accept=".docx,.txt,.html,.htm,.md" hidden></label></div>
+  return `<div class="toolbar"><div class="tabs"><button class="${dist ? '' : 'on'}" data-act="modTipo" data-v="contrato">Contratos</button><button class="${dist ? 'on' : ''}" data-act="modTipo" data-v="distrato">Termos de distrato</button></div><label class="grow">Modelo<select id="modSel">${ms.map(x => opt(x.id, x.nome + ' · ' + nomeFilial(x.filialId), S.f.mod)).join('') || opt('', 'Nenhum modelo', '')}</select></label><button data-act="novoModelo">${ic('plus')}Novo modelo</button><label style="min-width:0"><span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--text);font-size:14px;font-weight:500">${ic('upload')}Importar modelo da empresa (.docx, .txt, .html)</span><input type="file" id="modFile" accept=".docx,.txt,.html,.htm,.md" hidden></label></div>
   ${m ? `<div class="two"><div class="card"><div class="cardHead"><div><h2>Editar modelo</h2><p>Escreva o contrato com as variáveis entre chaves duplas. Clique numa variável para inseri-la no cursor.</p></div></div><div class="cardBody"><div class="formGrid" style="grid-template-columns:2fr 1fr"><label>Nome do modelo<input id="modNome" value="${esc(m.nome)}"></label><label>Filial${sel('modFil', filiaisUsuario().map(f => [f.id, f.nome]), m.filialId, 'id="modFil"')}</label></div>
-  <label style="margin-top:12px">Texto do contrato<textarea id="modTexto" rows="22" style="font-family:'Times New Roman',serif;font-size:14px;line-height:1.5">${esc(m.conteudo)}</textarea></label>
+  <label style="margin-top:12px">${dist ? 'Texto do termo de distrato' : 'Texto do contrato'}<textarea id="modTexto" rows="22" style="font-family:'Times New Roman',serif;font-size:14px;line-height:1.5">${esc(m.conteudo)}</textarea></label>
   <details style="margin-top:12px" open><summary class="muted" style="cursor:pointer;font-size:13px">Substituir texto do modelo original por variável</summary><div class="formGrid" style="grid-template-columns:2fr 2fr auto;margin-top:8px;align-items:end"><label>Texto existente (ex.: nome do comprador do modelo)<input id="subDe" placeholder="FULANO DE TAL"></label><label>Trocar por${sel('subPara', VARIAVEIS, 'cliente.nome', 'id="subPara"')}</label><button class="sm" data-act="substituirVar">Substituir todos</button></div></details>
   <div class="formActions">${S.user.perfil === 'Administrador' ? `<button class="danger" data-act="delModelo" data-id="${m.id}">Excluir</button><span class="spacer"></span>` : ''}<button class="primary" data-act="salvarModelo">Salvar modelo</button></div></div></div>
   <div><div class="card"><div class="cardHead"><h2>Variáveis</h2></div><div class="cardBody">${Object.entries(grupos).map(([g, ks]) => `<div style="margin-bottom:8px"><b style="font-size:12px;text-transform:uppercase;color:var(--muted)">${g}</b><div class="varPalette">${ks.map(k => `<button data-act="insVar" data-k="${k}">${k}</button>`).join('')}</div></div>`).join('')}</div></div>
-  <div class="card"><div class="cardHead"><h2>Gerar contrato</h2></div><div class="cardBody"><label>Venda<select id="modVenda">${opt('', 'Selecione a venda…', S.f.modVenda)}${vendas.map(v => opt(v.id, `${v.numero} · ${cliNome(v.clienteId)} · ${loteNome(Store.get('lotes', v.loteId))}`, S.f.modVenda)).join('')}</select></label><div class="formActions" style="justify-content:flex-start"><button class="accent" data-act="previewContrato" ${vSel ? '' : 'disabled'}>Visualizar contrato preenchido</button></div></div></div></div></div>`
-      : `<div class="card"><div class="empty">Crie um modelo ou importe o modelo de contrato da empresa.</div></div>`}`;
+  <div class="card"><div class="cardHead"><h2>${dist ? 'Testar com um contrato distratado' : 'Gerar contrato'}</h2></div><div class="cardBody"><label>Venda<select id="modVenda">${opt('', vendas.length ? 'Selecione a venda…' : dist ? 'Nenhum contrato distratado ainda' : 'Selecione a venda…', S.f.modVenda)}${vendas.map(v => opt(v.id, `${v.numero} · ${cliNome(v.clienteId)} · ${loteNome(Store.get('lotes', v.loteId))}`, S.f.modVenda)).join('')}</select></label><div class="formActions" style="justify-content:flex-start"><button class="accent" data-act="previewContrato" ${vSel ? '' : 'disabled'}>${dist ? 'Visualizar termo preenchido' : 'Visualizar contrato preenchido'}</button></div></div></div></div></div>`
+      : `<div class="card"><div class="empty">${dist ? 'Preparando os termos de distrato de cada filial…' : 'Crie um modelo ou importe o modelo de contrato da empresa.'}</div></div>`}`;
 };
 AFTER.modelos = () => {
+  if (S.f.modTipo === 'distrato' && pode(S.user, 'modelos')) garantirDistratos().then(n => { if (n) { toast(n + ' termo(s) de distrato criado(s) com o texto base. Revise com o jurídico.'); renderView(); } }).catch(e => toast(e.message, true));
   $('#modSel')?.addEventListener('change', e => { S.f.mod = e.target.value; renderView(); }); $('#modVenda')?.addEventListener('change', e => { S.f.modVenda = e.target.value; renderView(); });
-  $('#modFile')?.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; try { const texto = await lerModelo(f); const m = await Store.put('modelos', { tipo: 'contrato', nome: f.name.replace(/\.\w+$/, ''), filialId: filialPadrao(), conteudo: texto, criadoEm: new Date().toISOString() }); S.f.mod = m.id; toast('Modelo importado. Agora troque os dados fixos por variáveis.'); renderView(); } catch (err) { toast(err.message, true); } });
+  $('#modFile')?.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; try { const texto = await lerModelo(f); const m = await Store.put('modelos', { tipo: S.f.modTipo === 'distrato' ? 'distrato' : 'contrato', nome: f.name.replace(/\.\w+$/, ''), filialId: filialPadrao(), conteudo: texto, criadoEm: new Date().toISOString() }); S.f.mod = m.id; toast('Modelo importado. Agora troque os dados fixos por variáveis.'); renderView(); } catch (err) { toast(err.message, true); } });
 };
 async function lerModelo(f) {
   if (/\.docx$/i.test(f.name)) {
@@ -1884,10 +1907,10 @@ async function lerModelo(f) {
   }
   const t = await f.text(); if (/\.html?$/i.test(f.name)) { const d = new DOMParser().parseFromString(t, 'text/html'); return d.body.innerText || d.body.textContent; } return t;
 }
-function docContrato(v, m) { const ctx = contextoVenda(v); const corpo = renderModelo(m.conteudo, ctx, { html: true }).replace(/\n/g, '<br>'); return { corpo, doc: `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Contrato ${esc(v.numero)}</title><style>body{font-family:'Times New Roman';font-size:12pt;line-height:1.5}table{border-collapse:collapse}td,th{border:1px solid #888;padding:3px 6px;font-size:10pt}</style></head><body>${corpo.replace(/<span style="background:#FFF3D6">/g, '<span style="background:yellow">')}</body></html>` }; }
+function docContrato(v, m) { const ctx = contextoVenda(v); const corpo = renderModelo(m.conteudo, ctx, { html: true }).replace(/\n/g, '<br>'); return { corpo, doc: `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${m.tipo === 'distrato' ? 'Distrato' : 'Contrato'} ${esc(v.numero)}</title><style>body{font-family:'Times New Roman';font-size:12pt;line-height:1.5}table{border-collapse:collapse}td,th{border:1px solid #888;padding:3px 6px;font-size:10pt}</style></head><body>${corpo.replace(/<span style="background:#FFF3D6">/g, '<span style="background:yellow">')}</body></html>` }; }
 function previewContrato(vid, mid) {
   const v = Store.get('vendas', vid), m = Store.get('modelos', mid); if (!v || !m) return; const { corpo } = docContrato(v, m); const faltas = (corpo.match(/background:#FFF3D6/g) || []).length;
-  modal(`${mHead(m.nome, 'Contrato ' + v.numero + ' — ' + cliNome(v.clienteId))}<div class="modalBody">${faltas ? `<div class="notice warn">${faltas} campo(s) sem informação, destacados em amarelo. Complete o cadastro do cliente/lote ou edite depois no Word.</div>` : ''}<div class="docPreview">${corpo}</div><div class="formActions"><button data-act="copyContrato" data-v="${vid}" data-m="${mid}">${ic('copy')}Copiar texto</button><button class="primary" data-act="baixarContrato" data-v="${vid}" data-m="${mid}">${ic('down')}Baixar para Word (.doc)</button></div></div>`, 'wide');
+  modal(`${mHead(m.nome, (m.tipo === 'distrato' ? 'Termo de distrato ' : 'Contrato ') + v.numero + ' — ' + cliNome(v.clienteId))}<div class="modalBody">${faltas ? `<div class="notice warn">${faltas} campo(s) sem informação, destacados em amarelo. Complete o cadastro do cliente/lote ou edite depois no Word.</div>` : ''}<div class="docPreview">${corpo}</div><div class="formActions"><button data-act="copyContrato" data-v="${vid}" data-m="${mid}">${ic('copy')}Copiar texto</button><button class="primary" data-act="baixarContrato" data-v="${vid}" data-m="${mid}">${ic('down')}Baixar para Word (.doc)</button></div></div>`, 'wide');
 }
 
 /* ---------- Usuários ---------- */
@@ -2020,6 +2043,74 @@ async function carregarDemo(filialId) {
   }
   const r = lotes[20]; r.status = 'Reservado'; r.reservaPara = 'Cliente em negociação'; await Store.put('lotes', r);
 }
+const MODELO_DISTRATO = `INSTRUMENTO PARTICULAR DE DISTRATO DE PROMESSA DE COMPRA E VENDA DE LOTE URBANO
+Contrato nº {{venda.numero}}
+
+Pelo presente instrumento particular, de um lado {{filial.nome}}, inscrita no CNPJ sob o nº {{filial.cnpj}}, com sede em {{filial.endereco}}, {{filial.cidade}}/{{filial.uf}}, doravante denominada PROMITENTE VENDEDORA; e de outro lado {{cliente.nome}}, {{cliente.nacionalidade}}, {{cliente.estado_civil}}, {{cliente.profissao}}, portador(a) do RG nº {{cliente.rg}} e inscrito(a) no CPF/CNPJ sob o nº {{cliente.cpf}}, residente e domiciliado(a) em {{cliente.endereco_completo}}, doravante denominado(a) PROMISSÁRIO(A) COMPRADOR(A), têm entre si justo e acordado o presente DISTRATO, mediante as cláusulas seguintes:
+
+CLÁUSULA PRIMEIRA — DO CONTRATO DISTRATADO
+As partes celebraram, em {{venda.data_extenso}}, o Instrumento Particular de Promessa de Compra e Venda nº {{venda.numero}}, tendo por objeto o Lote nº {{lote.numero}} da Quadra {{lote.quadra}} do empreendimento {{lote.empreendimento}}, localizado em {{empreendimento.cidade}}, com área de {{lote.area}}, matrícula {{lote.matricula}}, pelo preço total de {{venda.valor}} ({{venda.valor_extenso}}).
+
+CLÁUSULA SEGUNDA — DO DISTRATO
+Por {{distrato.iniciativa}}, as partes resolvem, nesta data, distratar o contrato descrito na cláusula primeira, nos termos do art. 472 do Código Civil e do art. 32-A da Lei nº 6.766/1979, incluído pela Lei nº 13.786/2018. Motivo informado: {{distrato.motivo}}.
+
+CLÁUSULA TERCEIRA — DOS VALORES PAGOS E DAS DEDUÇÕES
+Até esta data, o(a) PROMISSÁRIO(A) COMPRADOR(A) pagou o total de {{distrato.total_pago}} ({{distrato.total_pago_extenso}}). Desse valor serão deduzidos:
+a) cláusula penal e despesas administrativas, correspondentes a {{distrato.multa_pct}} do valor do contrato: {{distrato.multa}};
+b) fruição do imóvel, à razão de {{distrato.fruicao_pct}} ao mês sobre o valor do contrato, por {{distrato.fruicao_meses}} mês(es): {{distrato.fruicao}};
+c) outras deduções ({{distrato.outras_descricao}}): {{distrato.outras}}.
+Total das deduções: {{distrato.total_deducoes}}.
+
+CLÁUSULA QUARTA — DA RESTITUIÇÃO
+A PROMITENTE VENDEDORA restituirá ao(à) PROMISSÁRIO(A) COMPRADOR(A) o valor de {{distrato.devolucao}} ({{distrato.devolucao_extenso}}), {{distrato.forma_devolucao}}.
+
+CLÁUSULA QUINTA — DA POSSE E DAS PARCELAS EM ABERTO
+O(A) PROMISSÁRIO(A) COMPRADOR(A) devolve neste ato a posse do lote à PROMITENTE VENDEDORA, livre e desembaraçado de pessoas e coisas. Ficam canceladas as {{distrato.parcelas_abertas}} parcela(s) em aberto, no total de {{distrato.saldo_cancelado}}, e os boletos a elas vinculados.
+
+CLÁUSULA SEXTA — DA QUITAÇÃO
+Cumprida a restituição prevista na cláusula quarta, as partes dão-se mútua, plena, geral e irrevogável quitação quanto ao contrato ora distratado, para nada mais reclamarem uma da outra, a qualquer título.
+
+CLÁUSULA SÉTIMA — DO FORO
+Fica eleito o foro da comarca de {{filial.cidade}}/{{filial.uf}} para dirimir quaisquer dúvidas oriundas deste instrumento.
+
+E, por estarem justas e acordadas, as partes assinam o presente em duas vias de igual teor, na presença de duas testemunhas.
+
+{{filial.cidade}}, {{distrato.data_extenso}}.
+
+
+_______________________________________
+{{filial.nome}} — PROMITENTE VENDEDORA
+
+
+_______________________________________
+{{cliente.nome}} — PROMISSÁRIO(A) COMPRADOR(A)
+
+
+Testemunhas:
+1. _______________________________   2. _______________________________`;
+// um termo de distrato por filial: cria o modelo base para cada filial que ainda não tem
+async function garantirDistratos() {
+  let n = 0; for (const f of filiaisUsuario()) { if (Store.list('modelos').some(m => m.tipo === 'distrato' && m.filialId === f.id)) continue; await Store.put('modelos', { tipo: 'distrato', nome: 'Termo de distrato — ' + f.nome, filialId: f.id, conteudo: MODELO_DISTRATO, criadoEm: new Date().toISOString() }); n++; } return n;
+}
+const modeloDistratoDa = v => { const ms = Store.list('modelos').filter(m => m.tipo === 'distrato'); return ms.find(m => m.filialId === v.filialId) || ms[0]; };
+function formDistrato(vid) {
+  const v = Store.get('vendas', vid), feito = v.status === 'Distratado', d = v.distrato || {}; const data = d.data || hoje();
+  const ini = { data, iniciativa: d.iniciativa || 'comprador', motivo: d.motivo || '', multaPct: d.multaPct ?? 10, fruicaoPct: d.fruicaoPct ?? 0, fruicaoMeses: d.fruicaoMeses ?? mesesEntre(v.data, data), outras: d.outras || 0, outrasDesc: d.outrasDesc || '', forma: d.forma || 'em parcela única, no prazo de até 30 (trinta) dias contados da assinatura deste instrumento' };
+  modal(`${mHead(cliNome(v.clienteId) + ' · ' + v.numero, feito ? 'Termo de distrato' : 'Distratar contrato')}<form class="modalBody" data-form="distrato" data-id="${v.id}">
+  ${feito ? `<div class="notice info">Este contrato já está distratado. Confira os dados e gere o termo.</div>` : `<div class="notice warn">Ao confirmar, o lote <b>${esc(loteNome(loteDe(v)))}</b> volta a ficar <b>Disponível</b>, as parcelas em aberto deixam de ser cobradas e os boletos em aberto são cancelados. Os pagamentos ficam no histórico. Em seguida, o termo de distrato da filial <b>${esc(nomeFilial(v.filialId))}</b> é gerado.</div>`}
+  <div class="formGrid" style="grid-template-columns:1fr 1fr 1fr"><label>Data do distrato<input type="date" name="data" required value="${ini.data}" max="${hoje()}"></label><label>Iniciativa${sel('iniciativa', [['comprador', 'Do comprador'], ['vendedora', 'Da vendedora'], ['acordo', 'Comum acordo']], ini.iniciativa)}</label><label>Valor do contrato<input value="${brl(v.valor)}" disabled></label>
+  <label class="c3" style="grid-column:1/-1">Motivo<input name="motivo" required value="${esc(ini.motivo)}" placeholder="Ex.: desistência do comprador por motivos financeiros"></label>
+  <label>Cláusula penal (% do contrato)<input name="multaPct" inputmode="decimal" value="${pctIn(ini.multaPct)}"></label><label>Fruição (% ao mês)<input name="fruicaoPct" inputmode="decimal" value="${pctIn(ini.fruicaoPct)}"></label><label>Meses de fruição<input name="fruicaoMeses" type="number" min="0" step="1" value="${ini.fruicaoMeses}"></label>
+  <label>Outras deduções (R$)<input name="outras" inputmode="decimal" value="${centsIn(ini.outras)}"></label><label style="grid-column:span 2">Descrição das outras deduções<input name="outrasDesc" value="${esc(ini.outrasDesc)}" placeholder="Ex.: IPTU em atraso, taxa de associação, comissão de corretagem"></label>
+  <label style="grid-column:1/-1">Forma da restituição (como entra no termo)<input name="forma" required value="${esc(ini.forma)}"></label></div>
+  <div id="dsCalc" style="margin-top:12px"></div>
+  <p class="hint">Lei 6.766/1979, art. 32-A: cláusula penal e despesas administrativas até 10% do valor atualizado do contrato; fruição até 0,75% ao mês, só se o contrato prevê e houve entrega da posse. Revise o termo com o jurídico antes de assinar.</p>
+  <div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="${feito ? 'primary' : 'danger'}">${feito ? 'Gerar termo de distrato' : 'Distratar e gerar termo'}</button></div></form>`, 'wide');
+  const f = $('[data-form=distrato]'); const num = k => parseFloat(String(f[k].value).replace(',', '.')) || 0;
+  const upd = () => { const c = calcDistrato(v, { multaPct: num('multaPct'), fruicaoPct: num('fruicaoPct'), fruicaoMeses: Math.round(num('fruicaoMeses')), outras: toCents(f.outras.value) }); const alerta = [num('multaPct') > 10 ? 'cláusula penal acima de 10%' : '', num('fruicaoPct') > 0.75 ? 'fruição acima de 0,75% ao mês' : ''].filter(Boolean);
+    $('#dsCalc').innerHTML = `<div class="notice ${c.deducoes > c.totalPago ? 'warn' : 'info'}"><div class="alocGrid"><span>Total pago pelo comprador (${c.parcelasPagas} parcela(s) quitada(s))</span><b>${brl(c.totalPago)}</b><span>(−) Cláusula penal</span><b>${brl(c.multa)}</b><span>(−) Fruição</span><b>${brl(c.fruicao)}</b><span>(−) Outras deduções</span><b>${brl(c.outras)}</b><span><b>Valor a restituir</b></span><b class="green">${brl(c.devolucao)}</b><span>Parcelas em aberto canceladas</span><b>${c.parcelasAbertas} · ${brl(c.saldoCancelado)}</b></div>${c.deducoes > c.totalPago ? '<small>As deduções passam do que foi pago: não há valor a restituir.</small>' : ''}${alerta.length ? `<small><b>Atenção:</b> ${alerta.join(' e ')}, acima do limite da Lei 6.766/1979.</small>` : ''}</div>`; };
+  f.addEventListener('input', upd); f.data.addEventListener('change', () => { f.fruicaoMeses.value = mesesEntre(v.data, f.data.value); upd(); }); upd();
+}
 const MODELO_PADRAO = `INSTRUMENTO PARTICULAR DE PROMESSA DE COMPRA E VENDA DE LOTE URBANO
 Contrato nº {{venda.numero}}
 
@@ -2097,7 +2188,9 @@ const ACT = {
   verVenda: el => verVenda(el.dataset.id),
   planoPadrao: () => { const f = $('[data-form=venda]'); aplicarPlanoPadrao(f); formVenda.upd(); },
   restoMensal: () => { const f = $('[data-form=venda]'); const v = fd(f); f.mTotal.value = centsIn(toCents(v.valor) - toCents(v.eTotal) - toCents(v.iTotal)); formVenda.upd(); },
-  distrato: el => confirmar('Distratar a venda? O lote volta a ficar <b>Disponível</b> e as parcelas em aberto deixam de ser cobradas. Os pagamentos já registrados são mantidos no histórico.', async () => { const v = Store.get('vendas', el.dataset.id); v.status = 'Distratado'; hist(v, 'Venda distratada'); await Store.put('vendas', v); const l = Store.get('lotes', v.loteId); if (l) { l.status = 'Disponível'; await Store.put('lotes', l); } for (const b of Store.list('boletos').filter(b => b.vendaId === v.id && ['Emitido', 'Registrado'].includes(b.status))) { b.status = 'Cancelado'; await Store.put('boletos', b); } await audit('Distratou ' + v.numero); toast('Venda distratada.'); renderView(); }, 'Distratar'),
+  distrato: el => formDistrato(el.dataset.id),
+  termoDistrato: async el => { const v = Store.get('vendas', el.dataset.id); if (!v.distrato) return formDistrato(v.id); await garantirDistratos(); const m = modeloDistratoDa(v); if (!m) return toast('Nenhum modelo de termo de distrato.', true); previewContrato(v.id, m.id); },
+  modTipo: el => { S.f.modTipo = el.dataset.v; S.f.mod = null; S.f.modVenda = null; renderView(); },
   addParcela: el => { modal(`${mHead('Parcela avulsa', 'Incluir parcela')}<form class="modalBody" data-form="parcelaAvulsa" data-v="${el.dataset.id}"><div class="formGrid" style="grid-template-columns:1fr 1fr 1fr"><label>Tipo${sel('tipo', ['Avulsa', 'Entrada', 'Mensal', 'Intercalada'], 'Avulsa')}</label><label>Vencimento<input type="date" name="venc" required value="${hoje()}"></label><label>Valor (R$)<input name="valor" required></label><label style="grid-column:1/-1">Descrição<input name="ref" placeholder="Ex.: taxa de transferência"></label></div><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Incluir</button></div></form>`, 'narrow'); },
   editParcela: el => { const v = Store.get('vendas', el.dataset.v), p = v.parcelas.find(x => x.id === el.dataset.p); modal(`${mHead(v.numero, 'Corrigir parcela ' + p.tipo + ' ' + p.ref)}<form class="modalBody" data-form="editParcela" data-v="${v.id}" data-p="${p.id}"><div class="formGrid" style="grid-template-columns:1fr 1fr 1fr"><label>Tipo${sel('tipo', ['Entrada', 'Mensal', 'Intercalada', 'Avulsa'], p.tipo)}</label><label>Vencimento<input type="date" name="venc" required value="${p.venc}"></label><label>Valor (R$)<input name="valor" required value="${centsIn(p.valor)}"></label><label style="grid-column:1/-1">Motivo da correção<input name="motivo" required></label></div><div class="formActions">${!(p.pagamentos || []).length ? `<button type="button" class="danger" data-act="delParcela" data-v="${v.id}" data-p="${p.id}">Excluir parcela</button><span class="spacer"></span>` : ''}<button type="button" data-act="closeModal">Cancelar</button><button class="primary">Salvar</button></div></form>`, 'narrow'); },
   delParcela: async el => { const v = Store.get('vendas', el.dataset.v); const p = v.parcelas.find(x => x.id === el.dataset.p); v.parcelas = v.parcelas.filter(x => x.id !== p.id); hist(v, `Parcela excluída: ${p.tipo} ${p.ref} ${dataBR(p.venc)} ${brl(p.valor)}`); await Store.put('vendas', v); closeModal(); verVenda(v.id); renderView(); },
@@ -2146,7 +2239,7 @@ const ACT = {
   discordCobranca: el => { const v = Store.get('vendas', el.dataset.id); const ps = vencidasVenda(v); abrirDiscordCom(`⚠️ **Cobrança — {{cliente.nome}}**\nContrato {{venda.numero}} · {{lote.empreendimento}} Q{{lote.quadra}} L{{lote.numero}}\nContato: {{cliente.telefone}}\n\nParcelas vencidas:\n${ps.map(p => `• ${p.tipo} ${p.ref} — venc. ${dataBR(p.venc)} — ${brl(saldoParcela(p))}`).join('\n')}\n\nTotal vencido: **${brl(soma(ps, saldoParcela))}**`, v.id); },
 
   /* modelos de contrato */
-  novoModelo: async () => { const m = await Store.put('modelos', { tipo: 'contrato', nome: 'Promessa de compra e venda (modelo base)', filialId: filialPadrao(), conteudo: MODELO_PADRAO, criadoEm: new Date().toISOString() }); S.f.mod = m.id; renderView(); },
+  novoModelo: async () => { const m = await Store.put('modelos', { ...(S.f.modTipo === 'distrato' ? { tipo: 'distrato', nome: 'Termo de distrato (modelo base)', conteudo: MODELO_DISTRATO } : { tipo: 'contrato', nome: 'Promessa de compra e venda (modelo base)', conteudo: MODELO_PADRAO }), filialId: filialPadrao(), criadoEm: new Date().toISOString() }); S.f.mod = m.id; renderView(); },
   insVar: el => { const ta = $('#modTexto'); if (!ta) return; const s = ta.selectionStart, e = ta.selectionEnd, ins = `{{${el.dataset.k}}}`; ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e); ta.focus(); ta.setSelectionRange(s + ins.length, s + ins.length); },
   substituirVar: () => { const de = $('#subDe').value; if (!de.trim()) return toast('Informe o texto a substituir.', true); const ta = $('#modTexto'); const n = ta.value.split(de).length - 1; if (!n) return toast('Texto não encontrado no modelo.', true); ta.value = ta.value.split(de).join(`{{${$('#subPara').value}}}`); toast(`${n} ocorrência(s) substituída(s). Lembre de salvar.`); },
   salvarModelo: async () => { const m = Store.get('modelos', S.f.mod); m.nome = $('#modNome').value || m.nome; m.filialId = $('#modFil').value; m.conteudo = $('#modTexto').value; await Store.put('modelos', m); toast('Modelo salvo.'); renderView(); },
@@ -2176,7 +2269,7 @@ const ACT = {
   asRecusar: async el => { const motivo = prompt('Motivo da recusa (o cliente vai ver):', 'Falta a assinatura do cônjuge'); if (motivo === null) return; try { await acaoAss(el.dataset.id, { acao: 'recusar', obs: motivo }); toast('Arquivo recusado. O cliente pode enviar de novo.'); abrirAssinatura(el.dataset.id); renderView(); } catch (e) { toast(e.message, true); } },
   asRemover: async el => { if (!confirm('Remover o PDF assinado deste contrato?')) return; try { await acaoAss(el.dataset.id, { acao: 'remover' }); toast('Anexo removido.'); abrirAssinatura(el.dataset.id); renderView(); } catch (e) { toast(e.message, true); } },
   pstSet: el => { S.f.pst = el.dataset.st; renderView(); },
-  baixarContrato: async el => { const v = Store.get('vendas', el.dataset.v), m = Store.get('modelos', el.dataset.m); await salvarArquivo(`Contrato_${v.numero}_${norm(cliNome(v.clienteId)).replace(/\W+/g, '_')}.doc`, '\ufeff' + docContrato(v, m).doc, 'application/msword'); Object.assign(v, { contratoGeradoEm: new Date().toISOString(), contratoGeradoPor: S.user.nome, contratoModelo: m.nome, contratoModeloId: m.id }); hist(v, 'Contrato gerado com o modelo ' + m.nome); await Store.put('vendas', v); if (S.view === 'contratos') renderView(); },
+  baixarContrato: async el => { const v = Store.get('vendas', el.dataset.v), m = Store.get('modelos', el.dataset.m); await salvarArquivo(`${m.tipo === 'distrato' ? 'Distrato' : 'Contrato'}_${v.numero}_${norm(cliNome(v.clienteId)).replace(/\W+/g, '_')}.doc`, '\ufeff' + docContrato(v, m).doc, 'application/msword'); if (m.tipo === 'distrato') { Object.assign(v, { distratoGeradoEm: new Date().toISOString(), distratoGeradoPor: S.user.nome, distratoModelo: m.nome }); hist(v, 'Termo de distrato gerado com o modelo ' + m.nome); } else { Object.assign(v, { contratoGeradoEm: new Date().toISOString(), contratoGeradoPor: S.user.nome, contratoModelo: m.nome, contratoModeloId: m.id }); hist(v, 'Contrato gerado com o modelo ' + m.nome); } await Store.put('vendas', v); if (S.view === 'contratos') renderView(); },
 
   /* administração */
   editUser: el => formUser(Store.get('usuarios', el.dataset.id)),
@@ -2310,6 +2403,19 @@ const FORMS = {
   async portalAcesso(v, f) { const r = await fetch('api/portal-admin/acesso', { method: 'POST', headers: { 'Content-Type': 'application/json', ...Store.authH() }, body: JSON.stringify({ clienteId: f.dataset.id, email: v.email, senha: v.senha, ativo: !!v.ativo }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Não foi possível salvar.'); closeModal(); toast('Acesso ao painel salvo.'); },
   async hook(v, f) { if (!/^https:\/\/(discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+/.test(v.url.trim())) throw Error('URL de webhook do Discord inválida.'); const h = Store.get('webhooks', f.dataset.id) || {}; Object.assign(h, { nome: v.nome, filialId: v.filialId, url: v.url.trim(), avisosPortal: !!v.avisosPortal }); await Store.put('webhooks', h); closeModal(); toast('Canal salvo.'); renderView(); },
   async modeloDiscord(v) { const m = await Store.put('modelos', { tipo: 'discord', nome: v.nome, filialId: filialPadrao(), conteudo: S.discord.texto }); S.discord.modelo = 'salvo:' + m.id; closeModal(); toast('Modelo salvo.'); renderView(); },
+  async distrato(x, f) {
+    const v = Store.get('vendas', f.dataset.id); const num = k => { const n = parseFloat(String(x[k] ?? '').replace(',', '.')); if (!Number.isFinite(n) || n < 0) throw Error('Confira os percentuais e os meses (números iguais ou maiores que zero).'); return Math.round(n * 100) / 100; };
+    if (!x.data) throw Error('Informe a data do distrato.'); if (x.data > hoje()) throw Error('A data do distrato não pode ser futura.'); if (!x.motivo.trim()) throw Error('Informe o motivo do distrato.');
+    const d = { data: x.data, iniciativa: x.iniciativa, motivo: x.motivo.trim(), multaPct: num('multaPct'), fruicaoPct: num('fruicaoPct'), fruicaoMeses: Math.round(num('fruicaoMeses')), outras: toCents(x.outras), outrasDesc: x.outrasDesc.trim(), forma: x.forma.trim() };
+    if ((d.multaPct > 10 || d.fruicaoPct > 0.75) && !FORMS.distrato.ok) { FORMS.distrato.ok = true; throw Error('Cláusula penal acima de 10% ou fruição acima de 0,75% ao mês passam do limite da Lei 6.766/1979 (art. 32-A). Clique de novo para manter.'); }
+    FORMS.distrato.ok = false;
+    const jaFeito = v.status === 'Distratado'; const calc = v.distrato && jaFeito ? { ...calcDistrato(v, d), parcelasAbertas: v.distrato.parcelasAbertas, saldoCancelado: v.distrato.saldoCancelado } : calcDistrato(v, d);
+    v.distrato = { ...d, ...calc, registradoEm: new Date().toISOString(), registradoPor: S.user.nome };
+    if (!jaFeito) { v.status = 'Distratado'; hist(v, `Venda distratada em ${dataBR(d.data)} (${d.motivo}). Restituição ${brl(calc.devolucao)}`); } else hist(v, 'Dados do termo de distrato atualizados');
+    await Store.put('vendas', v);
+    if (!jaFeito) { const l = Store.get('lotes', v.loteId); if (l) { l.status = 'Disponível'; await Store.put('lotes', l); } for (const b of Store.list('boletos').filter(b => b.vendaId === v.id && ['Emitido', 'Registrado'].includes(b.status))) { b.status = 'Cancelado'; await Store.put('boletos', b); } await audit('Distratou ' + v.numero); }
+    closeModal(); await garantirDistratos(); const m = modeloDistratoDa(v); renderView(); toast(jaFeito ? 'Termo atualizado.' : 'Contrato distratado.'); if (m) previewContrato(v.id, m.id);
+  },
   async escolheModelo(v, f) { closeModal(); previewContrato(f.dataset.v, v.mid); },
   async user(v, f) {
     const u = Store.get('usuarios', f.dataset.id) || { criadoEm: new Date().toISOString() };
