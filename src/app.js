@@ -250,7 +250,6 @@ VIEWS.painel = () => {
    <div class="kpi"><span>Comissões a pagar</span><strong>${brl(comPag)}</strong><small>${sub('Saldo dos corretores', 'Das vendas em ' + esc(P.label))}</small></div>
    <div class="kpi"><span>Boletos em aberto</span><strong>${bolAbertos.length}</strong><small>${brl(soma(bolAbertos, b => b.valor))}${P.ativo ? ' · vencimento no período' : ''}</small></div>
    <div class="kpi"><span>Inadimplência</span><strong class="${nInad ? 'red' : ''}">${nInad}</strong><small>contratos com 3+ parcelas vencidas${P.ativo ? ' (no período)' : ''}</small></div></div>
-  ${cardMercadoResumo()}
   <div class="two">${graf}${rosca}</div>
   ${proximos12(ps)}
   ${receitaProjetada(todas)}
