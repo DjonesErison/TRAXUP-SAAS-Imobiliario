@@ -587,3 +587,10 @@ body.dark .tableWrap,body.dark .modalBody{scrollbar-color:#2F4478 transparent}
 .layBanner>.icon{color:var(--orange)}
 @keyframes layTreme{from{transform:rotate(-.25deg)}to{transform:rotate(.25deg)}}
 .layBanner>div{flex:1 1 320px}
+
+/* ordenação por coluna */
+th.ordenavel{cursor:pointer;user-select:none;position:relative}
+th.ordenavel:hover{color:var(--blue-2)}
+th.ordenavel::after{content:"⇅";margin-left:5px;font-size:10px;opacity:.35}
+th.ordAsc::after{content:"▲";opacity:1;color:var(--orange)}th.ordDesc::after{content:"▼";opacity:1;color:var(--orange)}
+th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{color:#fff}

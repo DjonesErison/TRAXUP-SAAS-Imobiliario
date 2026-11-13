@@ -165,10 +165,34 @@ function render() {
   renderView();
 }
 function renderView() {
-  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); try { aplicarLayout(); } catch (e) { console.error(e); } } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
+  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); try { aplicarLayout(); } catch (e) { console.error(e); } try { prepararOrdenacao(); } catch (e) { console.error(e); } } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
   try { history.replaceState(null, '', '#' + S.view); } catch (e) { }
 }
 const AFTER = {};
+
+/* ---------- ordenação por coluna em todas as tabelas (clique no título; clique de novo inverte) ---------- */
+const ORD = {}; // por tela e tabela: { col, dir }
+function valorCelula(td) {
+  const t = (td?.innerText || '').split('\n')[0].trim(); if (!t || t === '—' || t === '-') return { v: null };
+  let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/); if (m) return { v: +(m[3] + m[2] + m[1]), n: 1 };
+  if (/^-?\s*(R\$\s*)?-?[\d.]+(,\d+)?\s*%?$/.test(t)) { const x = parseFloat(t.replace(/R\$|\s|%|\./g, '').replace(',', '.')); if (!isNaN(x)) return { v: x, n: 1 }; }
+  return { v: norm(t) };
+}
+function ordenarTabela(tb, col, dir) {
+  const corpo = tb.tBodies[0]; if (!corpo) return; const linhas = [...corpo.rows].filter(r => !r.querySelector('td.empty'));
+  const chave = linhas.map((r, i) => ({ r, i, c: valorCelula(r.cells[col]) }));
+  chave.sort((a, b) => { if (a.c.v === null) return b.c.v === null ? a.i - b.i : 1; if (b.c.v === null) return -1; const x = a.c.n && b.c.n ? a.c.v - b.c.v : String(a.c.v).localeCompare(String(b.c.v), 'pt-BR', { numeric: true }); return (x || a.i - b.i) * (x ? dir : 1); });
+  for (const { r } of chave) corpo.appendChild(r);
+  [...tb.tHead.rows[0].cells].forEach((th, i) => { th.classList.toggle('ordAsc', i === col && dir === 1); th.classList.toggle('ordDesc', i === col && dir === -1); });
+}
+function prepararOrdenacao() {
+  $$('#content table').forEach((tb, ti) => {
+    const ths = tb.tHead?.rows[0]?.cells; if (!ths || !tb.tBodies[0] || tb.tBodies[0].rows.length < 2) return; const k = S.view + ':' + ti;
+    [...ths].forEach((th, col) => { const txt = th.textContent.trim(); if (!txt || /^a[cç][oõ]es$/i.test(txt) || th.colSpan > 1) return; th.classList.add('ordenavel'); th.title = 'Ordenar por ' + txt;
+      th.onclick = () => { const o = ORD[k]; const dir = o && o.col === col ? -o.dir : (valorCelula(tb.tBodies[0].rows[0]?.cells[col]).n ? -1 : 1); ORD[k] = { col, dir }; ordenarTabela(tb, col, dir); }; });
+    if (ORD[k]) ordenarTabela(tb, ORD[k].col, ORD[k].dir);
+  });
+}
 
 /* ---------- organizar cards: arrastar, esconder e restaurar (salvo por usuário) ---------- */
 const LAY = { dados: null, edit: false, buscou: false, user: null };
