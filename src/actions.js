@@ -33,6 +33,7 @@ const ACT = {
   rjConfirmar: async () => { const c = RJ.conf; RJ.conf = null; try { c.tipo === 'aplicar' ? await rjAplicar() : await rjDesfazer(c.lote); } catch (e) { toast(e.message, true); rjRender(); } },
   tema: () => { const t = document.body.classList.contains('dark') ? 'light' : 'dark'; aplicarTema(t); try { localStorage.setItem('traxup_tema', t); } catch (e) { } Store.mode === 'portal' ? portalRender() : render(); },
   toggleNav: () => document.body.classList.toggle('navOpen'),
+  fecharNav: () => document.body.classList.remove('navOpen'),
   sair: () => sair(),
   copyTxt: el => copiar(el.dataset.t),
 
@@ -425,3 +426,5 @@ document.addEventListener('change', async e => {
   if (inp.dataset.ptAnexo) { const f = inp.files[0]; if (f.size > 15 * 1024 * 1024) return toast('O PDF passa de 15 MB.', true); try { toast('Enviando o contrato assinado…'); await portalApi('contrato/' + encodeURIComponent(inp.dataset.ptAnexo), { method: 'POST', body: JSON.stringify({ base64: await lerArquivoB64(f), nomeArquivo: f.name }) }); toast('Recebemos o seu contrato assinado! A empresa vai conferir.'); closeModal(); await portalCarregar(); portalRender(); } catch (er) { toast(er.message, true); } }
 });
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (S.user && TITULOS[h] && h !== S.view && pode(S.user, h)) { S.view = h; render(); } });
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('navOpen')) document.body.classList.remove('navOpen'); });

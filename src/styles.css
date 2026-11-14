@@ -738,3 +738,13 @@ th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{
   .ptUser>div:not(.avatar){display:none}.ptTop button{flex:none}
   .ptKpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
+
+/* menu lateral no celular: fundo escuro para fechar, botão X e por cima de tudo */
+.navFundo,.navFechar{display:none}
+@media (max-width:1100px){
+  aside{z-index:60!important;width:min(280px,82vw)!important;box-shadow:8px 0 30px rgba(0,0,0,.35)}
+  body.navOpen .navFundo{display:block;position:fixed;inset:0;background:rgba(5,15,46,.55);z-index:55;backdrop-filter:blur(1px)}
+  body.navOpen{overflow:hidden}
+  .navFechar{display:grid;place-items:center;position:absolute;top:12px;right:12px;width:36px;height:36px;padding:0;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;box-shadow:none;z-index:2}
+  .navFechar .icon{width:18px;height:18px;margin:0}
+}
