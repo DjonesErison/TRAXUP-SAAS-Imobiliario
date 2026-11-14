@@ -768,3 +768,11 @@ th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{
   body.navMini aside .brand{display:none!important}
   body.navMini .brandMini{display:block;width:46px;height:46px;border-radius:12px;object-fit:cover;margin:2px auto 18px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
 }
+/* dicas dos cards */
+.dicaCard{position:fixed;z-index:9999;max-width:320px;background:#0B1530;color:#E8EEFC;border:1px solid #2F4E9A;border-radius:12px;padding:12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.45);font-size:13px;line-height:1.45;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
+.dicaCard.on{opacity:1;transform:none}
+.dicaCard b{display:flex;align-items:center;gap:7px;font-size:13.5px;margin-bottom:6px;color:#fff}
+.dicaCard b svg{width:16px;height:16px;color:#60A5FA;flex:none}
+.dicaCard p{margin:0;color:#C9D4EE}
+.dicaCard p.dicaC{margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.1);color:#9FB0D6;font-size:12.5px}
+.kpi,.atCard{cursor:help}

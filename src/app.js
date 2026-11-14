@@ -9,7 +9,7 @@ const ICON = {
   trend: 'M3 17l6-6 4 4 8-8M15 7h6v6', refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6', mail: 'M3 5h18v14H3zM3 6l9 7 9-7', lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', eye: 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', arrow: 'M5 12h14M13 6l6 6-6 6', bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0', key: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM12 11v10M12 17h3M12 20h2', sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zm0 0v14m6-12v14', layers: 'm12 3 9 5-9 5-9-5 9-5zm-9 9 9 5 9-5M3 16l9 5 9-5',
   users: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8', file: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zm0 0v6h6M8 13h8M8 17h6',
-  wallet: 'M3 7h18v12H3zM3 7l3-4h12l3 4M16 13h2', alert: 'M12 3 2 20h20L12 3zm0 6v5m0 3v.5', barcode: 'M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14', bank: 'M3 10h18M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18M12 3l9 5H3l9-5z',
+  wallet: 'M3 7h18v12H3zM3 7l3-4h12l3 4M16 13h2', alert: 'M12 3 2 20h20L12 3zm0 6v5m0 3v.5', info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 8v5m0-8.5v.5', barcode: 'M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14', bank: 'M3 10h18M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18M12 3l9 5H3l9-5z',
   hand: 'M7 11 4 14l4 4 3-3m-4-4 4-4 6 6-4 4m-6-6 6 6', send: 'M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z', doc: 'M6 3h9l5 5v13H6zM14 3v6h6M9 13h7M9 17h7M9 9h2', user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   building: 'M4 21V5l8-3 8 3v16M9 21v-4h6v4M8 8h2m4 0h2M8 12h2m4 0h2', gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14.4 3h-4l-.4 2.4a7 7 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.6l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3l.4 2.4h4l.4-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.9.1-1.3z',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3', plus: 'M12 5v14M5 12h14', x: 'M18 6 6 18M6 6l12 12', search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm10 2-4.3-4.3', logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9', menu: 'M3 6h18M3 12h18M3 18h18', down: 'M12 3v12m-5-5 5 5 5-5M5 21h14', upload: 'M12 21V9m-5 5 5-5 5 5M5 3h14', copy: 'M9 9h11v11H9zM5 15H4V4h11v1', check: 'M20 6 9 17l-5-5', chev: 'm9 6 6 6-6 6'
@@ -1754,3 +1754,53 @@ VIEWS.bi = () => {
   <div class="biLayout">${biForm()}<div class="biGrid">${ws || ''}<button type="button" class="biAdd t4" data-act="biNovo">${ic('plus')}Adicionar visual</button></div></div>`;
 };
 AFTER.bi = () => { $('.biForm')?.addEventListener('change', e => { if (e.target.name === 'visual') $$('.biChips label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked)); }); };
+
+/* ---------- Dicas dos cards (aparecem ao passar o mouse) ---------- */
+const DICAS = {
+  'Valor vendido': { o: 'Soma do valor de contrato de todas as vendas ativas (sem distratos).', c: 'Respeita a empresa, o empreendimento e o período escolhidos. Com período, conta as vendas pela data do contrato.' },
+  'Recebidos acumulados': { o: 'Tudo o que já entrou no caixa: a soma das baixas registradas nas parcelas.', c: 'Inclui entrada, mensais e intercaladas. Com período, considera a data em que cada baixa foi feita.' },
+  'A receber': { o: 'Quanto ainda falta receber das vendas.', c: 'Valor vendido menos o principal já pago. Com período, soma o saldo das parcelas que vencem nele.' },
+  'Em atraso + inadimplente': { o: 'Saldo de todas as parcelas vencidas e não pagas.', c: 'Junta os clientes em atraso e os marcados como inadimplentes. A linha de baixo mostra só a parte inadimplente.' },
+  'Lotes': { o: 'Quantos lotes já foram vendidos do total cadastrado.', c: 'Embaixo: lotes disponíveis e reservados. Veja tudo no Mapa de lotes.' },
+  'Comissões a pagar': { o: 'Saldo de comissão que ainda deve ser pago aos corretores.', c: 'Comissão de cada venda menos o que já foi pago. Detalhes na tela Comissões.' },
+  'Boletos em aberto': { o: 'Boletos emitidos ou registrados que ainda não foram pagos.', c: 'Mostra a quantidade e, embaixo, o valor total desses boletos.' },
+  'Inadimplência': { o: 'Número de clientes marcados como inadimplentes com parcelas vencidas.', c: 'Para marcar ou desmarcar um cliente, use a tela Inadimplência.' },
+  'Saldo inadimplente': { o: 'Valor vencido apenas dos clientes marcados como inadimplentes.', c: 'O percentual compara esse valor com os recebimentos acumulados.' },
+  'Saldo vencido': { o: 'Parcelas vencidas dos clientes que estão em atraso, mas não foram marcados como inadimplentes.', c: 'É o atraso "comum", que ainda pode ser cobrado normalmente.' },
+  'Total em atraso': { o: 'Saldo vencido + saldo inadimplente: tudo que venceu e não foi pago.', c: 'O percentual compara o total com os recebimentos acumulados.' },
+  'Recebimentos por mês': { o: 'Gráfico com o valor recebido em cada mês do ano.', c: 'Troque o ano no filtro Período. "Ver detalhes" lista cada pagamento do mês.' },
+  'Previsão de recebimento por mês': { o: 'Gráfico do que está previsto para entrar em cada mês do ano.', c: 'Soma o saldo das parcelas que vencem no mês. "Ver detalhes" abre a lista.' },
+  'Situação dos lotes': { o: 'Rosca com a posição atual dos lotes: vendidos, disponíveis, reservados e bloqueados.', c: 'O número no centro é o percentual de lotes vendidos.' },
+  'Próximos 12 meses a receber': { o: 'Quanto está previsto para entrar em cada um dos próximos 12 meses.', c: 'Soma o saldo das parcelas futuras já cadastradas. "Ver detalhes" lista as parcelas.' },
+  'Receita projetada para os próximos 15 anos': { o: 'Simulação de 180 meses de recebimento das parcelas futuras.', c: 'Pode aplicar a correção pelo IPCA para ver o valor projetado com reajuste.' },
+  'Resultados por empresa': { o: 'Comparativo entre as empresas: vendido, recebido, em atraso e a receber.', c: 'Com período, vendas pela data do contrato e recebido pela data da baixa.' },
+  'Comissões por empresa': { o: 'Comissões de cada empresa divididas em pagas, a pagar e suspensas.', c: 'Comissão suspensa é a de venda com cliente em atraso ou distrato.' },
+  'Clientes com maiores valores vencidos': { o: 'Os clientes com os maiores saldos vencidos, atrasados e inadimplentes.', c: 'Bom ponto de partida para a cobrança. Clique no cliente para ver a venda.' },
+  'Vencem nos próximos 7 dias': { o: 'Parcelas que vencem na próxima semana, com cliente e valor.', c: 'Use para avisar o cliente antes do vencimento.' },
+  'Mercado e índices': { o: 'Dólar, euro, bolsa e os índices de reajuste (IPCA, IGP-M, INCC, Selic).', c: 'Os índices vêm do Banco Central e são usados no reajuste das parcelas.' }
+};
+let dicaT = null;
+function dicaEsconder() { clearTimeout(dicaT); $('#dicaCard')?.remove(); }
+function dicaMostrar(alvo, d, titulo) {
+  dicaEsconder();
+  const el = document.createElement('div'); el.id = 'dicaCard'; el.className = 'dicaCard';
+  el.innerHTML = `<b>${ic('info')}${esc(titulo)}</b><p>${esc(d.o)}</p>${d.c ? `<p class="dicaC">${esc(d.c)}</p>` : ''}`;
+  document.body.appendChild(el);
+  const r = alvo.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
+  let left = Math.min(Math.max(8, r.left + 16), innerWidth - w - 8), top = r.bottom + 8;
+  if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 8);
+  el.style.left = left + 'px'; el.style.top = top + 'px';
+  requestAnimationFrame(() => el.classList.add('on'));
+}
+document.addEventListener('mouseover', e => {
+  if (matchMedia('(hover: none)').matches || document.body.classList.contains('orgMode')) return;
+  const k = e.target.closest?.('.kpi, .atCard, .card > .cardHead'); 
+  if (!k) { if (!e.target.closest?.('#dicaCard')) dicaEsconder(); return; }
+  if (k.contains(e.relatedTarget)) return;
+  const tEl = k.classList.contains('kpi') ? k.querySelector(':scope > span') : k.classList.contains('atCard') ? k.querySelector('.atHead b') : k.querySelector('h2');
+  const titulo = (tEl?.textContent || '').trim(), d = DICAS[titulo];
+  dicaEsconder(); if (!d) return;
+  dicaT = setTimeout(() => dicaMostrar(k, d, titulo), 350);
+});
+document.addEventListener('scroll', dicaEsconder, true);
+document.addEventListener('mousedown', dicaEsconder);
