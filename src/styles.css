@@ -762,3 +762,9 @@ th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{
   body.navMini aside .brand img{height:42px;width:auto;object-fit:cover;object-position:left center;max-width:52px}
   body.navMini aside .brand .brand3d>:not(img){display:none}
 }
+
+.brandMini{display:none}
+@media (min-width:1101px){
+  body.navMini aside .brand{display:none!important}
+  body.navMini .brandMini{display:block;width:46px;height:46px;border-radius:12px;object-fit:cover;margin:2px auto 18px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+}
