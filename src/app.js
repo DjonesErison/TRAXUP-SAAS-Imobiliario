@@ -1736,7 +1736,7 @@ function biVisual(w, c) {
 function biForm() {
   const p = biPainel(); const w = p.widgets.find(x => x.id === BI.edit) || { medida: 'recebido', grupo: 'mes', visual: 'barras', tam: 2, periodo: anoAtual(), empresa: '' };
   const anos = [...new Set(Store.list('vendas').flatMap(v => [(v.data || '').slice(0, 4), ...(v.parcelas || []).map(x => x.venc.slice(0, 4))]).filter(Boolean))].sort().reverse();
-  return `<form class="biForm card" data-form="biWidget"><h3>${BI.edit ? 'Editar visual' : 'Novo visual'}</h3>
+  return `<form class="biForm card ${BI.form || BI.edit ? 'aberto' : ''}" data-form="biWidget"><h3>${BI.edit ? 'Editar visual' : 'Novo visual'}</h3>
    <label>O que medir<select name="medida">${Object.entries(BI_MEDIDAS).map(([k, m]) => opt(k, m.nome, w.medida)).join('')}</select></label>
    <label>Agrupar por<select name="grupo">${Object.entries(BI_GRUPOS).map(([k, t]) => opt(k, t, w.grupo)).join('')}</select></label>
    <div class="biLbl">Tipo de visual</div><div class="biChips">${BI_VISUAIS.map(([k, t]) => `<label class="${w.visual === k ? 'on' : ''}"><input type="radio" name="visual" value="${k}" ${w.visual === k ? 'checked' : ''}>${t}</label>`).join('')}</div>

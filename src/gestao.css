@@ -65,3 +65,12 @@ td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}t
 .acesso{background:#F8FAFE;border:1px dashed #b9c7e4;border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.7;white-space:pre-wrap}
 .spin{width:28px;height:28px;border:3px solid #ffffff44;border-top-color:var(--orange);border-radius:50%;animation:g .8s linear infinite;margin:auto}@keyframes g{to{transform:rotate(1turn)}}
 tr[data-act]{cursor:pointer}
+/* celular */
+@media(max-width:700px){
+.top{gap:8px!important;padding:10px 12px!important}.top>div:not(.chip){flex:1;min-width:0}.top .eyebrow{display:none}
+.top h1{font-size:17px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+.top .primary{font-size:0;padding:0 12px;height:38px}.top .primary::before{content:"+ Novo";font-size:14px}
+.chip>div:not(.avatar){display:none}.chip{gap:6px!important}.chip button{padding:6px 10px}
+.kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}.kpi{padding:12px!important;min-width:0}.kpi b{font-size:17px!important;word-break:break-word}
+.content{padding:12px!important}
+}
