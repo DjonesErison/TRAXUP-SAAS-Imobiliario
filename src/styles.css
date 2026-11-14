@@ -748,3 +748,17 @@ th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{
   .navFechar{display:grid;place-items:center;position:absolute;top:12px;right:12px;width:36px;height:36px;padding:0;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;box-shadow:none;z-index:2}
   .navFechar .icon{width:18px;height:18px;margin:0}
 }
+
+/* computador: botão ☰ recolhe o menu lateral (fica só com os ícones) */
+@media (min-width:1101px){
+  .menuToggle{display:inline-flex!important}
+  aside,main{transition:width .2s,margin-left .2s}
+  body.navMini aside{width:72px;padding:16px 10px;overflow-x:hidden}
+  body.navMini main{margin-left:72px;width:calc(100% - 72px)}
+  body.navMini .navTxt,body.navMini .navGroup,body.navMini .asideFoot,body.navMini .brandLine{display:none}
+  body.navMini nav button{justify-content:center;padding:10px 0}
+  body.navMini nav button .icon{margin:0}
+  body.navMini aside .brand{overflow:hidden;height:46px;padding:0;display:flex;justify-content:center}
+  body.navMini aside .brand img{height:42px;width:auto;object-fit:cover;object-position:left center;max-width:52px}
+  body.navMini aside .brand .brand3d>:not(img){display:none}
+}

@@ -32,7 +32,7 @@ const ACT = {
   rjVoltar: () => { RJ.conf = null; rjRender(); },
   rjConfirmar: async () => { const c = RJ.conf; RJ.conf = null; try { c.tipo === 'aplicar' ? await rjAplicar() : await rjDesfazer(c.lote); } catch (e) { toast(e.message, true); rjRender(); } },
   tema: () => { const t = document.body.classList.contains('dark') ? 'light' : 'dark'; aplicarTema(t); try { localStorage.setItem('traxup_tema', t); } catch (e) { } Store.mode === 'portal' ? portalRender() : render(); },
-  toggleNav: () => document.body.classList.toggle('navOpen'),
+  toggleNav: () => { if (innerWidth > 1100) { const m = document.body.classList.toggle('navMini'); try { localStorage.setItem('traxup_navMini', m ? '1' : ''); } catch (e) { } } else document.body.classList.toggle('navOpen'); },
   fecharNav: () => document.body.classList.remove('navOpen'),
   sair: () => sair(),
   copyTxt: el => copiar(el.dataset.t),
@@ -451,3 +451,5 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.b
     modo = '';
   });
 })();
+
+try { if (localStorage.getItem('traxup_navMini')) document.body.classList.add('navMini'); } catch (e) { }
