@@ -165,7 +165,7 @@ function render() {
   renderView();
 }
 function renderView() {
-  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); try { aplicarLayout(); } catch (e) { console.error(e); } try { prepararOrdenacao(); } catch (e) { console.error(e); } ['pq', 'vq', 'cq', 'iq', 'bq', 'kq', 'uq', 'kcq'].forEach(id => $('#' + id) && autoCliente(id)); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
+  const el = $('#content'); if (!el) return; try { el.innerHTML = barraEmpresas() + (VIEWS[S.view] || VIEWS.painel)(); AFTER[S.view]?.(); try { aplicarLayout(); } catch (e) { console.error(e); } try { prepararOrdenacao(); } catch (e) { console.error(e); } try { dicaEsconder(); marcarDicas(); } catch (e) { console.error(e); } ['pq', 'vq', 'cq', 'iq', 'bq', 'kq', 'uq', 'kcq'].forEach(id => $('#' + id) && autoCliente(id)); } catch (e) { console.error(e); el.innerHTML = `<div class="notice bad">Erro ao montar a tela: ${esc(e.message)}</div>`; }
   try { history.replaceState(null, '', '#' + S.view); } catch (e) { }
 }
 const AFTER = {};
@@ -1779,28 +1779,33 @@ const DICAS = {
   'Vencem nos próximos 7 dias': { o: 'Parcelas que vencem na próxima semana, com cliente e valor.', c: 'Use para avisar o cliente antes do vencimento.' },
   'Mercado e índices': { o: 'Dólar, euro, bolsa e os índices de reajuste (IPCA, IGP-M, INCC, Selic).', c: 'Os índices vêm do Banco Central e são usados no reajuste das parcelas.' }
 };
-let dicaT = null;
-function dicaEsconder() { clearTimeout(dicaT); $('#dicaCard')?.remove(); }
-function dicaMostrar(alvo, d, titulo) {
-  dicaEsconder();
+const dicaTitulo = k => ((k.classList.contains('kpi') ? k.querySelector(':scope > span') : k.classList.contains('atCard') ? k.querySelector('.atHead b') : k.querySelector(':scope > .cardHead h2'))?.textContent || '').trim();
+function marcarDicas() {
+  document.querySelectorAll('#content .kpi, #content .atCard, #content .card').forEach(k => {
+    if (k.querySelector(':scope > .dicaBtn, :scope > .cardHead .dicaBtn')) return;
+    const t = dicaTitulo(k); if (!DICAS[t]) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'dicaBtn'; b.title = 'O que é este card'; b.setAttribute('aria-label', 'O que é este card'); b.dataset.dica = t; b.innerHTML = ic('info');
+    if (k.classList.contains('card')) k.querySelector(':scope > .cardHead h2').appendChild(b); else k.appendChild(b);
+  });
+}
+function dicaEsconder() { $('#dicaCard')?.remove(); document.querySelectorAll('.dicaBtn.on').forEach(b => b.classList.remove('on')); }
+function dicaMostrar(btn) {
+  const t = btn.dataset.dica, d = DICAS[t]; if (!d) return;
+  dicaEsconder(); btn.classList.add('on');
   const el = document.createElement('div'); el.id = 'dicaCard'; el.className = 'dicaCard';
-  el.innerHTML = `<b>${ic('info')}${esc(titulo)}</b><p>${esc(d.o)}</p>${d.c ? `<p class="dicaC">${esc(d.c)}</p>` : ''}`;
+  el.innerHTML = `<b>${ic('info')}${esc(t)}</b><p>${esc(d.o)}</p>${d.c ? `<p class="dicaC">${esc(d.c)}</p>` : ''}`;
   document.body.appendChild(el);
-  const r = alvo.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
-  let left = Math.min(Math.max(8, r.left + 16), innerWidth - w - 8), top = r.bottom + 8;
+  const r = btn.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
+  const left = Math.min(Math.max(8, r.right - w), innerWidth - w - 8); let top = r.bottom + 8;
   if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 8);
   el.style.left = left + 'px'; el.style.top = top + 'px';
   requestAnimationFrame(() => el.classList.add('on'));
 }
-document.addEventListener('mouseover', e => {
-  if (matchMedia('(hover: none)').matches || document.body.classList.contains('orgMode')) return;
-  const k = e.target.closest?.('.kpi, .atCard, .card > .cardHead'); 
-  if (!k) { if (!e.target.closest?.('#dicaCard')) dicaEsconder(); return; }
-  if (k.contains(e.relatedTarget)) return;
-  const tEl = k.classList.contains('kpi') ? k.querySelector(':scope > span') : k.classList.contains('atCard') ? k.querySelector('.atHead b') : k.querySelector('h2');
-  const titulo = (tEl?.textContent || '').trim(), d = DICAS[titulo];
-  dicaEsconder(); if (!d) return;
-  dicaT = setTimeout(() => dicaMostrar(k, d, titulo), 350);
-});
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('.dicaBtn');
+  if (b) { e.preventDefault(); e.stopPropagation(); if (b.classList.contains('on')) dicaEsconder(); else dicaMostrar(b); return; }
+  if (!e.target.closest?.('#dicaCard')) dicaEsconder();
+}, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') dicaEsconder(); });
 document.addEventListener('scroll', dicaEsconder, true);
-document.addEventListener('mousedown', dicaEsconder);
+window.addEventListener('resize', dicaEsconder);
