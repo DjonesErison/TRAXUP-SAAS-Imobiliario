@@ -81,3 +81,7 @@ tr[data-act]{cursor:pointer}
 .pwEye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;padding:0;border:0;background:transparent;box-shadow:none;color:#64748B;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px}
 .pwEye:hover{color:#2563EB;background:rgba(37,99,235,.08)}
 .pwEye svg{width:19px;height:19px}.pwEye .o2{display:none}.pwEye.on .o1{display:none}.pwEye.on .o2{display:block}.pwEye.on{color:#2563EB}
+
+/* busca de CNPJ */
+.cnpjSt{float:right;font-size:11.5px;font-weight:600;text-transform:none;letter-spacing:0}
+.cnpjSt.busca{color:#64748B}.cnpjSt.ok{color:#059669}.cnpjSt.erro{color:#DC2626}

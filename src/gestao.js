@@ -122,7 +122,7 @@ const filialRow = (f = {}) => `<div class="rowF"><label>Nome da filial<input nam
 
 function camposCadastro(c = {}, novo = false) {
   return `<div class="sec"><h4>Empresa</h4><div class="fg">
-    <label class="w2">Razão social *<input name="razao" required value="${esc(c.razao)}" ${novo ? 'data-sug="1"' : ''}></label><label>Nome fantasia<input name="fantasia" value="${esc(c.fantasia)}" ${novo ? 'data-sug="1"' : ''}></label><label>CNPJ<input name="cnpj" value="${esc(c.cnpj)}"></label>
+    <label class="w2">Razão social *<input name="razao" required value="${esc(c.razao)}" ${novo ? 'data-sug="1"' : ''}></label><label>Nome fantasia<input name="fantasia" value="${esc(c.fantasia)}" ${novo ? 'data-sug="1"' : ''}></label><label>CNPJ${novo ? '<span class="cnpjSt" id="cnpjSt"></span>' : ''}<input name="cnpj" value="${esc(c.cnpj)}" ${novo ? 'inputmode="numeric" maxlength="18" placeholder="Digite e os dados vêm sozinhos"' : ''}></label>
     <label>Responsável<input name="responsavel" value="${esc(c.responsavel)}"></label><label>E-mail<input name="email" type="email" value="${esc(c.email)}"></label><label>Telefone / WhatsApp<input name="telefone" value="${esc(c.telefone)}"></label>
     <label>Cidade<input name="cidade" value="${esc(c.cidade)}"></label><label>UF<input name="uf" maxlength="2" value="${esc(c.uf)}"></label></div></div>
   <div class="sec"><h4>Acesso e situação</h4><div class="fg">
@@ -141,6 +141,30 @@ function camposCadastro(c = {}, novo = false) {
     <label>Início do contrato<input name="inicio" type="date" value="${esc(c.inicio || hoje())}"></label>
     <label class="w2">Observações<textarea name="obs" rows="2">${esc(c.obs)}</textarea></label></div></div>`;
 }
+const mascaraCnpj = v => { const d = v.replace(/\D/g, '').slice(0, 14); return d.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2'); };
+const foneBR = d => d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d;
+const tituloNome = s => String(s || '').toLowerCase().replace(/(^|\s)(\S)/g, (m, a, b) => a + b.toUpperCase()).replace(/\s(De|Da|Do|Das|Dos|E)\s/g, m => m.toLowerCase());
+function ligarBuscaCnpj(f) {
+  const st = $('#cnpjSt'); let ultimo = '';
+  const marca = (txt, cls = '') => { st.textContent = txt; st.className = 'cnpjSt ' + cls; };
+  f.cnpj.addEventListener('input', async () => {
+    f.cnpj.value = mascaraCnpj(f.cnpj.value); const d = f.cnpj.value.replace(/\D/g, '');
+    if (d.length !== 14) { marca(''); return; } if (d === ultimo) return; ultimo = d;
+    marca('Buscando…', 'busca');
+    try {
+      const r = await fetch('/api/gestao/cnpj?cnpj=' + d, { headers: { Authorization: 'Bearer ' + G.token } }); const j = await r.json();
+      if (f.cnpj.value.replace(/\D/g, '') !== d) return;
+      if (!r.ok) { marca(j.error || 'Não encontrado', 'erro'); return; }
+      const pre = (n, v) => { if (v && f[n]) f[n].value = v; };
+      pre('razao', j.razao); pre('fantasia', j.fantasia); pre('email', j.email); pre('telefone', foneBR(j.telefone)); pre('cidade', tituloNome(j.cidade)); pre('uf', j.uf); pre('responsavel', tituloNome(j.responsavel));
+      const fil = f.querySelector('.rowF'); if (fil) { const q = n => fil.querySelector(`[name=${n}]`); if (!q('fNome').value.trim()) q('fNome').value = 'Matriz' + (j.cidade ? ' ' + tituloNome(j.cidade) : ''); if (!q('fCnpj').value.trim()) q('fCnpj').value = f.cnpj.value; if (!q('fCidade').value.trim()) q('fCidade').value = tituloNome(j.cidade); if (!q('fUf').value.trim()) q('fUf').value = j.uf || ''; }
+      if (f.aNome && !f.aNome.value.trim() && j.responsavel) f.aNome.value = tituloNome(j.responsavel);
+      if (f.aEmail && !f.aEmail.value.trim() && j.email) f.aEmail.value = j.email;
+      const ativa = !j.situacao || /ativa/i.test(j.situacao);
+      marca(ativa ? '✓ Dados preenchidos' : `Atenção: situação ${j.situacao}`, ativa ? 'ok' : 'erro');
+    } catch { marca('Falha na consulta', 'erro'); }
+  });
+}
 function novoCliente() {
   modal(`${mHead('Novo cliente', 'Cria a base do cliente, as filiais e o administrador. A base começa zerada e separada das demais.')}
   <form class="mBody form" id="fCli">${camposCadastro({}, true)}
@@ -150,6 +174,7 @@ function novoCliente() {
   <div class="actions"><button type="button" data-act="fechar">Cancelar</button><button class="primary">Cadastrar cliente</button></div></form>`);
   const f = $('#fCli');
   f.codigo.addEventListener('input', () => { f.codigo.value = f.codigo.value.replace(/\D/g, '').slice(0, 8); });
+  ligarBuscaCnpj(f);
   f.onsubmit = async e => {
     e.preventDefault(); const v = Object.fromEntries(new FormData(f)); const rows = [...f.querySelectorAll('.rowF')];
     const filiais = rows.map(r => ({ nome: r.querySelector('[name=fNome]').value, cnpj: r.querySelector('[name=fCnpj]').value, cidade: r.querySelector('[name=fCidade]').value, uf: r.querySelector('[name=fUf]').value })).filter(x => x.nome.trim());

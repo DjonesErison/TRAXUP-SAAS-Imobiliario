@@ -585,6 +585,22 @@ async function rotaGestao(req, res, p, ip) {
   const ses = gestorDa(req); if (!ses) return send(res, 401, { error: 'Sessão expirada. Entre novamente.' }); const G = ses.g;
   if (p === '/api/gestao/logout') { sessions.delete(ses.t); saveSessions(); return send(res, 200, { ok: true }); }
   if (p === '/api/gestao/dados' && req.method === 'GET') return send(res, 200, { ...dadosGestao(), eu: semSegredo(G) }, { 'Cache-Control': 'no-store' });
+  if (p === '/api/gestao/cnpj' && req.method === 'GET') { // busca automática do CNPJ (BrasilAPI, com reserva no CNPJ.ws)
+    const cnpj = String(new URL(req.url, 'http://x').searchParams.get('cnpj') || '').replace(/\D/g, '');
+    if (cnpj.length !== 14) return send(res, 400, { error: 'CNPJ deve ter 14 números.' });
+    const tel = (...xs) => xs.map(x => String(x || '').replace(/\D/g, '')).find(x => x.length >= 10) || '';
+    try {
+      const r = await httpsJSON('https://brasilapi.com.br/api/cnpj/v1/' + cnpj, { headers: { 'User-Agent': 'TRAXUP-Imob' } });
+      if (r.status === 200 && r.json?.razao_social) { const j = r.json; return send(res, 200, { razao: j.razao_social, fantasia: j.nome_fantasia || '', email: (j.email || '').toLowerCase(), telefone: tel(j.ddd_telefone_1, j.ddd_telefone_2), cidade: j.municipio || '', uf: j.uf || '', responsavel: j.qsa?.[0]?.nome_socio || '', situacao: j.descricao_situacao_cadastral || '' }); }
+      if (r.status === 404) return send(res, 404, { error: 'CNPJ não encontrado na Receita.' });
+    } catch (e) { console.error('[cnpj brasilapi]', e.message); }
+    try {
+      const r = await httpsJSON('https://publica.cnpj.ws/cnpj/' + cnpj, { headers: { 'User-Agent': 'TRAXUP-Imob' } });
+      if (r.status === 200 && r.json?.razao_social) { const j = r.json, e = j.estabelecimento || {}; return send(res, 200, { razao: j.razao_social, fantasia: e.nome_fantasia || '', email: (e.email || '').toLowerCase(), telefone: tel((e.ddd1 || '') + (e.telefone1 || ''), (e.ddd2 || '') + (e.telefone2 || '')), cidade: e.cidade?.nome || '', uf: e.estado?.sigla || '', responsavel: j.socios?.[0]?.nome || '', situacao: e.situacao_cadastral || '' }); }
+      if (r.status === 404) return send(res, 404, { error: 'CNPJ não encontrado na Receita.' });
+    } catch (e) { console.error('[cnpj cnpj.ws]', e.message); }
+    return send(res, 502, { error: 'Não consegui consultar o CNPJ agora. Preencha manualmente ou tente de novo.' });
+  }
   if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido.' });
   const body = await readJSON(req, 1e5);
 
