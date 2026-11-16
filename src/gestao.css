@@ -83,6 +83,6 @@ tr[data-act]{cursor:pointer}
 .pwEye svg{width:19px;height:19px}.pwEye .o2{display:none}.pwEye.on .o1{display:none}.pwEye.on .o2{display:block}.pwEye.on{color:#2563EB}
 
 /* busca de CNPJ */
-.cnpjSt{float:right;font-size:11.5px;font-weight:600;text-transform:none;letter-spacing:0}
+.cnpjSt{position:absolute;top:0;right:0;font-size:11.5px;font-weight:600;text-transform:none;letter-spacing:0}
 .cnpjSt.busca{color:#64748B}.cnpjSt.ok{color:#059669}.cnpjSt.erro{color:#DC2626}
 .cnpjLupa{color:#2563EB}.cnpjLupa svg{width:18px;height:18px}
