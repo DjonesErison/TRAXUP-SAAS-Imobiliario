@@ -51,7 +51,7 @@ const noEscopo = r => { const ids = filiaisUsuario().map(f => f.id); return S.fi
 const L = c => Store.list(c).filter(noEscopo);
 const filialPadrao = () => S.filial !== '*' ? S.filial : filiaisUsuario()[0]?.id;
 const nomeFilial = id => Store.get('filiais', id)?.nome || '—';
-const loteNome = l => l ? `L${l.numero}` : '—'; // nas telas mostra só o lote (a quadra continua no cadastro e nos filtros)
+const loteNome = l => l ? (l.quadra ? `Q${String(l.quadra).trim()} · L${l.numero}` : `L${l.numero}`) : '—'; // quadra + lote (os números se repetem entre quadras)
 const loteDesc = id => { const l = Store.get('lotes', id); if (!l) return '—'; const e = Store.get('empreendimentos', l.empId); return `${loteNome(l)}${e ? ' · ' + e.nome : ''}`; };
 const cliNome = id => Store.get('clientes', id)?.nome || '—';
 const cfg = () => Store.get('config', 'geral') || { id: 'geral' };
