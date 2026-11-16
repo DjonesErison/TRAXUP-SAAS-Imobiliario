@@ -289,7 +289,7 @@ function docExport(d, excel) {
 async function exportarTela(fmt) {
   const d = dadosDaTela(); if (!d.blocos.length && !d.kpis.length) return toast('Não há dados nesta tela para exportar.', true);
   const nome = `${norm(d.titulo).replace(/[^a-z0-9]+/g, '_')}_${hoje()}`;
-  if (fmt === 'xls') return salvarArquivo(nome + '.xls', '﻿' + docExport(d, true), 'application/vnd.ms-excel');
+  if (fmt === 'xls') return salvarArquivo(nome + '.xlsx', xlsxDeHtml(docExport(d, true), d.titulo), MIME_XLSX);
   const html = docExport(d, false);
   if (Store.mode !== 'db') { const w = window.open('', '_blank'); if (w) { w.document.write(html + '<script>setTimeout(()=>print(),400)<\/script>'); w.document.close(); return; } }
   return salvarArquivo(nome + '.html', html, 'text/html');
@@ -1809,3 +1809,63 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') dicaEsconder(); });
 document.addEventListener('scroll', dicaEsconder, true);
 window.addEventListener('resize', dicaEsconder);
+
+/* ---------- Excel .xlsx de verdade (sem biblioteca): lê o HTML do relatório e monta a planilha ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipArquivos(files) { // método "store" (sem compressão) — o Excel abre normalmente
+  const enc = new TextEncoder(), partes = [], central = []; let off = 0;
+  const u16 = n => [n & 255, (n >>> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  for (const [nome, txt] of files) {
+    const nm = enc.encode(nome), dt = enc.encode(txt), crc = crc32(dt);
+    const loc = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(dt.length), ...u32(dt.length), ...u16(nm.length), ...u16(0)]);
+    partes.push(loc, nm, dt);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(dt.length), ...u32(dt.length), ...u16(nm.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), nm);
+    off += loc.length + nm.length + dt.length;
+  }
+  const tamC = central.reduce((s, x) => s + x.length, 0);
+  const fim = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(tamC), ...u32(off), ...u16(0)]);
+  return new Blob([...partes, ...central, fim], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+// estilos: 0 normal · 1 título · 2 cabeçalho · 3 moeda · 4 data · 5 moeda negrito · 6 negrito · 7 subtítulo · 8 seção · 9 inteiro · 10 texto
+function xlsxDeHtml(html, aba = 'Relatório') {
+  const doc = new DOMParser().parseFromString(html, 'text/html'); const linhas = []; const larg = [];
+  const xe = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  const celula = (t, negrito) => {
+    t = String(t ?? '').replace(/\s+/g, ' ').trim();
+    let m = t.match(/^(-?)\s*(?:R\$\s?)?(-?)([\d.]+,\d{2})$/); if (m) return { n: (m[1] || m[2] ? -1 : 1) * parseFloat(m[3].replace(/\./g, '').replace(',', '.')), s: negrito ? 5 : 3, w: t.length };
+    m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (m) { const d = Date.UTC(+m[3], +m[2] - 1, +m[1]); if (!isNaN(d)) return { n: d / 864e5 + 25569, s: 4, w: 10 }; }
+    if (/^\d{1,3}(\.\d{3})+$/.test(t) || /^\d{1,9}$/.test(t) && !/^0\d/.test(t)) return { n: +t.replace(/\./g, ''), s: 9, w: t.length };
+    return { t, s: negrito ? 6 : 10, w: t.length };
+  };
+  const add = (cells, alt) => { linhas.push({ cells, alt }); cells.forEach((c, i) => { if (c && c.s !== 1 && c.s !== 7 && c.s !== 8) larg[i] = Math.max(larg[i] || 8, Math.min(60, (c.w || 0) + 2)); }); };
+  for (const el of doc.body.querySelectorAll('h1, h2, p, table')) {
+    if (el.closest('table') && el.tagName !== 'TABLE') continue;
+    if (el.tagName === 'H1') add([{ t: el.textContent.replace(/\s+/g, ' ').trim(), s: 1 }], 26);
+    else if (el.tagName === 'P') add([{ t: el.textContent.replace(/\s+/g, ' ').trim(), s: 7 }]);
+    else if (el.tagName === 'H2') { add([]); add([{ t: el.textContent.trim(), s: 8 }], 20); }
+    else {
+      if (linhas.length && linhas[linhas.length - 1].cells.length && linhas[linhas.length - 1].cells[0].s !== 8) add([]);
+      el.querySelectorAll('tr').forEach(tr => { const cab = !!tr.closest('thead'), pe = !!tr.closest('tfoot'); add([...tr.children].map(td => cab ? { t: td.textContent.trim(), s: 2, w: td.textContent.trim().length } : celula(td.textContent, pe))); });
+    }
+  }
+  const col = i => { let s = ''; i++; while (i) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const rows = linhas.map((l, r) => `<row r="${r + 1}"${l.alt ? ` ht="${l.alt}" customHeight="1"` : ''}>${l.cells.map((c, i) => { const ref = col(i) + (r + 1); return c.n !== undefined ? `<c r="${ref}" s="${c.s}"><v>${c.n}</v></c>` : `<c r="${ref}" s="${c.s}" t="inlineStr"><is><t xml:space="preserve">${xe(c.t)}</t></is></c>`; }).join('')}</row>`).join('');
+  const cols = larg.length ? `<cols>${[...larg].map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w || 10}" customWidth="1"/>`).join('')}</cols>` : '';
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>${cols}<sheetData>${rows}</sheetData></worksheet>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.00"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/></numFmts>
+<fonts count="6"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="18"/><color rgb="FF0A2463"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><sz val="10"/><color rgb="FF666666"/><name val="Calibri"/></font><font><b/><sz val="13"/><color rgb="FF1D4ED8"/><name val="Calibri"/></font></fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0A2463"/></patternFill></fill></fills>
+<borders count="2"><border/><border><left style="thin"><color rgb="FFCCD3E0"/></left><right style="thin"><color rgb="FFCCD3E0"/></right><top style="thin"><color rgb="FFCCD3E0"/></top><bottom style="thin"><color rgb="FFCCD3E0"/></bottom></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="11">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"><alignment horizontal="left"/></xf><xf numFmtId="164" fontId="3" fillId="0" borderId="1" applyNumberFormat="1" applyFont="1" applyBorder="1"/><xf numFmtId="49" fontId="3" fillId="0" borderId="1" applyNumberFormat="1" applyFont="1" applyBorder="1"/><xf numFmtId="0" fontId="4" fillId="0" borderId="0" applyFont="1"/><xf numFmtId="0" fontId="5" fillId="0" borderId="0" applyFont="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="49" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const nomeAba = xe(String(aba).replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 31) || 'Relatório');
+  return zipArquivos([
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${nomeAba}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/styles.xml', styles], ['xl/worksheets/sheet1.xml', sheet]
+  ]);
+}
+const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
