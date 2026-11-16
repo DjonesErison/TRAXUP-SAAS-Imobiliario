@@ -53,6 +53,15 @@ const ACT = {
   editCliente: el => formCliente(Store.get('clientes', el.dataset.id)),
   delCliente: el => formExcluirCliente(el.dataset.id),
   excluirVenda: el => formExcluirVenda(el.dataset.id),
+  delUsuario: el => {
+    const u = Store.get('usuarios', el.dataset.id); if (!u) return; if (u.id === S.user.id) return toast('Você não pode excluir o próprio usuário.', true);
+    if (u.perfil === 'Administrador' && Store.list('usuarios').filter(x => x.perfil === 'Administrador' && x.ativo !== false).length <= 1) return toast('Este é o único administrador ativo. Cadastre outro antes de excluir.', true);
+    const cor = Store.list('corretores').filter(c => c.usuarioId === u.id);
+    confirmar(`Excluir o usuário <b>${esc(u.nome)}</b> (login <b>${esc(u.login)}</b>)? Ele perde o acesso na hora.${cor.length ? `<br><br>Ele é o acesso do corretor <b>${esc(cor.map(c => c.nome).join(', '))}</b>: o cadastro do corretor, as vendas e as comissões continuam, só o login é removido.` : ''}<br><br>Se for só afastamento, prefira deixar o usuário <b>Inativo</b>.`, async () => {
+      for (const c of cor) { delete c.usuarioId; c.acesso = false; await Store.put('corretores', c); }
+      await Store.del('usuarios', u.id); await audit(`Excluiu o usuário ${u.nome} (${u.login})`); toast('Usuário excluído.'); renderView();
+    }, 'Excluir');
+  },
   cliRapido: () => { const f = $('[data-form=venda]'); const keep = fd(f); closeModal(); formCliente(null, c => { formVenda(keep.loteId); const nf = $('[data-form=venda]'); nf.clienteId.innerHTML += opt(c.id, c.nome, c.id); nf.clienteId.value = c.id; }); },
 
   /* vendas */

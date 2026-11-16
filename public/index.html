@@ -2412,7 +2412,7 @@ AFTER.corretor = () => { $('#crEmp')?.addEventListener('change', e => { S.f.crEm
 VIEWS.usuarios = () => {
   const us = Store.list('usuarios').sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   return `<div class="toolbar"><p class="hint grow">Perfis: <b>Administrador</b> (tudo), <b>Gerente</b> (tudo menos usuários e filiais), <b>Financeiro</b> (parcelas, boletos, conciliação, comissões), <b>Comercial</b> (mapa, lotes, clientes, vendas, contratos) e <b>Corretor</b> (mapa, lotes e clientes).</p><button class="primary" data-act="editUser">${ic('plus')}Novo usuário</button></div>
-  <div class="card"><div class="tableWrap"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Filiais</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>${us.map(u => `<tr><td><b>${esc(u.nome)}</b><small>${esc(u.email || '')}</small></td><td>${esc(u.login)}</td><td><span class="badge blue">${esc(u.perfil)}</span></td><td>${(u.filiais || []).includes('*') || u.perfil === 'Administrador' ? 'Todas' : (u.filiais || []).map(nomeFilial).join(', ') || '—'}</td><td>${u.ativo === false ? '<span class="badge">Inativo</span>' : '<span class="badge ok">Ativo</span>'}</td><td>${u.ultimoAcesso ? new Date(u.ultimoAcesso).toLocaleString('pt-BR') : '—'}</td><td class="actions"><button type="button" class="tb e" title="Editar" aria-label="Editar" data-act="editUser" data-id="${u.id}">${ic('edit')}</button></td></tr>`).join('')}</tbody></table></div></div>
+  <div class="card"><div class="tableWrap"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Filiais</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>${us.map(u => `<tr><td><b>${esc(u.nome)}</b><small>${esc(u.email || '')}</small></td><td>${esc(u.login)}</td><td><span class="badge blue">${esc(u.perfil)}</span></td><td>${(u.filiais || []).includes('*') || u.perfil === 'Administrador' ? 'Todas' : (u.filiais || []).map(nomeFilial).join(', ') || '—'}</td><td>${u.ativo === false ? '<span class="badge">Inativo</span>' : '<span class="badge ok">Ativo</span>'}</td><td>${u.ultimoAcesso ? new Date(u.ultimoAcesso).toLocaleString('pt-BR') : '—'}</td><td class="actions"><button type="button" class="tb e" title="Editar" aria-label="Editar" data-act="editUser" data-id="${u.id}">${ic('edit')}</button>${u.id !== S.user.id ? `<button type="button" class="tb d" title="Excluir usuário" aria-label="Excluir usuário" data-act="delUsuario" data-id="${u.id}">${ic('trash')}</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>
   <div class="card"><div class="cardHead"><h2>Auditoria recente</h2></div><div class="tableWrap"><table><tbody>${(Store.get('logs', 'auditoria')?.itens || []).slice(0, 25).map(a => `<tr><td style="width:180px">${new Date(a.data).toLocaleString('pt-BR')}</td><td style="width:160px">${esc(a.usuario || '')}</td><td>${esc(a.acao)}</td></tr>`).join('') || '<tr><td class="empty">Sem registros.</td></tr>'}</tbody></table></div></div>`;
 };
 function formUser(u) {
@@ -3238,6 +3238,15 @@ const ACT = {
   editCliente: el => formCliente(Store.get('clientes', el.dataset.id)),
   delCliente: el => formExcluirCliente(el.dataset.id),
   excluirVenda: el => formExcluirVenda(el.dataset.id),
+  delUsuario: el => {
+    const u = Store.get('usuarios', el.dataset.id); if (!u) return; if (u.id === S.user.id) return toast('Você não pode excluir o próprio usuário.', true);
+    if (u.perfil === 'Administrador' && Store.list('usuarios').filter(x => x.perfil === 'Administrador' && x.ativo !== false).length <= 1) return toast('Este é o único administrador ativo. Cadastre outro antes de excluir.', true);
+    const cor = Store.list('corretores').filter(c => c.usuarioId === u.id);
+    confirmar(`Excluir o usuário <b>${esc(u.nome)}</b> (login <b>${esc(u.login)}</b>)? Ele perde o acesso na hora.${cor.length ? `<br><br>Ele é o acesso do corretor <b>${esc(cor.map(c => c.nome).join(', '))}</b>: o cadastro do corretor, as vendas e as comissões continuam, só o login é removido.` : ''}<br><br>Se for só afastamento, prefira deixar o usuário <b>Inativo</b>.`, async () => {
+      for (const c of cor) { delete c.usuarioId; c.acesso = false; await Store.put('corretores', c); }
+      await Store.del('usuarios', u.id); await audit(`Excluiu o usuário ${u.nome} (${u.login})`); toast('Usuário excluído.'); renderView();
+    }, 'Excluir');
+  },
   cliRapido: () => { const f = $('[data-form=venda]'); const keep = fd(f); closeModal(); formCliente(null, c => { formVenda(keep.loteId); const nf = $('[data-form=venda]'); nf.clienteId.innerHTML += opt(c.id, c.nome, c.id); nf.clienteId.value = c.id; }); },
 
   /* vendas */
