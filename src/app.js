@@ -555,7 +555,7 @@ VIEWS.lotes = () => {
   const f = S.f, q = norm(f.lq); const K = ['lq', 'lemp', 'lquad', 'lst', 'lpmin', 'lpmax', 'lamin', 'lcusto'];
   const rows = L('lotes').filter(l => (!f.lst || l.status === f.lst) && (!f.lemp || l.empId === f.lemp) && (!f.lquad || l.quadra === f.lquad) && naFaixa(l.preco, f.lpmin, f.lpmax) && (!f.lamin || parseFloat(String(l.area || 0).replace(',', '.')) >= parseFloat(String(f.lamin).replace(',', '.'))) && (!f.lcusto || (f.lcusto === 'com' ? !!l.custo : !l.custo)) && (!q || norm(`${loteNome(l)} ${l.quadra} ${l.numero} ${Store.get('empreendimentos', l.empId)?.nome} ${l.matricula || ''}`).includes(q))).sort((a, b) => String(a.empId).localeCompare(b.empId) || String(a.quadra).localeCompare(String(b.quadra), 'pt-BR', { numeric: true }) || String(a.numero).localeCompare(String(b.numero), 'pt-BR', { numeric: true }));
   const editor = S.user.perfil !== 'Corretor';
-  return `${filtroBox(`${fTxt('lq', 'Buscar', f.lq, 'Quadra, lote, matrícula')}${fSel('lquad', 'Quadra', quadraItems(f.lemp), f.lquad)}${fSel('lst', 'Situação', [['', 'Todas'], 'Disponível', 'Reservado', 'Vendido', 'Bloqueado'], f.lst)}`, `${fNum('lpmin', 'Preço de (R$)', f.lpmin)}${fNum('lpmax', 'até (R$)', f.lpmax)}${fNum('lamin', 'Área mín. (m²)', f.lamin)}${editor ? fSel('lcusto', 'Custo', [['', 'Todos'], ['com', 'Com custo'], ['sem', 'Sem custo']], f.lcusto) : ''}<span class="spacer"></span>${btnLimpar(K)}${editor ? `<button data-act="loteLote">${ic('layers')}Gerar lotes em série</button><button class="primary" data-act="editLote">${ic('plus')}Novo lote</button>` : ''}`)}
+  return `${filtroBox(`${fTxt('lq', 'Buscar', f.lq, 'Quadra, lote, matrícula')}${fSel('lquad', 'Quadra', quadraItems(f.lemp), f.lquad)}${fSel('lst', 'Situação', [['', 'Todas'], 'Disponível', 'Reservado', 'Vendido', 'Bloqueado'], f.lst)}`, `${fNum('lpmin', 'Preço de (R$)', f.lpmin)}${fNum('lpmax', 'até (R$)', f.lpmax)}${fNum('lamin', 'Área mín. (m²)', f.lamin)}${editor ? fSel('lcusto', 'Custo', [['', 'Todos'], ['com', 'Com custo'], ['sem', 'Sem custo']], f.lcusto) : ''}<span class="spacer"></span>${btnLimpar(K)}${editor ? `<button data-act="loteWord">${ic('upload')}Importar do Word</button><button data-act="loteLote">${ic('layers')}Gerar lotes em série</button><button class="primary" data-act="editLote">${ic('plus')}Novo lote</button>` : ''}`)}
   <div class="card"><div class="tableWrap"><table><thead><tr><th>Lote</th><th>Empreendimento</th><th class="num">Área</th><th class="num">Preço</th>${editor ? '<th class="num">Custo</th><th class="num">Lucro previsto</th>' : ''}<th>Situação</th><th></th></tr></thead><tbody>${rows.map(l => `<tr><td><b>${esc(loteNome(l))}</b><small>${esc(nomeFilial(l.filialId))}</small></td><td>${esc(Store.get('empreendimentos', l.empId)?.nome || '—')}</td><td class="num">${l.area ? esc(l.area) + ' m²' : '—'}</td><td class="num">${brl(l.preco)}</td>${editor ? `<td class="num">${l.custo ? brl(l.custo) : '—'}</td><td class="num">${l.custo ? brl(l.preco - l.custo) : '—'}</td>` : ''}<td>${badgeSit(l.status)}</td><td class="actions">${editor ? `<button type="button" class="tb e" title="Editar lote" aria-label="Editar lote" data-act="editLote" data-id="${l.id}">${ic('edit')}</button>` : ''}${l.status !== 'Vendido' && pode(S.user, 'vendas') ? `<button type="button" class="tb g" title="Vender este lote" aria-label="Vender este lote" data-act="novaVenda" data-lote="${l.id}">${ic('hand')}</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="8" class="empty">Nenhum lote encontrado.</td></tr>`}</tbody>
   <tfoot><tr><td colspan="3">${rows.length} lotes</td><td class="num">${brl(soma(rows, l => l.preco))}</td>${editor ? `<td class="num">${brl(soma(rows, l => l.custo))}</td><td class="num">${brl(soma(rows.filter(l => l.custo), l => l.preco - l.custo))}</td>` : ''}<td colspan="2"></td></tr></tfoot></table></div></div>`;
 };
@@ -1869,3 +1869,79 @@ function xlsxDeHtml(html, aba = 'Relatório') {
   ]);
 }
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+
+/* ---------- Importar lotes de um Word (.docx): quadras com tabela LOTE · VALOR · DISPONÍVEL · TAMANHO ---------- */
+async function lerZip(buf) { // devolve { nome: Uint8Array } (store e deflate)
+  const v = new DataView(buf), u8 = new Uint8Array(buf); let e = u8.length - 22; while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--; if (e < 0) throw Error('Arquivo não é um .docx válido.');
+  const n = v.getUint16(e + 10, true); let p = v.getUint32(e + 16, true); const out = {}; const dec = new TextDecoder();
+  for (let i = 0; i < n; i++) {
+    const met = v.getUint16(p + 10, true), tam = v.getUint32(p + 20, true), ln = v.getUint16(p + 28, true), lx = v.getUint16(p + 30, true), lc = v.getUint16(p + 32, true), off = v.getUint32(p + 42, true);
+    const nome = dec.decode(u8.subarray(p + 46, p + 46 + ln)); p += 46 + ln + lx + lc;
+    const ini = off + 30 + v.getUint16(off + 26, true) + v.getUint16(off + 28, true), dados = u8.subarray(ini, ini + tam);
+    out[nome] = met === 0 ? dados : met === 8 ? new Uint8Array(await new Response(new Blob([dados]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer()) : null;
+  }
+  return out;
+}
+async function lotesDoWord(file) {
+  const z = await lerZip(await file.arrayBuffer()); const xml = z['word/document.xml']; if (!xml) throw Error('Não achei o texto do documento. Envie um arquivo .docx do Word.');
+  const doc = new DOMParser().parseFromString(new TextDecoder().decode(xml), 'application/xml'); const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const txt = el => [...el.getElementsByTagNameNS(W, 't')].map(t => t.textContent).join('').replace(/\s+/g, ' ').trim();
+  const body = doc.getElementsByTagNameNS(W, 'body')[0]; const seq = [];
+  for (const el of body.children) {
+    if (el.localName === 'p') { const t = txt(el); const m = t.match(/^QUA?D?R?A\s+([A-Z0-9]{1,4})\b/i); if (m) seq.push({ q: m[1].toUpperCase() }); }
+    else if (el.localName === 'tbl') seq.push({ rows: [...el.children].filter(r => r.localName === 'tr').map(tr => [...tr.children].filter(c => c.localName === 'tc').map(txt)) });
+  }
+  const tabs = seq.filter(x => x.rows), cabs = seq.filter(x => x.q); if (!tabs.length) throw Error('Nenhuma tabela de lotes encontrada no documento.');
+  // tabela antes do título (como neste modelo) ou depois do título
+  const antes = seq.findIndex(x => x.rows) < seq.findIndex(x => x.q);
+  const pares = []; if (antes) { let t = null; for (const x of seq) { if (x.rows) t = x; else if (t) { pares.push([x.q, t]); t = null; } } } else { let q = null; for (const x of seq) { if (x.q) q = x.q; else if (q) { pares.push([q, x]); q = null; } } }
+  if (!pares.length) throw Error('Não consegui ligar as tabelas às quadras.');
+  const lotes = [], avisos = [];
+  for (const [q, t] of pares) {
+    const head = t.rows[0].map(h => norm(h)); const ix = k => head.findIndex(h => k.test(h));
+    const iL = ix(/^lote/), iV = ix(/valor|preco/), iD = ix(/dispon/), iT = ix(/taman|area/);
+    if (iL < 0) { avisos.push(`Quadra ${q}: tabela sem coluna LOTE`); continue; }
+    for (const r of t.rows.slice(1)) {
+      const numero = (r[iL] || '').replace(/^0+(?=\d)/, '').trim(); if (!numero) continue;
+      const vTxt = (r[iV] || '').replace(/[^\d,.]/g, ''); const m = vTxt.match(/^([\d.]*?)(?:,(\d+))?$/); const preco = m ? Math.round(parseFloat((m[1].replace(/\./g, '') || '0') + '.' + (m[2] || '0').slice(0, 2).padEnd(2, '0')) * 100) : 0;
+      const area = (r[iT] || '').toUpperCase().replace(/M2|M²/g, '').trim().replace('.', ',');
+      const disp = /^s/i.test((r[iD] || '').trim());
+      if (lotes.some(l => l.quadra === q && l.numero === numero)) { avisos.push(`Quadra ${q}, lote ${numero} repetido — ignorado`); continue; }
+      lotes.push({ quadra: q, numero, preco, area, disp });
+    }
+  }
+  return { lotes, avisos };
+}
+const IMPW = { lotes: [], avisos: [], nome: '' };
+function formLoteWord() {
+  const emps = L('empreendimentos'); if (!emps.length) return toast('Cadastre um empreendimento primeiro (Filiais e empreendimentos).', true);
+  modal(`${mHead('Lotes', 'Importar lotes do Word')}<div class="modalBody"><p class="hint" style="margin-bottom:12px">Envie o .docx com uma tabela por quadra (colunas LOTE, VALOR, DISPONÍVEL, TAMANHO). Você confere a prévia antes de gravar. Lotes que já existem no empreendimento são ignorados.</p>
+  <div class="formGrid"><label class="c2">Empreendimento${sel('empId', emps.map(e => [e.id, `${e.nome} · ${nomeFilial(e.filialId)}`]), S.f.mapaEmp || emps[0].id)}</label><label>Lotes "NÃO" disponíveis entram como${sel('stNao', ['Vendido', 'Bloqueado', 'Reservado'], 'Vendido')}</label><label>Arquivo Word (.docx)<input type="file" id="wordLotes" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label></div>
+  <div id="wordPrev" style="margin-top:14px"></div>
+  <div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary" id="wordGravar" data-act="loteWordGravar" disabled>Importar lotes</button></div></div>`, 'wide');
+  $('#wordLotes').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return; const box = $('#wordPrev'); box.innerHTML = '<p class="muted">Lendo o arquivo…</p>';
+    try { const r = await lotesDoWord(f); Object.assign(IMPW, r, { nome: f.name }); wordPrevia(); } catch (er) { box.innerHTML = `<div class="notice bad">${esc(er.message)}</div>`; $('#wordGravar').disabled = true; }
+  });
+  $('#overlay select[name=empId]').addEventListener('change', () => IMPW.lotes.length && wordPrevia());
+  IMPW.lotes = []; IMPW.avisos = [];
+}
+function wordPrevia() {
+  const empId = $('#overlay select[name=empId]').value; const existe = new Set(Store.list('lotes').filter(l => l.empId === empId).map(l => norm(l.quadra) + '|' + l.numero));
+  const qs = [...new Set(IMPW.lotes.map(l => l.quadra))]; const novos = IMPW.lotes.filter(l => !existe.has(norm(l.quadra) + '|' + l.numero));
+  const linha = q => { const xs = IMPW.lotes.filter(l => l.quadra === q), nv = xs.filter(l => !existe.has(norm(l.quadra) + '|' + l.numero)); const precos = [...new Set(xs.map(l => l.preco))].sort((a, b) => a - b); return `<tr><td><b>Quadra ${esc(q)}</b></td><td class="num">${xs.length}</td><td class="num green">${xs.filter(l => l.disp).length}</td><td class="num">${xs.filter(l => !l.disp).length}</td><td class="num">${precos.length > 1 ? brl(precos[0]) + ' a ' + brl(precos[precos.length - 1]) : brl(precos[0] || 0)}</td><td class="num">${brl(soma(xs, l => l.preco))}</td><td class="num">${nv.length < xs.length ? `<span class="badge orange">${xs.length - nv.length} já existe(m)</span>` : nv.length}</td></tr>`; };
+  $('#wordPrev').innerHTML = `<div class="notice info"><b>${esc(IMPW.nome)}</b>: ${qs.length} quadras · ${IMPW.lotes.length} lotes · <b>${IMPW.lotes.filter(l => l.disp).length} disponíveis</b> · valor total ${brl(soma(IMPW.lotes, l => l.preco))}</div>
+  ${IMPW.avisos.length ? `<div class="notice warn" style="margin-top:8px">${IMPW.avisos.map(esc).join('<br>')}</div>` : ''}
+  <div class="tableWrap" style="max-height:340px;margin-top:10px"><table><thead><tr><th>Quadra</th><th class="num">Lotes</th><th class="num">Disponíveis</th><th class="num">Não disponíveis</th><th class="num">Preço</th><th class="num">Valor total</th><th class="num">Novos</th></tr></thead><tbody>${qs.map(linha).join('')}</tbody>
+  <tfoot><tr><td>Total</td><td class="num">${IMPW.lotes.length}</td><td class="num">${IMPW.lotes.filter(l => l.disp).length}</td><td class="num">${IMPW.lotes.filter(l => !l.disp).length}</td><td></td><td class="num">${brl(soma(IMPW.lotes, l => l.preco))}</td><td class="num">${novos.length}</td></tr></tfoot></table></div>`;
+  const b = $('#wordGravar'); b.disabled = !novos.length; b.textContent = novos.length ? `Importar ${novos.length} lote(s)` : 'Nada novo para importar';
+}
+async function gravarLotesWord() {
+  const emp = Store.get('empreendimentos', $('#overlay select[name=empId]').value), stNao = $('#overlay select[name=stNao]').value; if (!emp) return;
+  const existe = new Set(Store.list('lotes').filter(l => l.empId === emp.id).map(l => norm(l.quadra) + '|' + l.numero));
+  const novos = IMPW.lotes.filter(l => !existe.has(norm(l.quadra) + '|' + l.numero)); const b = $('#wordGravar'); b.disabled = true; let n = 0;
+  try { for (const l of novos) { await Store.put('lotes', { empId: emp.id, filialId: emp.filialId, quadra: l.quadra, numero: l.numero, area: l.area, preco: l.preco, status: l.disp ? 'Disponível' : stNao, obs: 'Importado do Word (' + IMPW.nome + ')' }); n++; if (n % 25 === 0) b.textContent = `Gravando… ${n}/${novos.length}`; } }
+  catch (er) { toast(`Parou no lote ${n + 1}: ${er.message}. ${n} já foram gravados — envie de novo que ele continua de onde parou.`, true); b.disabled = false; return; }
+  closeModal(); toast(`${n} lote(s) importado(s) em ${emp.nome}.`); S.f.mapaEmp = emp.id; S.f.lemp = emp.id; renderView();
+}

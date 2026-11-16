@@ -43,6 +43,8 @@ const ACT = {
   placing: () => { S.f.placing = !S.f.placing; renderView(); },
   editLote: el => formLote(Store.get('lotes', el.dataset.id)),
   loteLote: () => formLoteSerie(),
+  loteWord: () => formLoteWord(),
+  loteWordGravar: () => gravarLotesWord(),
   delLote: el => confirmar('Excluir este lote definitivamente?', async () => { await Store.del('lotes', el.dataset.id); await audit('Excluiu lote ' + el.dataset.id); toast('Lote excluído.'); renderView(); }, 'Excluir'),
   reservar: el => { const l = Store.get('lotes', el.dataset.id); modal(`${mHead(loteDesc(l.id), 'Reservar lote')}<form class="modalBody" data-form="reserva" data-id="${l.id}"><div class="formGrid" style="grid-template-columns:1fr 1fr"><label>Reservado para<input name="reservaPara" required></label><label>Válida até<input type="date" name="reservaAte" value="${addDias(hoje(), 7)}"></label></div><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Reservar</button></div></form>`, 'narrow'); },
   liberar: async el => { const l = Store.get('lotes', el.dataset.id); l.status = 'Disponível'; delete l.reservaPara; delete l.reservaAte; delete l.reservadoPor; delete l.reservadoPorNome; delete l.reservadoEm; await Store.put('lotes', l); toast('Lote liberado.'); renderView(); },
