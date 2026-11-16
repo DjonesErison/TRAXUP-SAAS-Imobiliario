@@ -821,7 +821,7 @@ async function rotas(req, res, url, p, ip) {
         if (col === 'vendas') codigoDaVenda(o);
         db[col][id] = o; persist(); return send(res, 200, { ok: true, ...(col === 'vendas' ? { codigo: o.codigo } : {}) });
       }
-      if (req.method === 'DELETE') { if (col === 'usuarios' && id === user.id) return send(res, 400, { error: 'Você não pode excluir o próprio usuário.' }); delete db[col][id]; persist(); return send(res, 200, { ok: true }); }
+      if (req.method === 'DELETE') { if (['vendas', 'clientes'].includes(col) && user.perfil !== 'Administrador') return send(res, 403, { error: 'Apenas administradores podem excluir ' + col + '.' }); if (col === 'usuarios' && id === user.id) return send(res, 400, { error: 'Você não pode excluir o próprio usuário.' }); delete db[col][id]; persist(); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: 'Método não permitido.' });
     }
     if (p === '/api/backups' || p.startsWith('/api/backups/')) {

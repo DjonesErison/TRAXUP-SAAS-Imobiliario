@@ -51,7 +51,8 @@ const ACT = {
 
   /* clientes */
   editCliente: el => formCliente(Store.get('clientes', el.dataset.id)),
-  delCliente: el => { if (Store.list('vendas').some(v => v.clienteId === el.dataset.id)) return toast('Cliente tem contrato vinculado e não pode ser excluído.', true); confirmar('Excluir este cliente?', async () => { await Store.del('clientes', el.dataset.id); toast('Cliente excluído.'); renderView(); }, 'Excluir'); },
+  delCliente: el => formExcluirCliente(el.dataset.id),
+  excluirVenda: el => formExcluirVenda(el.dataset.id),
   cliRapido: () => { const f = $('[data-form=venda]'); const keep = fd(f); closeModal(); formCliente(null, c => { formVenda(keep.loteId); const nf = $('[data-form=venda]'); nf.clienteId.innerHTML += opt(c.id, c.nome, c.id); nf.clienteId.value = c.id; }); },
 
   /* vendas */
@@ -370,6 +371,19 @@ const FORMS = {
     const doTipo = vd.parcelas.filter(p => p.tipo === v.tipo).length; const novas = serieParcelas(v.tipo, t, q, v.venc, +v.int || 1); const n0 = doTipo; novas.forEach((p, i) => { p.ref = `${n0 + i + 1}/${n0 + q}`; });
     for (const p of vd.parcelas.filter(p => p.tipo === v.tipo)) { const m = String(p.ref).match(/^(\d+)\/\d+$/); if (m) p.ref = `${m[1]}/${n0 + q}`; }
     vd.parcelas.push(...novas); hist(vd, `${q} parcela(s) ${v.tipo} lançada(s), total ${brl(t)}, a partir de ${dataBR(v.venc)}. Motivo: ${v.motivo}`); await Store.put('vendas', vd); await audit(`Lançou ${q} parcelas em ${vd.numero}`); closeModal(); toast(`${q} parcela(s) lançada(s).`); renderView();
+  },
+  async excluirVenda(x, f) {
+    if (S.user.perfil !== 'Administrador') throw Error('Só o administrador pode excluir vendas.'); if (x.conf.trim().toUpperCase() !== 'EXCLUIR') throw Error('Digite EXCLUIR para confirmar.');
+    const v = Store.get('vendas', f.dataset.id); if (!v) throw Error('Venda não encontrada.'); const nome = cliNome(v.clienteId);
+    await apagarVenda(v, x.loteSt); await audit(`Excluiu a venda ${v.codigo || ''} ${v.numero || ''} de ${nome} (${brl(v.valor)})`); closeModal(); toast('Venda excluída.'); renderView();
+  },
+  async excluirCliente(x, f) {
+    if (S.user.perfil !== 'Administrador') throw Error('Só o administrador pode excluir clientes.'); if (x.conf.trim().toUpperCase() !== 'EXCLUIR') throw Error('Digite EXCLUIR para confirmar.');
+    const c = Store.get('clientes', f.dataset.id); if (!c) throw Error('Cliente não encontrado.'); const vs = Store.list('vendas').filter(v => v.clienteId === c.id);
+    for (const v of vs) await apagarVenda(v, x.loteSt);
+    for (const o of Store.list('clientes').filter(o => o.conjugeDeId === c.id)) { delete o.conjugeDeId; await Store.put('clientes', o); }
+    if (c.usuarioId && Store.get('usuarios', c.usuarioId)) await Store.del('usuarios', c.usuarioId);
+    await Store.del('clientes', c.id); await audit(`Excluiu o cliente ${c.nome}${vs.length ? ` e ${vs.length} venda(s)` : ''}`); closeModal(); toast(vs.length ? `Cliente e ${vs.length} venda(s) excluídos.` : 'Cliente excluído.'); renderView();
   },
   async excluirCadastro(v, f) {
     if (v.conf.trim().toUpperCase() !== 'EXCLUIR') throw Error('Digite EXCLUIR para confirmar.'); const l = Store.get('lotes', f.dataset.id); const vd = f.dataset.v ? Store.get('vendas', f.dataset.v) : null;
