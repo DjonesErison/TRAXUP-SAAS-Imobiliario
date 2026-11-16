@@ -122,7 +122,7 @@ const filialRow = (f = {}) => `<div class="rowF"><label>Nome da filial<input nam
 
 function camposCadastro(c = {}, novo = false) {
   return `<div class="sec"><h4>Empresa</h4><div class="fg">
-    <label class="w2">Razão social *<input name="razao" required value="${esc(c.razao)}" ${novo ? 'data-sug="1"' : ''}></label><label>Nome fantasia<input name="fantasia" value="${esc(c.fantasia)}" ${novo ? 'data-sug="1"' : ''}></label><label>CNPJ${novo ? '<span class="cnpjSt" id="cnpjSt"></span>' : ''}<input name="cnpj" value="${esc(c.cnpj)}" ${novo ? 'inputmode="numeric" maxlength="18" placeholder="Digite e os dados vêm sozinhos"' : ''}></label>
+    <label class="w2">Razão social *<input name="razao" required value="${esc(c.razao)}" ${novo ? 'data-sug="1"' : ''}></label><label>Nome fantasia<input name="fantasia" value="${esc(c.fantasia)}" ${novo ? 'data-sug="1"' : ''}></label><label>CNPJ${novo ? '<span class="cnpjSt" id="cnpjSt"></span>' : ''}${novo ? `<span class="pwWrap"><input name="cnpj" value="${esc(c.cnpj)}" inputmode="numeric" maxlength="18" placeholder="Digite e os dados vêm sozinhos"><button type="button" class="pwEye cnpjLupa" id="cnpjLupa" title="Buscar CNPJ na Receita" aria-label="Buscar CNPJ na Receita"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button></span>` : `<input name="cnpj" value="${esc(c.cnpj)}">`}</label>
     <label>Responsável<input name="responsavel" value="${esc(c.responsavel)}"></label><label>E-mail<input name="email" type="email" value="${esc(c.email)}"></label><label>Telefone / WhatsApp<input name="telefone" value="${esc(c.telefone)}"></label>
     <label>Cidade<input name="cidade" value="${esc(c.cidade)}"></label><label>UF<input name="uf" maxlength="2" value="${esc(c.uf)}"></label></div></div>
   <div class="sec"><h4>Acesso e situação</h4><div class="fg">
@@ -147,9 +147,9 @@ const tituloNome = s => String(s || '').toLowerCase().replace(/(^|\s)(\S)/g, (m,
 function ligarBuscaCnpj(f) {
   const st = $('#cnpjSt'); let ultimo = '';
   const marca = (txt, cls = '') => { st.textContent = txt; st.className = 'cnpjSt ' + cls; };
-  f.cnpj.addEventListener('input', async () => {
+  const buscar = async forcar => {
     f.cnpj.value = mascaraCnpj(f.cnpj.value); const d = f.cnpj.value.replace(/\D/g, '');
-    if (d.length !== 14) { marca(''); return; } if (d === ultimo) return; ultimo = d;
+    if (d.length !== 14) { marca(forcar ? 'Digite os 14 números' : '', forcar ? 'erro' : ''); return; } if (d === ultimo && !forcar) return; ultimo = d;
     marca('Buscando…', 'busca');
     try {
       const r = await fetch('/api/gestao/cnpj?cnpj=' + d, { headers: { Authorization: 'Bearer ' + G.token } }); const j = await r.json();
@@ -163,7 +163,10 @@ function ligarBuscaCnpj(f) {
       const ativa = !j.situacao || /ativa/i.test(j.situacao);
       marca(ativa ? '✓ Dados preenchidos' : `Atenção: situação ${j.situacao}`, ativa ? 'ok' : 'erro');
     } catch { marca('Falha na consulta', 'erro'); }
-  });
+  };
+  f.cnpj.addEventListener('input', () => buscar(false));
+  f.cnpj.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); buscar(true); } });
+  $('#cnpjLupa').addEventListener('click', () => buscar(true));
 }
 function novoCliente() {
   modal(`${mHead('Novo cliente', 'Cria a base do cliente, as filiais e o administrador. A base começa zerada e separada das demais.')}
