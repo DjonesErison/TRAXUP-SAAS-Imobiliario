@@ -74,3 +74,10 @@ tr[data-act]{cursor:pointer}
 .kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}.kpi{padding:12px!important;min-width:0}.kpi b{font-size:17px!important;word-break:break-word}
 .content{padding:12px!important}
 }
+
+/* mostrar senha */
+.pwWrap{position:relative;display:block}
+.pwWrap input{width:100%;padding-right:44px!important}
+.pwEye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;padding:0;border:0;background:transparent;box-shadow:none;color:#64748B;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px}
+.pwEye:hover{color:#2563EB;background:rgba(37,99,235,.08)}
+.pwEye svg{width:19px;height:19px}.pwEye .o2{display:none}.pwEye.on .o1{display:none}.pwEye.on .o2{display:block}.pwEye.on{color:#2563EB}
