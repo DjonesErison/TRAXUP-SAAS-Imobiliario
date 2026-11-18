@@ -1254,8 +1254,11 @@ const filialPadrao = () => S.filial !== '*' ? S.filial : filiaisUsuario()[0]?.id
 const nomeFilial = id => Store.get('filiais', id)?.nome || '—';
 const loteNome = l => l ? (l.quadra ? `Q${String(l.quadra).trim()} · L${l.numero}` : `L${l.numero}`) : '—'; // quadra + lote (os números se repetem entre quadras)
 const loteDesc = id => { const l = Store.get('lotes', id); if (!l) return '—'; const e = Store.get('empreendimentos', l.empId); return `${loteNome(l)}${e ? ' · ' + e.nome : ''}`; };
-// só o lote, sem a quadra (telas Clientes, Vendas, Contratos, Custos e Inadimplência)
-const loteSo = l => l && l.numero != null && l.numero !== '' ? `Lote ${l.numero}` : '—';
+// só o lote (telas Clientes, Vendas, Contratos, Custos e Inadimplência)
+const _repLote = { t: 0, set: new Set() }; // números de lote repetidos no mesmo empreendimento (recalcula a cada 0,5 s)
+const loteRepetido = l => { const ag = Date.now(); if (ag - _repLote.t > 500) { const c = {}; for (const x of Store.list('lotes')) { const k = x.empId + '|' + norm(String(x.numero ?? '')); c[k] = (c[k] || 0) + 1; } _repLote.set = new Set(Object.keys(c).filter(k => c[k] > 1)); _repLote.t = ag; } return _repLote.set.has(l.empId + '|' + norm(String(l.numero ?? ''))); };
+// a quadra só aparece quando o mesmo número de lote existe em mais de uma quadra do empreendimento
+const loteSo = l => l && l.numero != null && l.numero !== '' ? `Lote ${l.numero}${l.quadra && l.quadra !== '-' && loteRepetido(l) ? ` (Q${String(l.quadra).trim()})` : ''}` : '—';
 const loteSoDesc = id => { const l = Store.get('lotes', id); if (!l) return '—'; const e = Store.get('empreendimentos', l.empId); return `${loteSo(l)}${e ? ' · ' + e.nome : ''}`; };
 const ordLote = (a, b) => String(a.numero).localeCompare(String(b.numero), 'pt-BR', { numeric: true }) || String(a.quadra).localeCompare(String(b.quadra), 'pt-BR', { numeric: true });
 const cliNome = id => Store.get('clientes', id)?.nome || '—';
