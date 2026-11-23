@@ -695,6 +695,8 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const p = url.pathname; const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
   try {
     if (!p.startsWith('/api/')) {
+      // "/corretor/" (com barra no fim) quebrava o sistema: as chamadas 'api/...' iam para /corretor/api/... e o login nunca chegava ao servidor
+      if (p.length > 1 && p.endsWith('/') && !p.includes('.')) { res.writeHead(301, { Location: (p.replace(/\/+$/, '') || '/') + url.search }); return res.end(); }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Método não permitido.' });
       // ícones e manifesto para "Adicionar à Tela de Início" (iPhone/Android)
       const ICONES = { '/apple-touch-icon.png': 'icon-180.png', '/apple-touch-icon-precomposed.png': 'icon-180.png', '/icon-192.png': 'icon-192.png', '/icon-512.png': 'icon-512.png' };
