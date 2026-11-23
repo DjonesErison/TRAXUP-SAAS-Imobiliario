@@ -127,7 +127,12 @@ const ACT = {
   delExtrato: el => confirmar('Excluir o extrato importado? As baixas já conciliadas continuam nas parcelas.', async () => { await Store.del('extratos', el.dataset.id); S.f.ext = null; renderView(); }, 'Excluir'),
 
   /* comissões */
-  pagarComissao: el => { const v = Store.get('vendas', el.dataset.id); modal(`${mHead(v.numero + ' · ' + (v.corretor || ''), 'Pagamento de comissão')}<form class="modalBody" data-form="comissao" data-id="${v.id}"><div class="notice info">Comissão ${brl(comissaoTotal(v))} · pago ${brl(comissaoPaga(v))} · <b>saldo ${brl(comissaoSaldo(v))}</b></div><div class="formGrid" style="grid-template-columns:1fr 1fr"><label>Valor (R$)<input name="valor" required value="${centsIn(comissaoSaldo(v))}"></label><label>Data<input type="date" name="data" value="${hoje()}" required></label><label style="grid-column:1/-1">Observação<input name="obs"></label></div><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Registrar</button></div></form>`, 'narrow'); },
+  pagarComissao: el => formComissao(el.dataset.id),
+  comEditar: el => formComissao(el.dataset.id, +el.dataset.i),
+  comExcluir: el => { const v = Store.get('vendas', el.dataset.id), i = +el.dataset.i, b = (v.comissoesPagas || [])[i]; if (!b) return;
+    confirmar(`Excluir a baixa de comissão de <b>${brl(b.valor)}</b> em ${dataBR(b.data)}${v.corretor ? ` (corretor ${esc(v.corretor)})` : ''}? O valor volta para o saldo a pagar.`, async () => {
+      v.comissoesPagas.splice(i, 1); hist(v, `Baixa de comissão excluída: ${brl(b.valor)} de ${dataBR(b.data)}`); await Store.put('vendas', v); await audit(`Excluiu baixa de comissão de ${brl(b.valor)} (${v.numero} · ${v.corretor || ''})`); toast('Baixa excluída.'); renderView(); formComissao(v.id);
+    }, 'Excluir'); },
 
   suspComissao: async el => { const v = Store.get('vendas', el.dataset.id); v.comissaoSuspensa = !v.comissaoSuspensa; hist(v, v.comissaoSuspensa ? 'Comissão suspensa por inadimplência' : 'Comissão reativada'); await Store.put('vendas', v); renderView(); },
 
@@ -301,7 +306,15 @@ const FORMS = {
   async boletoLote(v) { const alvos = L('vendas').filter(vendaAtiva).flatMap(x => (x.parcelas || []).filter(p => saldoParcela(p) > 0 && p.venc >= v.ini && p.venc <= v.fim).map(p => ({ x, p }))); let n = 0, sem = 0; for (const { x, p } of alvos) { if (Store.list('boletos').some(b => b.parcelaId === p.id && b.status !== 'Cancelado')) continue; const b = await emitirBoleto(x.id, p.id, true); b ? n++ : sem++; } closeModal(); toast(`${n} boleto(s) emitido(s)${sem ? `; ${sem} sem convênio BB configurado` : ''}.`, !!sem); renderView(); },
   async importExtrato(v, f) { const file = f.arquivo.files[0]; if (!file) throw Error('Selecione o arquivo.'); let txt = await file.text(); if (/\uFFFD/.test(txt)) txt = new TextDecoder('windows-1252').decode(await file.arrayBuffer()); closeModal(); await importarTextoExtrato(txt, file.name, v.filialId); },
   async concManual(v, f) { const { e, t } = acharTx(f.dataset.tx); const [vid, pid] = v.alvo.split('|'); await conciliarTx(e, t, vid, pid); await Store.put('extratos', e); closeModal(); toast('Conciliado.'); renderView(); },
-  async comissao(v, f) { const venda = Store.get('vendas', f.dataset.id); (venda.comissoesPagas ||= []).push({ valor: toCents(v.valor), data: v.data, obs: v.obs, usuario: S.user.nome }); hist(venda, `Comissão paga: ${brl(toCents(v.valor))}`); await Store.put('vendas', venda); closeModal(); toast('Pagamento de comissão registrado.'); renderView(); },
+  async comissao(v, f) {
+    const venda = Store.get('vendas', f.dataset.id), valor = toCents(v.valor); if (!(valor > 0)) throw Error('Informe um valor maior que zero.');
+    const idx = f.dataset.i === '' || f.dataset.i === undefined ? -1 : +f.dataset.i; const lista = (venda.comissoesPagas ||= []);
+    if (idx >= 0 && lista[idx]) {
+      const antes = lista[idx]; lista[idx] = { ...antes, valor, data: v.data, obs: v.obs, corrigidoPor: S.user.nome, corrigidoEm: new Date().toISOString() };
+      hist(venda, `Baixa de comissão corrigida: ${brl(antes.valor)} em ${dataBR(antes.data)} → ${brl(valor)} em ${dataBR(v.data)}`); await audit(`Corrigiu baixa de comissão de ${venda.numero} (${venda.corretor || ''}): ${brl(antes.valor)} → ${brl(valor)}`);
+    } else { lista.push({ valor, data: v.data, obs: v.obs, usuario: S.user.nome }); hist(venda, `Comissão paga: ${brl(valor)}`); }
+    await Store.put('vendas', venda); toast(idx >= 0 ? 'Baixa corrigida.' : 'Pagamento de comissão registrado.'); renderView(); formComissao(venda.id);
+  },
   async emailTeste(v) { const r = await fetch('api/email/teste', { method: 'POST', headers: { 'Content-Type': 'application/json', ...Store.authH() }, body: JSON.stringify({ para: v.para }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Falha no envio.'); toast('E-mail de teste enviado para ' + v.para + '.'); },
   async esqueci(v, f) { const r = await fetch('/api/senha/esqueci', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: v.email, tipo: f.dataset.modo, codigo: v.codigo || '' }) }); lembrarCodigo(v); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Não foi possível enviar agora.'); telaEsqueci(f.dataset.modo, v.email); },
   async redefinir(v, f) { if (v.nova !== v.nova2) throw Error('As duas senhas não são iguais.'); if (v.nova.length < 6) throw Error('A senha precisa ter 6 caracteres ou mais.'); const r = await fetch('/api/senha/redefinir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: f.dataset.t, nova: v.nova }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return telaRedefinir(f.dataset.modo, f.dataset.t, j.error || 'Não foi possível salvar.'); telaSenhaRedefinida(f.dataset.modo); },
