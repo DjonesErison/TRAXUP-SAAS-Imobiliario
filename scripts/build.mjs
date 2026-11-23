@@ -10,7 +10,8 @@ const html = `<!DOCTYPE html>
 <title>TRAXUP Imobiliário</title><link rel="icon" href="${icon}"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest"><script>if(/^\\/(painel-cliente|cliente)(\\/|$)/.test(location.pathname)){document.querySelector('link[rel=manifest]').href='/painel-cliente/manifest.webmanifest';document.querySelector('meta[name=apple-mobile-web-app-title]')?.setAttribute('content','Meu Lote')}</script><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="TRAXUP Imob"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#0A2463">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
-<style id="appStyles">${r('src/styles.css')}</style></head>
+<style id="appStyles">${r('src/styles.css')}
+${r('src/mobile.css')}</style></head>
 <body><div id="app"></div>
 <script>const LOGO_IMG=${JSON.stringify(logo)}, LOGO_WORD=${JSON.stringify(word)}, LOGO_ICON=${JSON.stringify(icon)}, LOGO_H=${JSON.stringify(horiz)};</script>
 <script>${r('src/core.js')}</script>
@@ -18,6 +19,7 @@ const html = `<!DOCTYPE html>
 <script>${r('src/app.js')}</script>
 <script>${r('src/actions.js')}</script>
 <script>${r('src/portal.js')}</script>
+<script>${r('src/mobile.js')}</script>
 </body></html>`;
 fs.mkdirSync(path.join(root, 'public'), { recursive: true });
 fs.writeFileSync(path.join(root, 'public/index.html'), html);
@@ -29,10 +31,12 @@ const gestao = `<!DOCTYPE html>
 <title>Painel Gerencial — TRAXUP Imobiliário</title><link rel="icon" href="${icon}"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-title" content="TRAXUP Gestão"><meta name="theme-color" content="#0A2463">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
-<style>${r('src/gestao.css')}</style></head>
+<style>${r('src/gestao.css')}
+${r('src/mobile.css')}</style></head>
 <body><div style="min-height:100vh;display:grid;place-items:center;background:#0A2463"><div class="spin"></div></div>
 <script>const LOGO_H=${JSON.stringify(horiz)};</script>
 <script>${r('src/gestao.js')}</script>
+<script>${r('src/mobile.js')}</script>
 </body></html>`;
 fs.writeFileSync(path.join(root, 'public/gestao.html'), gestao);
 console.log('public/gestao.html', (gestao.length / 1024).toFixed(0) + ' KB');

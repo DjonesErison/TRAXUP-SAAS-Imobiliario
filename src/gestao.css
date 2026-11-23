@@ -86,3 +86,8 @@ tr[data-act]{cursor:pointer}
 .cnpjSt{position:absolute;top:0;right:0;font-size:11.5px;font-weight:600;text-transform:none;letter-spacing:0}
 .cnpjSt.busca{color:#64748B}.cnpjSt.ok{color:#059669}.cnpjSt.erro{color:#DC2626}
 .cnpjLupa{color:#2563EB}.cnpjLupa svg{width:18px;height:18px}
+
+/* celular: título em até 2 linhas */
+@media(max-width:700px){
+.top h1{font-size:16px!important;line-height:1.15;white-space:normal!important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:clip!important}
+}

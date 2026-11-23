@@ -1,0 +1,50 @@
+/* ===== celular: tabelas em cartões (rótulos colocados por src/mobile.js) ===== */
+@media (max-width:700px){
+  .tableWrap:has(table.mCards),.tblWrap:has(table.mCards){overflow:visible!important;max-height:none!important;border:0!important}
+  /* dentro de janelas a lista continua com rolagem própria (só vertical) */
+  .modal .tableWrap:has(table.mCards),.modal .tblWrap:has(table.mCards){overflow-x:hidden!important;overflow-y:auto!important;max-height:62vh!important;border:1px solid var(--line)!important;border-radius:12px}
+  table.mCards,table.mCards tbody,table.mCards tfoot,table.mCards tr,table.mCards td{display:block;width:auto!important;min-width:0!important}
+  table.mCards thead{display:none}
+  table.mCards tr{margin:10px;border:1px solid var(--line);border-radius:12px;background:var(--card,#fff);padding:4px 0;box-shadow:0 1px 3px rgba(10,36,99,.06);overflow:hidden}
+  table.mCards tr:hover td{background:transparent}
+  table.mCards tr[style*="box-shadow"],table.mCards tr.sel,table.mCards tr.active{border-color:var(--blue,#2563FF)}
+  /* rótulo à esquerda; o conteúdo (nome, data, código…) empilhado à direita */
+  table.mCards td{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);column-gap:12px;align-items:center;padding:6px 14px!important;border:0!important;text-align:right!important;white-space:normal!important;font-size:13.5px;max-width:none!important;background:transparent;overflow-wrap:anywhere}
+  table.mCards td::before{content:attr(data-label);grid-column:1;grid-row:1/span 20;align-self:center;max-width:42vw;text-align:left;font-size:12px;font-weight:600;color:var(--muted);white-space:normal;overflow-wrap:normal}
+  table.mCards td>*{grid-column:2;justify-self:end;min-width:0}
+  table.mCards td[data-label=""]{grid-template-columns:minmax(0,1fr)}
+  table.mCards td[data-label=""]::before{display:none}
+  table.mCards td[data-label=""]>*{grid-column:1}
+  table.mCards td small{margin-top:1px}
+  /* 1ª coluna = título do cartão */
+  table.mCards td.mPrim{display:block;overflow-wrap:normal;text-align:left!important;font-size:14.5px;padding:10px 14px 8px!important;margin-bottom:4px;border-bottom:1px solid var(--soft,var(--line))!important}
+  table.mCards td.mPrim::before{display:block;max-width:none;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  table.mCards td.mPrim b,table.mCards td.mPrim strong{font-size:15px}
+  table.mCards td.mPrim small{display:block;text-align:left}
+  table.mCards td.mVazio{display:none}
+  /* ações no rodapé do cartão, fáceis de tocar */
+  table.mCards td.actions,table.mCards td:last-child:has(> button:only-child),table.mCards td:has(> .tb){display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding-top:10px!important;margin-top:4px;border-top:1px solid var(--soft,var(--line))!important}
+  table.mCards td.actions::before,table.mCards td:has(> .tb)::before{display:none}
+  table.mCards td .tb{width:40px!important;height:40px!important}
+  table.mCards td.actions button{margin-left:0}
+  /* linha única (vazio / agrupador) e rodapé de totais */
+  table.mCards tr.mLinhaUnica td{display:block;text-align:center!important}
+  table.mCards tr.mLinhaUnica td.mPrim{border:0!important;margin:0}
+  table.mCards tfoot tr{background:var(--surface-2,#F7F9FD)}
+  table.mCards tfoot td.mPrim{font-size:13.5px}
+  table.mCards td.empty{padding:26px 14px!important}
+  table.mCards tr:has(td.empty){border-style:dashed;box-shadow:none}
+  table.mCards input,table.mCards select{max-width:60%}
+}
+body.dark table.mCards tr{background:var(--card)}
+
+/* ===== celular: janelas (modais) — campos não passam da largura da tela ===== */
+@media (max-width:700px){
+  .modal .formGrid>*,.modal .formSection,.modal label,.modal label>div{min-width:0;max-width:100%}
+  .modal select,.modal input,.modal textarea{min-width:0;max-width:100%}
+  .modal label>div[style*="display:flex"]>select,.modal label>div[style*="display:flex"]>input{flex:1 1 0;width:0}
+  .modal button{white-space:normal;max-width:100%;text-align:left}
+  /* a janela cresce com o conteúdo e a tela rola (antes o conteúdo passava do fundo branco) */
+  .overlay,.ov{padding:10px 8px 28px!important}
+  .modal,.modal.wide{max-height:none!important;border-radius:14px!important}
+}
