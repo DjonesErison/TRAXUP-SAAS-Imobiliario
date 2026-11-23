@@ -129,6 +129,8 @@ const ACT = {
   /* comissões */
   pagarComissao: el => formComissao(el.dataset.id),
   comEditar: el => formComissao(el.dataset.id, +el.dataset.i),
+  comParc: el => formComissao(el.dataset.id, -1, +el.dataset.k),
+  comNParc: el => { const v = Store.get('vendas', el.dataset.id); modal(`${mHead(v.numero + ' · ' + (v.corretor || ''), 'Parcelamento da comissão')}<form class="modalBody" data-form="comNParc" data-id="${v.id}"><p class="hint">Em quantas parcelas a comissão de ${brl(comissaoTotal(v))} é paga ao corretor. Padrão: o mesmo número de parcelas de entrada do cliente (${(v.parcelas || []).filter(p => p.tipo === 'Entrada').length || 1}).</p><div class="formGrid"><label>Número de parcelas<input name="n" type="number" min="1" max="60" required value="${comNumParc(v)}"></label></div><div class="formActions"><button type="button" data-act="pagarComissao" data-id="${v.id}">Voltar</button><button class="primary">Salvar</button></div></form>`, 'narrow'); },
   comExcluir: el => { const v = Store.get('vendas', el.dataset.id), i = +el.dataset.i, b = (v.comissoesPagas || [])[i]; if (!b) return;
     confirmar(`Excluir a baixa de comissão de <b>${brl(b.valor)}</b> em ${dataBR(b.data)}${v.corretor ? ` (corretor ${esc(v.corretor)})` : ''}? O valor volta para o saldo a pagar.`, async () => {
       v.comissoesPagas.splice(i, 1); hist(v, `Baixa de comissão excluída: ${brl(b.valor)} de ${dataBR(b.data)}`); await Store.put('vendas', v); await audit(`Excluiu baixa de comissão de ${brl(b.valor)} (${v.numero} · ${v.corretor || ''})`); toast('Baixa excluída.'); renderView(); formComissao(v.id);
@@ -310,9 +312,9 @@ const FORMS = {
     const venda = Store.get('vendas', f.dataset.id), valor = toCents(v.valor); if (!(valor > 0)) throw Error('Informe um valor maior que zero.');
     const idx = f.dataset.i === '' || f.dataset.i === undefined ? -1 : +f.dataset.i; const lista = (venda.comissoesPagas ||= []);
     if (idx >= 0 && lista[idx]) {
-      const antes = lista[idx]; lista[idx] = { ...antes, valor, data: v.data, obs: v.obs, corrigidoPor: S.user.nome, corrigidoEm: new Date().toISOString() };
+      const antes = lista[idx]; lista[idx] = { ...antes, valor, data: v.data || antes.data, obs: v.obs, nf: v.nf, parcela: +v.parcela || antes.parcela, corrigidoPor: S.user.nome, corrigidoEm: new Date().toISOString() };
       hist(venda, `Baixa de comissão corrigida: ${brl(antes.valor)} em ${dataBR(antes.data)} → ${brl(valor)} em ${dataBR(v.data)}`); await audit(`Corrigiu baixa de comissão de ${venda.numero} (${venda.corretor || ''}): ${brl(antes.valor)} → ${brl(valor)}`);
-    } else { lista.push({ valor, data: v.data, obs: v.obs, usuario: S.user.nome }); hist(venda, `Comissão paga: ${brl(valor)}`); }
+    } else { lista.push({ valor, data: v.data, obs: v.obs, nf: v.nf, parcela: +v.parcela || undefined, usuario: S.user.nome }); hist(venda, `Comissão paga: ${brl(valor)} (parcela ${v.parcela}/${comNumParc(venda)})`); }
     await Store.put('vendas', venda); toast(idx >= 0 ? 'Baixa corrigida.' : 'Pagamento de comissão registrado.'); renderView(); formComissao(venda.id);
   },
   async emailTeste(v) { const r = await fetch('api/email/teste', { method: 'POST', headers: { 'Content-Type': 'application/json', ...Store.authH() }, body: JSON.stringify({ para: v.para }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Falha no envio.'); toast('E-mail de teste enviado para ' + v.para + '.'); },
@@ -394,6 +396,7 @@ const FORMS = {
     for (const p of vd.parcelas.filter(p => p.tipo === v.tipo)) { const m = String(p.ref).match(/^(\d+)\/\d+$/); if (m) p.ref = `${m[1]}/${n0 + q}`; }
     vd.parcelas.push(...novas); hist(vd, `${q} parcela(s) ${v.tipo} lançada(s), total ${brl(t)}, a partir de ${dataBR(v.venc)}. Motivo: ${v.motivo}`); await Store.put('vendas', vd); await audit(`Lançou ${q} parcelas em ${vd.numero}`); closeModal(); toast(`${q} parcela(s) lançada(s).`); renderView();
   },
+  async comNParc(x, f) { const v = Store.get('vendas', f.dataset.id), n = Math.max(1, Math.min(60, parseInt(x.n, 10) || 1)); const antes = comNumParc(v); v.comissaoParcelas = n; hist(v, `Parcelamento da comissão: ${antes}x → ${n}x`); await Store.put('vendas', v); toast('Parcelamento atualizado.'); renderView(); formComissao(v.id); },
   async excluirVenda(x, f) {
     if (S.user.perfil !== 'Administrador') throw Error('Só o administrador pode excluir vendas.'); if (x.conf.trim().toUpperCase() !== 'EXCLUIR') throw Error('Digite EXCLUIR para confirmar.');
     const v = Store.get('vendas', f.dataset.id); if (!v) throw Error('Venda não encontrada.'); const nome = cliNome(v.clienteId);
