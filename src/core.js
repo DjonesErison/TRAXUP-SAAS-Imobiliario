@@ -278,9 +278,11 @@ const INICIATIVAS_DISTRATO = { comprador: 'iniciativa do(a) PROMISSÁRIO(A) COMP
 function mesesEntre(a, b) { if (!a || !b || b <= a) return 0; const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number); return Math.max(0, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0)); }
 function calcDistrato(v, d) {
   const ps = v.parcelas || [], valor = v.valor || 0, pago = recebidoVenda(v);
-  const multa = Math.round(valor * (+d.multaPct || 0) / 100), fruicao = Math.round(valor * (+d.fruicaoPct || 0) / 100 * (+d.fruicaoMeses || 0)), outras = +d.outras || 0;
-  const deducoes = multa + fruicao + outras;
-  return { totalPago: pago, multa, fruicao, outras, deducoes, devolucao: Math.max(0, pago - deducoes), parcelasPagas: ps.filter(p => saldoParcela(p) === 0).length, parcelasAbertas: ps.filter(p => saldoParcela(p) > 0).length, saldoCancelado: saldoVenda(v) };
+  const acordo = d.modo === 'acordo', devPct = Math.min(100, Math.max(0, d.devolvePct ?? 80));
+  const retencao = acordo ? Math.round(pago * (100 - devPct) / 100) : 0;
+  const multa = acordo ? 0 : Math.round(valor * (+d.multaPct || 0) / 100), fruicao = acordo ? 0 : Math.round(valor * (+d.fruicaoPct || 0) / 100 * (+d.fruicaoMeses || 0)), outras = +d.outras || 0;
+  const deducoes = retencao + multa + fruicao + outras;
+  return { totalPago: pago, modo: acordo ? 'acordo' : 'lei', devolvePct: acordo ? devPct : undefined, retencao, multa, fruicao, outras, deducoes, devolucao: Math.max(0, pago - deducoes), parcelasPagas: ps.filter(p => saldoParcela(p) === 0).length, parcelasAbertas: ps.filter(p => saldoParcela(p) > 0).length, saldoCancelado: saldoVenda(v) };
 }
 const pctBR = n => String(+(+n || 0).toFixed(2)).replace('.', ',') + '%';
 function contextoVenda(v) {
@@ -309,6 +311,10 @@ function contextoDistrato(d) {
     'distrato.total_pago': ok ? brl(d.totalPago) : '', 'distrato.total_pago_extenso': ok ? extenso(d.totalPago) : '', 'distrato.parcelas_pagas': ok ? d.parcelasPagas : '', 'distrato.parcelas_abertas': ok ? d.parcelasAbertas : '', 'distrato.saldo_cancelado': ok ? brl(d.saldoCancelado) : '',
     'distrato.multa_pct': ok ? pctBR(d.multaPct) : '', 'distrato.multa': ok ? brl(d.multa) : '', 'distrato.fruicao_pct': ok ? pctBR(d.fruicaoPct) : '', 'distrato.fruicao_meses': ok ? d.fruicaoMeses : '', 'distrato.fruicao': ok ? brl(d.fruicao) : '',
     'distrato.outras': ok ? brl(d.outras) : '', 'distrato.outras_descricao': ok ? (d.outrasDesc || 'não há') : '', 'distrato.total_deducoes': ok ? brl(d.deducoes) : '',
+    'distrato.deducoes_detalhe': ok ? (d.modo === 'acordo'
+      ? `a) retenção pela PROMITENTE VENDEDORA, ajustada em comum acordo entre as partes, de ${pctBR(100 - (d.devolvePct ?? 80))} do valor pago: ${brl(d.retencao)};\nb) outras deduções (${d.outrasDesc || 'não há'}): ${brl(d.outras)}.`
+      : `a) cláusula penal e despesas administrativas, correspondentes a ${pctBR(d.multaPct)} do valor do contrato: ${brl(d.multa)};\nb) fruição do imóvel, à razão de ${pctBR(d.fruicaoPct)} ao mês sobre o valor do contrato, por ${d.fruicaoMeses} mês(es): ${brl(d.fruicao)};\nc) outras deduções (${d.outrasDesc || 'não há'}): ${brl(d.outras)}.`) : '',
+    'distrato.retencao': ok ? brl(d.retencao || 0) : '', 'distrato.retencao_pct': ok && d.modo === 'acordo' ? pctBR(100 - (d.devolvePct ?? 80)) : '', 'distrato.devolucao_pct': ok && d.modo === 'acordo' ? pctBR(d.devolvePct ?? 80) : '',
     'distrato.devolucao': ok ? brl(d.devolucao) : '', 'distrato.devolucao_extenso': ok ? extenso(d.devolucao) : '', 'distrato.forma_devolucao': d.forma
   };
 }

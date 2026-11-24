@@ -70,6 +70,8 @@ const ACT = {
   planoPadrao: () => { const f = $('[data-form=venda]'); aplicarPlanoPadrao(f); formVenda.upd(); },
   restoMensal: () => { const f = $('[data-form=venda]'); const v = fd(f); f.mTotal.value = centsIn(toCents(v.valor) - toCents(v.eTotal) - toCents(v.iTotal)); formVenda.upd(); },
   distrato: el => formDistrato(el.dataset.id),
+  anexoDistrato: el => formAnexoDistrato(el.dataset.id),
+  verTermoDistrato: el => { const v = Store.get('vendas', el.dataset.id), a = v?.distrato?.termoAnexo; if (!a) return; abrirPdfAssinado(`api/cessao/termo?vendaId=${encodeURIComponent(v.id)}&arquivo=${encodeURIComponent(a.arquivo)}`, Store.authH()); },
   termoDistrato: async el => { const v = Store.get('vendas', el.dataset.id); if (!v.distrato) return formDistrato(v.id); await garantirDistratos(); const m = modeloDistratoDa(v); if (!m) return toast('Nenhum modelo de termo de distrato.', true); previewContrato(v.id, m.id); },
   modTipo: el => { S.f.modTipo = el.dataset.v; S.f.mod = null; S.f.modVenda = null; renderView(); },
   addParcela: el => { modal(`${mHead('Parcela avulsa', 'Incluir parcela')}<form class="modalBody" data-form="parcelaAvulsa" data-v="${el.dataset.id}"><div class="formGrid" style="grid-template-columns:1fr 1fr 1fr"><label>Tipo${sel('tipo', ['Avulsa', 'Entrada', 'Mensal', 'Intercalada'], 'Avulsa')}</label><label>Vencimento<input type="date" name="venc" required value="${hoje()}"></label><label>Valor (R$)<input name="valor" required></label><label style="grid-column:1/-1">Descrição<input name="ref" placeholder="Ex.: taxa de transferência"></label></div><div class="formActions"><button type="button" data-act="closeModal">Cancelar</button><button class="primary">Incluir</button></div></form>`, 'narrow'); },
@@ -326,11 +328,14 @@ const FORMS = {
   async distrato(x, f) {
     const v = Store.get('vendas', f.dataset.id); const num = k => { const n = parseFloat(String(x[k] ?? '').replace(',', '.')); if (!Number.isFinite(n) || n < 0) throw Error('Confira os percentuais e os meses (números iguais ou maiores que zero).'); return Math.round(n * 100) / 100; };
     if (!x.data) throw Error('Informe a data do distrato.'); if (x.data > hoje()) throw Error('A data do distrato não pode ser futura.'); if (!x.motivo.trim()) throw Error('Informe o motivo do distrato.');
-    const d = { data: x.data, iniciativa: x.iniciativa, motivo: x.motivo.trim(), multaPct: num('multaPct'), fruicaoPct: num('fruicaoPct'), fruicaoMeses: Math.round(num('fruicaoMeses')), outras: toCents(x.outras), outrasDesc: x.outrasDesc.trim(), forma: x.forma.trim() };
-    if ((d.multaPct > 10 || d.fruicaoPct > 0.75) && !FORMS.distrato.ok) { FORMS.distrato.ok = true; throw Error('Cláusula penal acima de 10% ou fruição acima de 0,75% ao mês passam do limite da Lei 6.766/1979 (art. 32-A). Clique de novo para manter.'); }
+    const modo = x.modo === 'acordo' ? 'acordo' : 'lei'; const devolvePct = modo === 'acordo' ? num('devolvePct') : undefined; if (modo === 'acordo' && devolvePct > 100) throw Error('O percentual devolvido ao cliente vai de 0 a 100%.');
+    const d = { modo, devolvePct, data: x.data, iniciativa: x.iniciativa, motivo: x.motivo.trim(), multaPct: num('multaPct'), fruicaoPct: num('fruicaoPct'), fruicaoMeses: Math.round(num('fruicaoMeses')), outras: toCents(x.outras), outrasDesc: x.outrasDesc.trim(), forma: x.forma.trim() };
+    if (modo === 'acordo') { d.multaPct = 0; d.fruicaoPct = 0; d.fruicaoMeses = 0; }
+    if (modo !== 'acordo' && (d.multaPct > 10 || d.fruicaoPct > 0.75) && !FORMS.distrato.ok) { FORMS.distrato.ok = true; throw Error('Cláusula penal acima de 10% ou fruição acima de 0,75% ao mês passam do limite da Lei 6.766/1979 (art. 32-A). Clique de novo para manter.'); }
     FORMS.distrato.ok = false;
     const jaFeito = v.status === 'Distratado'; const calc = v.distrato && jaFeito ? { ...calcDistrato(v, d), parcelasAbertas: v.distrato.parcelasAbertas, saldoCancelado: v.distrato.saldoCancelado } : calcDistrato(v, d);
-    v.distrato = { ...d, ...calc, registradoEm: new Date().toISOString(), registradoPor: S.user.nome };
+    const anexoAntes = v.distrato?.termoAnexo; v.distrato = { ...d, ...calc, ...(anexoAntes ? { termoAnexo: anexoAntes } : {}), registradoEm: new Date().toISOString(), registradoPor: S.user.nome };
+    const arq = f.querySelector('[name=termoArq]')?.files?.[0]; if (arq) await enviarTermoDistrato(v, arq);
     if (!jaFeito) { v.status = 'Distratado'; hist(v, `Venda distratada em ${dataBR(d.data)} (${d.motivo}). Restituição ${brl(calc.devolucao)}`); } else hist(v, 'Dados do termo de distrato atualizados');
     await Store.put('vendas', v);
     if (!jaFeito) { const l = Store.get('lotes', v.loteId); if (l) { l.status = 'Disponível'; await Store.put('lotes', l); } for (const b of Store.list('boletos').filter(b => b.vendaId === v.id && ['Emitido', 'Registrado'].includes(b.status))) { b.status = 'Cancelado'; await Store.put('boletos', b); } await audit('Distratou ' + v.numero); }
@@ -397,6 +402,7 @@ const FORMS = {
     vd.parcelas.push(...novas); hist(vd, `${q} parcela(s) ${v.tipo} lançada(s), total ${brl(t)}, a partir de ${dataBR(v.venc)}. Motivo: ${v.motivo}`); await Store.put('vendas', vd); await audit(`Lançou ${q} parcelas em ${vd.numero}`); closeModal(); toast(`${q} parcela(s) lançada(s).`); renderView();
   },
   async comNParc(x, f) { const v = Store.get('vendas', f.dataset.id), n = Math.max(1, Math.min(60, parseInt(x.n, 10) || 1)); const antes = comNumParc(v); v.comissaoParcelas = n; hist(v, `Parcelamento da comissão: ${antes}x → ${n}x`); await Store.put('vendas', v); toast('Parcelamento atualizado.'); renderView(); formComissao(v.id); },
+  async anexoDistrato(x, f) { const v = Store.get('vendas', f.dataset.id); const arq = f.querySelector('[name=termoArq]').files[0]; if (!arq) throw Error('Escolha o arquivo do termo.'); await enviarTermoDistrato(v, arq); await Store.put('vendas', v); await audit('Anexou termo de distrato assinado de ' + v.numero); toast('Termo anexado.'); renderView(); formAnexoDistrato(v.id); },
   async excluirVenda(x, f) {
     if (S.user.perfil !== 'Administrador') throw Error('Só o administrador pode excluir vendas.'); if (x.conf.trim().toUpperCase() !== 'EXCLUIR') throw Error('Digite EXCLUIR para confirmar.');
     const v = Store.get('vendas', f.dataset.id); if (!v) throw Error('Venda não encontrada.'); const nome = cliNome(v.clienteId);

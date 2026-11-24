@@ -802,3 +802,10 @@ th.ordAsc,th.ordDesc{color:var(--navy)}body.dark th.ordAsc,body.dark th.ordDesc{
 .comBx{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 0}
 .comBx+.comBx{border-top:1px dashed var(--line)}
 .comBx.sel{background:rgba(59,130,246,.12);border-radius:6px;padding:2px 6px}
+
+/* distrato: forma de cálculo */
+.dsModo{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}.dsModo>span{grid-column:1/-1}
+.dsOp{display:flex!important;flex-direction:row!important;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.dsOp input{width:auto!important;margin-top:3px}.dsOp span{display:flex;flex-direction:column;gap:2px}.dsOp small{color:var(--muted);font-weight:400}
+.dsOp:has(input:checked){border-color:#3B82F6;background:rgba(59,130,246,.08)}
+@media (max-width:700px){.dsModo{grid-template-columns:1fr}}
