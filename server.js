@@ -321,10 +321,10 @@ function rotaPortalAdmin(req, res, p, user) {
 
 /* ---------- Mercado: câmbio, bolsa e índices de reajuste (fontes públicas, com cache) ---------- */
 const INDICES = [
-  { id: 'ipca', nome: 'IPCA', desc: 'Inflação oficial (IBGE). O mais usado no reajuste de contratos e parcelas.', sgs: 433, sgs12: 13522 },
+  { id: 'ipca', nome: 'IPCA', desc: 'Inflação oficial (IBGE). O mais usado no reajuste de contratos e parcelas.', sgs: 433, sgs12: 13522, ibge: [1737, 63] },
   { id: 'igpm', nome: 'IGP-M', desc: 'Índice da FGV muito usado em aluguéis e contratos imobiliários.', sgs: 189 },
   { id: 'incc', nome: 'INCC', desc: 'Custo da construção civil (FGV). Usado em imóveis na planta.', sgs: 192 },
-  { id: 'inpc', nome: 'INPC', desc: 'Inflação para famílias de menor renda (IBGE).', sgs: 188 },
+  { id: 'inpc', nome: 'INPC', desc: 'Inflação para famílias de menor renda (IBGE).', sgs: 188, ibge: [1736, 44] },
   { id: 'igpdi', nome: 'IGP-DI', desc: 'Índice geral de preços da FGV, disponibilidade interna.', sgs: 190 },
   { id: 'selic', nome: 'Selic', desc: 'Taxa básica de juros definida pelo Copom (% ao ano).', sgs: 432, taxa: 'aa' },
   { id: 'cdi', nome: 'CDI', desc: 'Taxa entre bancos, referência para investimentos (% ao ano).', sgs: 4389, taxa: 'aa' },
@@ -335,15 +335,26 @@ const cacheIndice = {};
 const cacheMercado = { cot: null, cotEm: 0, ind: null, indEm: 0 };
 const numBR = v => +String(v).replace(',', '.');
 async function sgs(cod, n) { const r = await httpsJSON(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${cod}/dados/ultimos/${n}?formato=json`, { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } }); if (r.status !== 200 || !Array.isArray(r.json)) throw Error('BCB ' + r.status); return r.json.map(x => ({ data: x.data.split('/').reverse().join('-'), valor: numBR(x.valor) })); }
+// reserva: IPCA e INPC direto do IBGE (SIDRA) quando o Banco Central não responde ou ainda não tem o mês
+async function ibgeMensal(ix, periodo) { // periodo: 'last 12' ou '202501-202610'
+  const [t, v] = ix.ibge; const r = await httpsJSON(`https://apisidra.ibge.gov.br/values/t/${t}/n1/all/v/${v}/p/${encodeURIComponent(periodo)}`, { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } });
+  if (r.status !== 200 || !Array.isArray(r.json)) throw Error('IBGE ' + r.status);
+  return r.json.slice(1).filter(x => /^\d{6}$/.test(x.D3C || '') && x.V && !isNaN(numBR(x.V))).map(x => ({ data: `${x.D3C.slice(0, 4)}-${x.D3C.slice(4)}-01`, valor: numBR(x.V) })).sort((a, b) => a.data.localeCompare(b.data));
+}
+async function serieMensal(ix, n) { // Banco Central primeiro; IBGE se falhar ou estiver atrasado
+  let a = null, fonte = 'Banco Central'; try { a = await sgs(ix.sgs, n); } catch (e) { if (!ix.ibge) throw e; }
+  if (ix.ibge) { try { const b = await ibgeMensal(ix, 'last ' + n); if (b.length && (!a || !a.length || b[b.length - 1].data > a[a.length - 1].data)) { a = b; fonte = 'IBGE'; } } catch (e) { if (!a) throw e; } }
+  return { a, fonte };
+}
 async function buscarIndices() {
   const out = await Promise.all(INDICES.map(async ix => {
     try {
       if (ix.taxa) { const a = await sgs(ix.sgs, 1); return { ...ix, ref: a[0]?.data, valor: a[0]?.valor }; }
-      const a = await sgs(ix.sgs, 12); const ult = a[a.length - 1];
+      const { a, fonte } = await serieMensal(ix, 12); const ult = a[a.length - 1];
       let ac12 = a.length === 12 ? (a.reduce((f, x) => f * (1 + x.valor / 100), 1) - 1) * 100 : null;
-      if (ix.sgs12) { try { const b = await sgs(ix.sgs12, 1); ac12 = b[0]?.valor ?? ac12; } catch { } }
+      if (ix.sgs12 && fonte === 'Banco Central') { try { const b = await sgs(ix.sgs12, 1); if (b[0]?.data?.slice(0, 7) === ult.data.slice(0, 7)) ac12 = b[0].valor ?? ac12; } catch { } }
       const ano = String(ult.data).slice(0, 4); const noAno = a.filter(x => x.data.startsWith(ano)); const acAno = (noAno.reduce((f, x) => f * (1 + x.valor / 100), 1) - 1) * 100;
-      return { ...ix, ref: ult.data, valor: ult.valor, ac12: ac12 == null ? null : +ac12.toFixed(2), acAno: +acAno.toFixed(2), serie: a.map(x => x.valor) };
+      return { ...ix, fonte, ref: ult.data, valor: ult.valor, ac12: ac12 == null ? null : +ac12.toFixed(2), acAno: +acAno.toFixed(2), serie: a.map(x => x.valor) };
     } catch (e) { return { ...ix, erro: true }; }
   }));
   return out;
@@ -775,11 +786,14 @@ async function rotas(req, res, url, p, ip) {
       if (Date.now() - cacheIndice[ck].em > 6 * 3600e3) {
         const [ya, ma] = ate.split('-').map(Number); const fim = new Date(Date.UTC(ya, ma, 0)).getUTCDate();
         const r = await httpsJSON(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${ix.sgs}/dados?formato=json&dataInicial=01/${de.slice(5)}/${de.slice(0, 4)}&dataFinal=${fim}/${ate.slice(5)}/${ate.slice(0, 4)}`, { headers: { 'User-Agent': 'TRAXUP-Imobiliario/1.0' } }).catch(() => null);
-        if (!r || r.status !== 200 || !Array.isArray(r.json)) return send(res, 502, { error: 'Não foi possível consultar o Banco Central agora. Tente de novo ou use um percentual.' });
-        const meses = r.json.map(x => ({ mes: x.data.split('/').reverse().join('-').slice(0, 7), valor: numBR(x.valor) }));
+        let meses = r && r.status === 200 && Array.isArray(r.json) ? r.json.map(x => ({ mes: x.data.split('/').reverse().join('-').slice(0, 7), valor: numBR(x.valor) })) : null, fonte = 'Banco Central';
         const pedidos = []; for (let d = new Date(de + '-01T00:00:00Z'); d.toISOString().slice(0, 7) <= ate; d.setUTCMonth(d.getUTCMonth() + 1)) pedidos.push(d.toISOString().slice(0, 7));
+        if (ix.ibge && (!meses || pedidos.some(m => !meses.some(x => x.mes === m)))) { // reserva no IBGE
+          try { const b = (await ibgeMensal(ix, de.replace('-', '') + '-' + ate.replace('-', ''))).map(x => ({ mes: x.data.slice(0, 7), valor: x.valor })); if (b.length > (meses?.length || 0)) { meses = b; fonte = 'IBGE'; } } catch (e) { console.error('[ibge]', e.message); }
+        }
+        if (!meses) return send(res, 502, { error: 'Não foi possível consultar o Banco Central nem o IBGE agora. Tente de novo ou use um percentual.' });
         const acumulado = (meses.reduce((f, x) => f * (1 + x.valor / 100), 1) - 1) * 100;
-        cacheIndice[ck] = { em: Date.now(), dados: { id: ix.id, nome: ix.nome, de, ate, acumulado: +acumulado.toFixed(6), meses, faltando: pedidos.filter(m => !meses.some(x => x.mes === m)) } };
+        cacheIndice[ck] = { em: Date.now(), dados: { id: ix.id, nome: ix.nome, fonte, de, ate, acumulado: +acumulado.toFixed(6), meses, faltando: pedidos.filter(m => !meses.some(x => x.mes === m)) } };
       }
       return send(res, 200, cacheIndice[ck].dados);
     }

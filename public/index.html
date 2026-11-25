@@ -1680,7 +1680,7 @@ function cardMercadoResumo(destaque = MERC.destaque || '') {
 function quotesHTML(d) {
   return [...(d.moedas || []).map(m => ({ nome: m.nome, val: m.id === 'BTCBRL' ? brl(Math.round(m.venda * 100)) : 'R$ ' + num(m.venda, 4), var: m.varPct, sub: m.max != null ? `Compra ${m.id === 'BTCBRL' ? num(m.compra, 0) : num(m.compra, 4)} · máx ${num(m.max, m.id === 'BTCBRL' ? 0 : 4)}` : (m.fonte || ''), ic: m.id === 'BTCBRL' ? '₿' : m.id === 'EURBRL' ? '€' : m.id === 'GBPBRL' ? '£' : 'US$' })), ...(d.bolsa || []).map(b => ({ nome: b.nome, val: num(b.pontos, b.id === '^GSPC' ? 2 : 0) + ' pts', var: b.varPct, sub: 'Último mês', ic: '📈', serie: b.serie }))].map(q => `<div class="mQ"><div class="mQh"><span class="mQi">${q.ic}</span><span>${esc(q.nome)}</span><b class="${q.var > 0 ? 'up' : q.var < 0 ? 'down' : ''}">${pct(q.var)}</b></div><strong>${q.val}</strong>${q.serie ? spark(q.serie, q.var >= 0 ? '#16A34A' : '#E5484D') : `<small>${esc(q.sub)}</small>`}</div>`).join('');
 }
-VIEWS.mercado = () => `${cardMercado()}<p class="hint" style="margin-top:4px">Cotações: AwesomeAPI e Yahoo Finance, atualizadas a cada 10 minutos. Índices: Banco Central do Brasil (SGS), atualizados a cada 6 horas. Valores informativos; para reajustes oficiais, confira a publicação do IBGE/FGV do mês.</p>`;
+VIEWS.mercado = () => `${cardMercado()}<p class="hint" style="margin-top:4px">Cotações: AwesomeAPI e Yahoo Finance, atualizadas a cada 10 minutos. Índices: Banco Central do Brasil (SGS), com reserva no IBGE para IPCA e INPC, atualizados a cada 6 horas. Valores informativos; para reajustes oficiais, confira a publicação do IBGE/FGV do mês.</p>`;
 function cardMercado() {
   if (Store.mode !== 'server' && Store.mode !== 'portal') return '';
   if (!MERC.dados && !MERC.carregando && !MERC.erro) setTimeout(() => carregarMercado(), 0);
@@ -1688,7 +1688,7 @@ function cardMercado() {
   const d = MERC.dados;
   const corpo = !d ? `<div class="mVazio">${MERC.erro ? esc(MERC.erro) : 'Buscando cotações e índices…'}</div>` : `
   <div class="mQuotes">${quotesHTML(d) || '<div class="mVazio">Cotações indisponíveis no momento.</div>'}</div>
-  <div class="mIdxHead"><h3>Índices de reajuste e juros</h3><small>Fonte: Banco Central do Brasil (SGS)</small></div>
+  <div class="mIdxHead"><h3>Índices de reajuste e juros</h3><small>Fonte: Banco Central do Brasil (SGS)${(d.indices || []).some(i => i.fonte === 'IBGE') ? ` · ${(d.indices || []).filter(i => i.fonte === 'IBGE').map(i => esc(i.nome)).join(' e ')} direto do IBGE` : ''}</small></div>
   <div class="tableWrap"><table class="mIdx"><thead><tr><th>Índice</th><th>Referência</th><th class="num">Último</th><th class="num">No ano</th><th class="num">12 meses</th><th>Tendência</th><th>Para que serve</th></tr></thead><tbody>${(d.indices || []).map(x => x.erro ? `<tr><td><b>${esc(x.nome)}</b></td><td colspan="6" class="muted">indisponível no momento</td></tr>` : `<tr><td><b>${esc(x.nome)}</b></td><td>${x.taxa === 'dia' || x.taxa === 'aa' ? dataBR(x.ref) : mesAno(x.ref)}</td><td class="num"><b>${x.taxa === 'aa' ? num(x.valor) + '% a.a.' : x.taxa === 'dia' || x.taxa === 'mes' ? num(x.valor, 4) + '%' : pct(x.valor)}</b></td><td class="num">${x.acAno == null ? '—' : pct(x.acAno)}</td><td class="num">${x.ac12 == null ? '—' : `<span class="mAc">${pct(x.ac12)}</span>`}</td><td>${x.serie ? spark(x.serie, '#2F6BF0') : ''}</td><td class="mDesc">${esc(x.desc)}</td></tr>`).join('')}</tbody></table></div>`;
   return `<div class="card" id="mercadoCard"><div class="cardHead"><div><h2>Mercado e índices</h2><p>Câmbio, bolsa e os índices usados para corrigir parcelas e boletos</p></div><div class="mAcoes">${d ? `<small class="muted">Cotações de ${new Date(d.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>` : ''}<button class="sm" data-act="mercadoAtualizar" ${MERC.carregando ? 'disabled' : ''}>${ic('refresh')}${MERC.carregando ? 'Atualizando…' : 'Atualizar'}</button></div></div><div class="cardBody">${corpo}</div></div>`;
 }
@@ -2786,7 +2786,7 @@ function rjFator() {
   if (c.modo === 'valor') { const n = toCents(c.novo); return n > 0 ? { ok: true, novo: n } : { ok: false, msg: 'Informe o novo valor.' }; }
   const k = `${c.indice}|${c.ide}|${c.iate}`;
   if (RJ.idxKey !== k) { RJ.idxKey = k; RJ.idx = null; RJ.idxErro = ''; rjBuscarIndice(); }
-  if (RJ.idxErro) return { ok: false, msg: RJ.idxErro }; if (!RJ.idx) return { ok: false, msg: 'Consultando o índice no Banco Central…' };
+  if (RJ.idxErro) return { ok: false, msg: RJ.idxErro }; if (!RJ.idx) return { ok: false, msg: 'Consultando o índice no Banco Central (reserva: IBGE)…' };
   const taxa = parseFloat(String(c.taxaAno || '0').replace(',', '.')) || 0;
   return { ok: true, partes: [[`Acréscimo referente ao ${RJ.idx.nome} de ${pct6(RJ.idx.acumulado)}`, RJ.idx.acumulado], ...(taxa ? [[`Acréscimo referente aos ${String(c.taxaAno).replace('.', ',')}% ao ano`, taxa]] : [])], txt: `${RJ.idx.nome} acumulado: ${pct6(RJ.idx.acumulado)}${taxa ? ` + ${String(c.taxaAno).replace('.', ',')}% ao ano` : ''}` };
 }
@@ -3075,7 +3075,7 @@ const DICAS = {
   'Comissões por empresa': { o: 'Comissões de cada empresa divididas em pagas, a pagar e suspensas.', c: 'Comissão suspensa é a de venda com cliente em atraso ou distrato.' },
   'Clientes com maiores valores vencidos': { o: 'Os clientes com os maiores saldos vencidos, atrasados e inadimplentes.', c: 'Bom ponto de partida para a cobrança. Clique no cliente para ver a venda.' },
   'Vencem nos próximos 7 dias': { o: 'Parcelas que vencem na próxima semana, com cliente e valor.', c: 'Use para avisar o cliente antes do vencimento.' },
-  'Mercado e índices': { o: 'Dólar, euro, bolsa e os índices de reajuste (IPCA, IGP-M, INCC, Selic).', c: 'Os índices vêm do Banco Central e são usados no reajuste das parcelas.' }
+  'Mercado e índices': { o: 'Dólar, euro, bolsa e os índices de reajuste (IPCA, IGP-M, INCC, Selic).', c: 'Os índices vêm do Banco Central (IPCA e INPC com reserva no IBGE) e são usados no reajuste das parcelas.' }
 };
 const dicaTitulo = k => ((k.classList.contains('kpi') ? k.querySelector(':scope > span') : k.classList.contains('atCard') ? k.querySelector('.atHead b') : k.querySelector(':scope > .cardHead h2'))?.textContent || '').trim();
 function marcarDicas() {
