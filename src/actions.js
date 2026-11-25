@@ -71,6 +71,11 @@ const ACT = {
   restoMensal: () => { const f = $('[data-form=venda]'); const v = fd(f); f.mTotal.value = centsIn(toCents(v.valor) - toCents(v.eTotal) - toCents(v.iTotal)); formVenda.upd(); },
   distrato: el => formDistrato(el.dataset.id),
   anexoDistrato: el => formAnexoDistrato(el.dataset.id),
+  desfazerDistrato: el => formDesfazerDistrato(el.dataset.id),
+  devBaixa: el => formDevBaixa(el.dataset.id, +el.dataset.k),
+  devProgramar: el => formDevProgramar(el.dataset.id),
+  devDelPag: el => { const v = Store.get('vendas', el.dataset.id), p = v.distrato.devolucaoParcelas?.find(x => x.k === +el.dataset.k), q = p?.pagamentos?.[+el.dataset.i]; if (!q) return;
+    confirmar(`Excluir o pagamento de devolução de <b>${brl(q.valor)}</b> em ${dataBR(q.data)}?`, async () => { p.pagamentos.splice(+el.dataset.i, 1); hist(v, `Pagamento de devolução excluído: ${brl(q.valor)} de ${dataBR(q.data)}`); await Store.put('vendas', v); await audit('Excluiu pagamento de devolução de ' + v.numero); toast('Pagamento excluído.'); renderView(); formDevProgramar(v.id); }, 'Excluir'); },
   verTermoDistrato: el => { const v = Store.get('vendas', el.dataset.id), a = v?.distrato?.termoAnexo; if (!a) return; abrirPdfAssinado(`api/cessao/termo?vendaId=${encodeURIComponent(v.id)}&arquivo=${encodeURIComponent(a.arquivo)}`, Store.authH()); },
   termoDistrato: async el => { const v = Store.get('vendas', el.dataset.id); if (!v.distrato) return formDistrato(v.id); await garantirDistratos(); const m = modeloDistratoDa(v); if (!m) return toast('Nenhum modelo de termo de distrato.', true); previewContrato(v.id, m.id); },
   modTipo: el => { S.f.modTipo = el.dataset.v; S.f.mod = null; S.f.modVenda = null; renderView(); },
@@ -334,7 +339,11 @@ const FORMS = {
     if (modo !== 'acordo' && (d.multaPct > 10 || d.fruicaoPct > 0.75) && !FORMS.distrato.ok) { FORMS.distrato.ok = true; throw Error('Cláusula penal acima de 10% ou fruição acima de 0,75% ao mês passam do limite da Lei 6.766/1979 (art. 32-A). Clique de novo para manter.'); }
     FORMS.distrato.ok = false;
     const jaFeito = v.status === 'Distratado'; const calc = v.distrato && jaFeito ? { ...calcDistrato(v, d), parcelasAbertas: v.distrato.parcelasAbertas, saldoCancelado: v.distrato.saldoCancelado } : calcDistrato(v, d);
-    const anexoAntes = v.distrato?.termoAnexo; v.distrato = { ...d, ...calc, ...(anexoAntes ? { termoAnexo: anexoAntes } : {}), registradoEm: new Date().toISOString(), registradoPor: S.user.nome };
+    const antesDist = v.distrato; const anexoAntes = antesDist?.termoAnexo; v.distrato = { ...d, ...calc, ...(anexoAntes ? { termoAnexo: anexoAntes } : {}), registradoEm: new Date().toISOString(), registradoPor: S.user.nome };
+    const devJaPaga = (antesDist?.devolucaoParcelas || []).some(p => (p.pagamentos || []).length);
+    if (devJaPaga && antesDist.devolucao === calc.devolucao) v.distrato.devolucaoParcelas = antesDist.devolucaoParcelas;
+    else if (devJaPaga) throw Error('Já há pagamento de devolução registrado com outro valor. Exclua os pagamentos em Devoluções de distrato antes de mudar o cálculo.');
+    else if (calc.devolucao > 0) { if (!x.devVenc) throw Error('Informe o 1º vencimento da devolução ao cliente.'); v.distrato.devolucaoParcelas = gerarDevParcelas(calc.devolucao, +x.devN || 1, x.devVenc); }
     const arq = f.querySelector('[name=termoArq]')?.files?.[0]; if (arq) await enviarTermoDistrato(v, arq);
     if (!jaFeito) { v.status = 'Distratado'; hist(v, `Venda distratada em ${dataBR(d.data)} (${d.motivo}). Restituição ${brl(calc.devolucao)}`); } else hist(v, 'Dados do termo de distrato atualizados');
     await Store.put('vendas', v);
@@ -403,6 +412,26 @@ const FORMS = {
   },
   async comNParc(x, f) { const v = Store.get('vendas', f.dataset.id), n = Math.max(1, Math.min(60, parseInt(x.n, 10) || 1)); const antes = comNumParc(v); v.comissaoParcelas = n; hist(v, `Parcelamento da comissão: ${antes}x → ${n}x`); await Store.put('vendas', v); toast('Parcelamento atualizado.'); renderView(); formComissao(v.id); },
   async anexoDistrato(x, f) { const v = Store.get('vendas', f.dataset.id); const arq = f.querySelector('[name=termoArq]').files[0]; if (!arq) throw Error('Escolha o arquivo do termo.'); await enviarTermoDistrato(v, arq); await Store.put('vendas', v); await audit('Anexou termo de distrato assinado de ' + v.numero); toast('Termo anexado.'); renderView(); formAnexoDistrato(v.id); },
+  async devBaixa(x, f) {
+    const v = Store.get('vendas', f.dataset.id), k = +f.dataset.k; const valor = toCents(x.valor); if (!(valor > 0)) throw Error('Informe o valor pago.');
+    if (!v.distrato.devolucaoParcelas?.length) v.distrato.devolucaoParcelas = gerarDevParcelas(v.distrato.devolucao, 1, v.distrato.data);
+    const p = v.distrato.devolucaoParcelas.find(q => q.k === k); const saldo = p.valor - soma(p.pagamentos || [], q => q.valor); if (valor > saldo) throw Error(`O valor passa do saldo da parcela (${brl(saldo)}).`);
+    (p.pagamentos ||= []).push({ valor, data: x.data, obs: x.obs.trim(), usuario: S.user.nome }); hist(v, `Devolução ao cliente paga: ${brl(valor)} (parcela ${k}/${v.distrato.devolucaoParcelas.length})`);
+    await Store.put('vendas', v); await audit(`Registrou devolução de distrato de ${brl(valor)} (${v.numero})`); closeModal(); toast('Pagamento registrado.'); renderView();
+  },
+  async devProgramar(x, f) {
+    const v = Store.get('vendas', f.dataset.id); if ((v.distrato.devolucaoParcelas || []).some(p => (p.pagamentos || []).length)) throw Error('Exclua os pagamentos antes de mudar o parcelamento.');
+    v.distrato.devolucaoParcelas = gerarDevParcelas(v.distrato.devolucao, +x.devN || 1, x.devVenc); hist(v, `Devolução programada em ${x.devN}x a partir de ${dataBR(x.devVenc)}`); await Store.put('vendas', v); toast('Devolução programada.'); renderView(); formDevProgramar(v.id);
+  },
+  async desfazerDistrato(x, f) {
+    if (!['Administrador', 'Gerente'].includes(S.user.perfil)) throw Error('Só administrador ou gerente pode desfazer distrato.'); if (x.conf.trim().toUpperCase() !== 'DESFAZER') throw Error('Digite DESFAZER para confirmar.');
+    const v = Store.get('vendas', f.dataset.id), d = v.distrato; const l = Store.get('lotes', v.loteId);
+    if (l && Store.list('vendas').some(o => o.id !== v.id && o.loteId === l.id && vendaAtiva(o))) throw Error('O lote já foi vendido de novo.');
+    if ((d.devolucaoParcelas || []).some(p => (p.pagamentos || []).length)) throw Error('Exclua os pagamentos de devolução antes.');
+    (v.distratosDesfeitos ||= []).push({ ...d, desfeitoEm: new Date().toISOString(), desfeitoPor: S.user.nome, motivoDesfazer: x.motivo.trim() });
+    delete v.distrato; v.status = 'Ativo'; hist(v, `Distrato de ${dataBR(d.data)} desfeito: ${x.motivo.trim()}`); await Store.put('vendas', v);
+    if (l) { l.status = 'Vendido'; await Store.put('lotes', l); } await audit(`Desfez o distrato de ${v.numero} (${x.motivo.trim()})`); closeModal(); toast('Distrato desfeito. Contrato ativo de novo.'); renderView();
+  },
   async excluirVenda(x, f) {
     if (S.user.perfil !== 'Administrador') throw Error('Só o administrador pode excluir vendas.'); if (x.conf.trim().toUpperCase() !== 'EXCLUIR') throw Error('Digite EXCLUIR para confirmar.');
     const v = Store.get('vendas', f.dataset.id); if (!v) throw Error('Venda não encontrada.'); const nome = cliNome(v.clienteId);
