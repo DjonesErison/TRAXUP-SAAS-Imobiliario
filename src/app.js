@@ -1518,7 +1518,7 @@ function rjCalcular() {
   const multa = parseFloat(String(c.multa).replace(',', '.')) || 0, juros = parseFloat(String(c.juros).replace(',', '.')) || 0;
   const itens = sel.map(({ v, p }) => {
     const antes = { valor: p.valor, venc: p.venc, juros: p.juros || 0, multa: p.multa || 0 }; const d = { ...antes };
-    let acr = []; if (c.valOn && fx.ok) { if (fx.novo != null) d.valor = fx.novo; else { acr = fx.partes.map(([t, x]) => [t, Math.round(p.valor * x / 100)]); d.valor = p.valor + soma(acr, a => a[1]); } }
+    let acr = []; if (c.valOn && fx.ok) { if (fx.novo != null) d.valor = fx.novo; else { acr = fx.partes.map(([t, x]) => [t, Math.round(p.valor * x / 100)]); d.valor = p.valor + Math.round(p.valor * soma(fx.partes, q => q[1]) / 100); } }
     if (c.vencOn) {
       if (c.vmodo === 'dia') { const dia = Math.min(31, Math.max(1, +c.dia || 1)); const [y, m] = p.venc.split('-'); const ult = new Date(Date.UTC(+y, +m, 0)).getUTCDate(); d.venc = `${y}-${m}-${String(Math.min(dia, ult)).padStart(2, '0')}`; }
       else { const n = +c.adiar || 0; d.venc = c.unid === 'meses' ? addMeses(p.venc, n) : new Date(Date.parse(p.venc) + n * 864e5).toISOString().slice(0, 10); }
