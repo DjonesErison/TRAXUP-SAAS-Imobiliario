@@ -834,6 +834,12 @@ async function rotas(req, res, url, p, ip) {
       if (req.method === 'PUT') {
         const o = await readJSON(req); if (!o || typeof o !== 'object' || Array.isArray(o)) return send(res, 400, { error: 'Registro inválido.' }); o.id = id;
         if (col === 'usuarios') { const old = db.usuarios[id]; if (!o.hash && old) { o.salt = old.salt; o.hash = old.hash; } if (!o.hash) return send(res, 400, { error: 'Defina uma senha para o novo usuário.' }); if (id === user.id && o.perfil !== 'Administrador') return send(res, 400, { error: 'Você não pode rebaixar o próprio perfil.' }); }
+        // trava contra tela desatualizada: só grava se o registro no servidor ainda for a versão que a tela carregou
+        const exist = db[col][id], base = req.headers['x-base-versao'];
+        if (exist && (base === undefined || String(base) !== String(exist.atualizadoEm || ''))) {
+          const quem = exist.historico?.at?.(-1)?.usuario; const nomes = { vendas: 'Esta venda', clientes: 'Este cliente', lotes: 'Este lote', boletos: 'Este boleto' };
+          return send(res, 409, { error: base === undefined ? 'O sistema foi atualizado. Recarregue a página (Ctrl+F5) e refaça a alteração.' : `${nomes[col] || 'Este registro'} foi alterad${col === 'vendas' || col === 'notificacoes' || col === 'solicitacoes' ? 'a' : 'o'} por outro usuário${quem ? ' (' + quem + ')' : ''} depois que você abriu a tela. Nada foi gravado: os dados foram atualizados, confira e refaça a alteração.`, atual: col === 'usuarios' ? semSegredo(exist) : exist });
+        }
         if (col === 'vendas') codigoDaVenda(o);
         db[col][id] = o; persist(); return send(res, 200, { ok: true, ...(col === 'vendas' ? { codigo: o.codigo } : {}) });
       }

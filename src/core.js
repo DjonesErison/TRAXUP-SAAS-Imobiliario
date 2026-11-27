@@ -86,14 +86,19 @@ const Store = {
   saveLocal() { try { localStorage.setItem('traxup_imob_v1', JSON.stringify(this.data)); } catch (e) { toast('Não foi possível gravar no navegador (espaço cheio?).', true); } },
   async put(c, o) {
     if (this.mode === 'portal') throw Error('Painel somente para consulta.');
-    o = JSON.parse(JSON.stringify(o)); if (!o.id) o.id = uid(); o.atualizadoEm = new Date().toISOString();
+    o = JSON.parse(JSON.stringify(o)); if (!o.id) o.id = uid(); const base = this.data[c]?.[o.id]?.atualizadoEm || ''; o.atualizadoEm = new Date().toISOString(); // base: versão que esta tela tinha; o servidor recusa se outro usuário gravou depois
     if (c === 'vendas') { const old = this.data.vendas?.[o.id]; if (old?.codigo) o.codigo = old.codigo; else if (!o.codigo && this.mode !== 'server') o.codigo = String(Math.max(0, ...Object.values(this.data.vendas || {}).map(v => +v.codigo || 0)) + 1); } // no servidor, o código vem na resposta
     (this.data[c] ||= {})[o.id] = o;
     const key = c + '/' + o.id; const prev = this.queue[key] || Promise.resolve();
-    const job = prev.catch(() => { }).then(() => this._write(c, o)); this.queue[key] = job; await job; return o;
+    const job = prev.catch(() => { }).then(() => this._write(c, o, base)); this.queue[key] = job; await job; return o;
   },
-  async _write(c, o) {
-    if (this.mode === 'server') { const r = await fetch(`api/data/${c}/${encodeURIComponent(o.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...this.authH() }, body: JSON.stringify(o) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'O servidor recusou a gravação.'); if (j.codigo) o.codigo = j.codigo; return; }
+  async _write(c, o, base = '') {
+    if (this.mode === 'server') { const r = await fetch(`api/data/${c}/${encodeURIComponent(o.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Base-Versao': base, ...this.authH() }, body: JSON.stringify(o) }); const j = await r.json().catch(() => ({}));
+      if (r.status === 409) { // outro usuário alterou o registro depois que esta tela carregou: descarta a versão local e mostra a atual
+        if (j.atual) this.data[c][o.id] = j.atual; else delete this.data[c][o.id];
+        setTimeout(() => { try { closeModal(); render(); } catch (e) { } }, 0);
+        throw Error(j.error || 'Registro alterado por outro usuário. Recarregue a página.'); }
+      if (!r.ok) throw Error(j.error || 'O servidor recusou a gravação.'); if (j.codigo) o.codigo = j.codigo; return; }
     if (this.mode === 'db') { try { await this.db.collection(c).doc(o.id).set(o); } catch (e) { throw Error(e && e.code === 'quota_exceeded' ? 'A base atingiu o limite de armazenamento.' : e && e.code === 'invalid_argument' ? 'Sem permissão de gravação ou registro grande demais.' : 'Falha ao gravar: ' + (e && e.message || e)); } return; }
     this.saveLocal();
   },
